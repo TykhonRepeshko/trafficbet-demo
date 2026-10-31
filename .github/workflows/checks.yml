@@ -20,7 +20,7 @@ jobs:
           POSTGRES_DB: trafficbet_tests
         ports: ['5432:5432']
         options: >-
-          --health-cmd 'pg_isready -U trafficbet -d trafficbet_tests'
+          --health-cmd "pg_isready -h 127.0.0.1 -U trafficbet -d trafficbet_tests"
           --health-interval 5s --health-timeout 5s --health-retries 12
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -65,7 +65,7 @@ jobs:
         run: |
           docker compose -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from tests
       - name: Remove isolated test containers
-        if: always()
+        if: ${{ always() && hashFiles('docker-compose.test.yml') != '' }}
         env:
           POSTGRES_PASSWORD: isolated-container-ci-only-password
         run: docker compose -f docker-compose.test.yml down --volumes
