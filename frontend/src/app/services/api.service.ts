@@ -2,7 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { RoundScheduleSettings, RoundScheduleSnapshot } from '../models';
+import { RangeQuote, RoundScheduleSettings, RoundScheduleSnapshot } from '../models';
 import { AuditItem, CountingDefinition, CountingPreparation, CountingProfile, CountingReference, CursorPage, ReviewDetail, ReviewQueueItem, RoundReview, SourceHealth } from '../models';
 import { Bet, BetSide, BetStatus, CreditLedgerEntry, Market, MarketPayload, SettlementVerification, StakeBetPage, StakeVolumeSnapshot, StreamMetric, StreamPayload, TrafficStream, User, UserPage } from '../models';
 
@@ -37,6 +37,12 @@ export class ApiService {
   listMetrics(id: number): Observable<StreamMetric[]> { return this.http.get<StreamMetric[]>(`${this.base}/streams/${id}/metrics`, this.credentials); }
   createBet(marketId: number, side: BetSide, stakeCredits: number, idempotencyKey: string): Observable<{ bet: Bet; user: User }> {
     return this.http.post<{ bet: Bet; user: User }>(`${this.base}/bets`, { marketId, side, stakeCredits }, { ...this.credentials, headers: { 'Idempotency-Key': idempotencyKey } });
+  }
+  quoteRange(marketId: number, from: number, to: number): Observable<RangeQuote> {
+    return this.http.get<RangeQuote>(`${this.base}/bets/range-quote`, { ...this.credentials, params: new HttpParams().set('marketId', marketId).set('from', from).set('to', to) });
+  }
+  createRangeBet(quote: RangeQuote, stakeCredits: number, idempotencyKey: string): Observable<{ bet: Bet; user: User }> {
+    return this.http.post<{ bet: Bet; user: User }>(`${this.base}/bets`, { marketId: quote.marketId, side: 'range', rangeMin: quote.rangeMin, rangeMax: quote.rangeMax, quotedOdds: quote.odds, pricingModel: quote.pricingModel, stakeCredits }, { ...this.credentials, headers: { 'Idempotency-Key': idempotencyKey } });
   }
   myBets(): Observable<Bet[]> { return this.http.get<Bet[]>(`${this.base}/bets/my`, this.credentials); }
   adminStreams(): Observable<TrafficStream[]> { return this.http.get<TrafficStream[]>(`${this.base}/admin/streams`, this.credentials); }

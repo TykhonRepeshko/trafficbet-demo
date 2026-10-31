@@ -396,8 +396,15 @@ func (s *Store) CreateMarket(ctx context.Context, market Market) (Market, error)
 }
 
 func (s *Store) PlaceBet(ctx context.Context, userID int64, marketID int64, side string, stakeCredits int64, idempotencyKey string) (Bet, User, error) {
+	return s.placePrediction(ctx, userID, marketID, side, stakeCredits, idempotencyKey, nil)
+}
+
+func (s *Store) placePrediction(ctx context.Context, userID int64, marketID int64, side string, stakeCredits int64, idempotencyKey string, quote *RangeQuote) (Bet, User, error) {
 	if !validBetSide(side) || stakeCredits < 1 || stakeCredits > maxStakeCredits || !validIdempotencyKey(idempotencyKey) {
 		return Bet{}, User{}, fmt.Errorf("%w: side, stake or idempotency key is invalid", ErrInvalid)
+	}
+	if (side == BetSideRange) != (quote != nil) || (quote != nil && (quote.MarketID != marketID || !validCountRange(quote.RangeMin, quote.RangeMax) || !validOdds(quote.Odds) || quote.PricingModel != rangePricingModel)) {
+		return Bet{}, User{}, fmt.Errorf("%w: valid range and demo odds are required", ErrInvalid)
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -450,9 +457,9 @@ func (s *Store) PlaceBet(ctx context.Context, userID int64, marketID int64, side
 		return Bet{}, User{}, err
 	}
 	var existing Bet
-	err = tx.QueryRow(ctx, `SELECT id,user_id,market_id,side,stake_credits,potential_payout_credits,status,created_at,settled_at FROM bets WHERE user_id=$1 AND idempotency_key=$2`, userID, idempotencyKey).Scan(&existing.ID, &existing.UserID, &existing.MarketID, &existing.Side, &existing.StakeCredits, &existing.PotentialPayoutCredits, &existing.Status, &existing.CreatedAt, &existing.SettledAt)
+	err = tx.QueryRow(ctx, `SELECT id,user_id,market_id,side,stake_credits,potential_payout_credits,status,created_at,settled_at,range_min,range_max,range_odds,pricing_model FROM bets WHERE user_id=$1 AND idempotency_key=$2`, userID, idempotencyKey).Scan(&existing.ID, &existing.UserID, &existing.MarketID, &existing.Side, &existing.StakeCredits, &existing.PotentialPayoutCredits, &existing.Status, &existing.CreatedAt, &existing.SettledAt, &existing.RangeMin, &existing.RangeMax, &existing.RangeOdds, &existing.PricingModel)
 	if err == nil {
-		if existing.MarketID != marketID || existing.Side != side || existing.StakeCredits != stakeCredits {
+		if existing.MarketID != marketID || existing.Side != side || existing.StakeCredits != stakeCredits || (quote != nil && (existing.RangeMin == nil || existing.RangeMax == nil || existing.RangeOdds == nil || existing.PricingModel == nil || *existing.RangeMin != quote.RangeMin || *existing.RangeMax != quote.RangeMax || *existing.RangeOdds != quote.Odds || *existing.PricingModel != quote.PricingModel)) {
 			return Bet{}, User{}, fmt.Errorf("%w: idempotency key was already used for a different bet", ErrConflict)
 		}
 		return existing, user, tx.Commit(ctx)
@@ -474,6 +481,23 @@ func (s *Store) PlaceBet(ctx context.Context, userID int64, marketID int64, side
 	if side == BetSideOver {
 		odds = market.OddsOver
 	}
+	var rangeMin, rangeMax *int
+	var rangeOdds *float64
+	var pricingModel *string
+	if quote != nil {
+		current, err := quoteCountRange(market, quote.RangeMin, quote.RangeMax)
+		if err != nil {
+			return Bet{}, User{}, err
+		}
+		if current.Odds != quote.Odds || current.PricingModel != quote.PricingModel {
+			return Bet{}, User{}, fmt.Errorf("%w: demo odds changed; review the updated quote before placing", ErrConflict)
+		}
+		odds = current.Odds
+		rangeMin = &quote.RangeMin
+		rangeMax = &quote.RangeMax
+		rangeOdds = &current.Odds
+		pricingModel = &current.PricingModel
+	}
 	payout, err := payoutCredits(stakeCredits, odds)
 	if err != nil {
 		return Bet{}, User{}, err
@@ -481,12 +505,12 @@ func (s *Store) PlaceBet(ctx context.Context, userID int64, marketID int64, side
 
 	var bet Bet
 	err = tx.QueryRow(ctx, `
-		INSERT INTO bets (user_id, market_id, side, stake_credits, potential_payout_credits, status, idempotency_key)
-		VALUES ($1, $2, $3, $4, $5, 'pending', $6)
-		RETURNING id, user_id, market_id, side, stake_credits, potential_payout_credits, status, created_at, settled_at
-	`, user.ID, market.ID, side, stakeCredits, payout, idempotencyKey).Scan(
+		INSERT INTO bets (user_id, market_id, side, stake_credits, potential_payout_credits, status, idempotency_key,range_min,range_max,range_odds,pricing_model)
+		VALUES ($1, $2, $3, $4, $5, 'pending', $6,$7,$8,$9,$10)
+		RETURNING id, user_id, market_id, side, stake_credits, potential_payout_credits, status, created_at, settled_at,range_min,range_max,range_odds,pricing_model
+	`, user.ID, market.ID, side, stakeCredits, payout, idempotencyKey, rangeMin, rangeMax, rangeOdds, pricingModel).Scan(
 		&bet.ID, &bet.UserID, &bet.MarketID, &bet.Side, &bet.StakeCredits,
-		&bet.PotentialPayoutCredits, &bet.Status, &bet.CreatedAt, &bet.SettledAt,
+		&bet.PotentialPayoutCredits, &bet.Status, &bet.CreatedAt, &bet.SettledAt, &bet.RangeMin, &bet.RangeMax, &bet.RangeOdds, &bet.PricingModel,
 	)
 	if err != nil {
 		return Bet{}, User{}, err
@@ -499,7 +523,7 @@ func (s *Store) PlaceBet(ctx context.Context, userID int64, marketID int64, side
 	if _, err := tx.Exec(ctx, `INSERT INTO credit_ledger(user_id,bet_id,market_id,reason,delta_credits,balance_after) VALUES ($1,$2,$3,'stake',$4,$5)`, user.ID, bet.ID, market.ID, -stakeCredits, user.BalanceCredits); err != nil {
 		return Bet{}, User{}, err
 	}
-	if err := auditTx(ctx, tx, "bet.placed", "bet", bet.ID, map[string]any{"marketId": market.ID, "stakeCredits": stakeCredits, "side": side}); err != nil {
+	if err := auditTx(ctx, tx, "bet.placed", "bet", bet.ID, map[string]any{"marketId": market.ID, "stakeCredits": stakeCredits, "side": side, "rangeMin": rangeMin, "rangeMax": rangeMax, "rangeOdds": rangeOdds, "pricingModel": pricingModel}); err != nil {
 		return Bet{}, User{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -546,7 +570,7 @@ func (s *Store) SettleMarket(ctx context.Context, marketID int64, actualCount in
 	}
 
 	rows, err := tx.Query(ctx, `
-		SELECT id, user_id, side, potential_payout_credits
+		SELECT id, user_id, side, potential_payout_credits,range_min,range_max
 		FROM bets
 		WHERE market_id = $1 AND status = 'pending'
 		ORDER BY user_id, id
@@ -557,15 +581,17 @@ func (s *Store) SettleMarket(ctx context.Context, marketID int64, actualCount in
 	}
 
 	type pendingBet struct {
-		id     int64
-		userID int64
-		side   string
-		payout int64
+		id       int64
+		userID   int64
+		side     string
+		payout   int64
+		rangeMin *int
+		rangeMax *int
 	}
 	pending := []pendingBet{}
 	for rows.Next() {
 		var bet pendingBet
-		if err := rows.Scan(&bet.id, &bet.userID, &bet.side, &bet.payout); err != nil {
+		if err := rows.Scan(&bet.id, &bet.userID, &bet.side, &bet.payout, &bet.rangeMin, &bet.rangeMax); err != nil {
 			rows.Close()
 			return Market{}, err
 		}
@@ -580,6 +606,9 @@ func (s *Store) SettleMarket(ctx context.Context, marketID int64, actualCount in
 	for _, bet := range pending {
 		won := (bet.side == BetSideOver && actualCount > market.Threshold) ||
 			(bet.side == BetSideUnder && actualCount <= market.Threshold)
+		if bet.side == BetSideRange && bet.rangeMin != nil && bet.rangeMax != nil {
+			won = rangeWins(actualCount, *bet.rangeMin, *bet.rangeMax)
+		}
 		status := BetLost
 		if won {
 			status = BetWon
@@ -643,7 +672,7 @@ func (s *Store) SettleMarket(ctx context.Context, marketID int64, actualCount in
 func (s *Store) ListBetsForUser(ctx context.Context, userID int64) ([]Bet, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT b.id, b.user_id, b.market_id, m.title, s.title, b.side, b.stake_credits,
-		       b.potential_payout_credits, b.status, b.created_at, b.settled_at
+		       b.potential_payout_credits, b.status, b.created_at, b.settled_at,b.range_min,b.range_max,b.range_odds,b.pricing_model
 		FROM bets b
 		JOIN bet_markets m ON m.id = b.market_id
 		JOIN streams s ON s.id = m.stream_id
@@ -661,7 +690,7 @@ func (s *Store) ListAllBets(ctx context.Context, marketID *int64) ([]Bet, error)
 	args := []any{}
 	query := `
 		SELECT b.id, b.user_id, b.market_id, m.title, s.title, b.side, b.stake_credits,
-		       b.potential_payout_credits, b.status, b.created_at, b.settled_at
+		       b.potential_payout_credits, b.status, b.created_at, b.settled_at,b.range_min,b.range_max,b.range_odds,b.pricing_model
 		FROM bets b
 		JOIN bet_markets m ON m.id = b.market_id
 		JOIN streams s ON s.id = m.stream_id
@@ -789,7 +818,7 @@ func scanBets(rows pgx.Rows) ([]Bet, error) {
 		if err := rows.Scan(
 			&bet.ID, &bet.UserID, &bet.MarketID, &bet.MarketTitle, &bet.StreamTitle,
 			&bet.Side, &bet.StakeCredits, &bet.PotentialPayoutCredits, &bet.Status,
-			&bet.CreatedAt, &settledAt,
+			&bet.CreatedAt, &settledAt, &bet.RangeMin, &bet.RangeMax, &bet.RangeOdds, &bet.PricingModel,
 		); err != nil {
 			return nil, err
 		}

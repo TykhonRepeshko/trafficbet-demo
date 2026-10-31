@@ -107,13 +107,13 @@ func (s *Store) StakeBetDetails(ctx context.Context, options stakeDetailOptions)
 	if page.Page > page.TotalPages {
 		page.Page = page.TotalPages
 	}
-	rows, err := tx.Query(ctx, `SELECT b.id,b.user_id,b.market_id,m.title,s.title,b.side,b.stake_credits,b.potential_payout_credits,b.status,b.created_at,b.settled_at,s.id,u.display_name,u.email`+filter+` ORDER BY b.created_at DESC,b.id DESC LIMIT $4 OFFSET $5`, options.StreamID, options.MarketID, options.Status, page.PageSize, (page.Page-1)*page.PageSize)
+	rows, err := tx.Query(ctx, `SELECT b.id,b.user_id,b.market_id,m.title,s.title,b.side,b.stake_credits,b.potential_payout_credits,b.status,b.created_at,b.settled_at,s.id,u.display_name,u.email,b.range_min,b.range_max,b.range_odds,b.pricing_model`+filter+` ORDER BY b.created_at DESC,b.id DESC LIMIT $4 OFFSET $5`, options.StreamID, options.MarketID, options.Status, page.PageSize, (page.Page-1)*page.PageSize)
 	if err != nil {
 		return page, err
 	}
 	for rows.Next() {
 		var item AdminStakeBet
-		if err := rows.Scan(&item.ID, &item.UserID, &item.MarketID, &item.MarketTitle, &item.StreamTitle, &item.Side, &item.StakeCredits, &item.PotentialPayoutCredits, &item.Status, &item.CreatedAt, &item.SettledAt, &item.StreamID, &item.DisplayName, &item.Email); err != nil {
+		if err := rows.Scan(&item.ID, &item.UserID, &item.MarketID, &item.MarketTitle, &item.StreamTitle, &item.Side, &item.StakeCredits, &item.PotentialPayoutCredits, &item.Status, &item.CreatedAt, &item.SettledAt, &item.StreamID, &item.DisplayName, &item.Email, &item.RangeMin, &item.RangeMax, &item.RangeOdds, &item.PricingModel); err != nil {
 			rows.Close()
 			return page, err
 		}

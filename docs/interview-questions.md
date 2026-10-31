@@ -30,7 +30,7 @@ Use these as discussion prompts. Explain the reasoning and a concrete failure ca
    Advancing playlists and decoded frames show transport progress. They do not establish sensor capture UTC, unchanged framing or full interval coverage. A playback buffer is different from a deliberately delayed feed.
 
 10. **Why are entries, the safety gap and counting separate?**
-    Default phases are 30 / 120 / 30 seconds. The server enforces the cutoff; changing a browser clock does not extend it. The gap alone cannot prove source fairness or stop independent access to public footage.
+    Default settings are 30 seconds of minimum entry notice / pause, a 30-second cutoff lead, and a 30-second count. Counting starts every 60 seconds; the lead runs ahead of counting. The server enforces the cutoff; changing a browser clock does not extend it. The gap alone cannot prove source fairness or stop independent access to public footage.
 
 11. **How do the counting line and rule versions work?**
     Normalized coordinates map to the image with letterboxing respected. Published snapshots remain fixed; source changes invalidate matching geometry. Draft overlays do not silently become a round's approved rules.

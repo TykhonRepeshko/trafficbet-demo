@@ -49,7 +49,7 @@ Preview has no server security boundary: its temporary role/data live in browser
 | Odds | 1-100, at most two decimal places |
 | Potential payout | At most 10,000,000 credits; integer calculation, half rounded up |
 | Threshold/count | 0-100,000,000 integer vehicles |
-| Observation lead | At least 30 seconds; seed uses two minutes |
+| Observation lead | At least 30 seconds; default 30 seconds; does not establish source timing or prevent access to public footage |
 | Cancellation reason | 5-500 Unicode code points, no controls |
 | Media playlist/image/segment | 1 MiB / 5 MiB / 20 MiB |
 | Media outbound concurrency/timeout | 8 requests / 8 seconds |
@@ -92,6 +92,8 @@ try {
 Do not put a password in `-e NAME=value`, shell history or logs. Production also requires managed secrets, HTTPS/secure cookies and separate DB roles. Use the configured migration/runtime separation for deployment; an HTTP runtime login must not receive owner privileges to create tables.
 
 ## Development verification
+
+On 31 October 2026, `npm audit --omit=dev --audit-level=moderate` reports zero runtime dependency findings. The full development tree reports 16 moderate findings through Angular CLI's `glob` / `minimatch` dependency chains, with no high or critical findings. npm's suggested automatic fix requires an Angular 22 upgrade, so it was not applied as part of the prediction/interface changes. These build-tool advisories remain open for a reviewed dependency upgrade. `govulncheck` reports no affected calls or imported packages and one advisory in an unused package of a required module.
 
 Historical verification on October 17, 2026 passed uncached Go unit and PostgreSQL integration tests, `go vet`, Angular component/logic regression tests, production/preview builds, current npm audit, and actual localhost health/media/auth requests. The Go vulnerability scan found no affected calls or imported packages; it still reports one advisory in an unused package of a required module. Source updates and login/logout concurrency have deterministic PostgreSQL regression coverage. The working database retained its three accounts and six migrations, with zero balance/ledger discrepancies.
 

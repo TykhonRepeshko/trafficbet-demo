@@ -12,16 +12,17 @@ import { ThemeService } from './services/theme.service';
   selector: 'app-root', standalone: true,
   imports: [AsyncPipe, DecimalPipe, NgIf, RouterLink, RouterLinkActive, RouterOutlet],
   template: `
+    <a class="skip-link" href="#main-content">Skip to main content</a>
     <div class="app-shell">
       <aside class="sidebar">
         <a routerLink="/" class="brand" aria-label="TrafficBet overview"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 64 64" focusable="false"><path d="m16 53 8-42m24 42-8-42M32 12v7m0 7v7m0 7v11" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><rect x="21" y="31" width="8" height="15" rx="2.5" fill="currentColor"/><rect x="35" y="18" width="8" height="15" rx="2.5" fill="currentColor"/><path d="M23 35h4m10-13h4" stroke="#f36e43" stroke-width="2" stroke-linecap="round"/></svg></span><span>traffic<span class="brand-light">bet</span><small>THE CITY IN MOTION</small></span></a>
         <div class="workspace-label">EXPLORE</div>
         <nav class="side-nav" aria-label="Main navigation">
-          <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }"><span class="nav-icon">▦</span> Live cameras <span class="nav-arrow">↗</span></a>
-          <a routerLink="/how-it-works" routerLinkActive="active" ariaCurrentWhenActive="page" title="How it works · Rules"><span class="nav-icon" aria-hidden="true">ⓘ</span> How it works</a>
-          <a routerLink="/bets" routerLinkActive="active"><span class="nav-icon">◷</span> My predictions</a>
-          <a *ngIf="auth.user" routerLink="/account" routerLinkActive="active"><span class="nav-icon">◉</span> My account</a>
-          <a *ngIf="auth.isAdmin" routerLink="/admin" routerLinkActive="active" aria-label="Admin panel"><span class="nav-icon" aria-hidden="true">⚙</span> Admin panel</a>
+          <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page" aria-label="Live cameras" title="Live cameras"><span class="nav-icon" aria-hidden="true">▦</span><span class="nav-label">Live cameras</span><span class="nav-arrow" aria-hidden="true">↗</span></a>
+          <a routerLink="/how-it-works" routerLinkActive="active" ariaCurrentWhenActive="page" aria-label="How it works" title="How it works · Rules"><span class="nav-icon" aria-hidden="true">ⓘ</span><span class="nav-label">How it works</span></a>
+          <a routerLink="/bets" routerLinkActive="active" ariaCurrentWhenActive="page" aria-label="My predictions" title="My predictions"><span class="nav-icon" aria-hidden="true">◷</span><span class="nav-label">My predictions</span></a>
+          <a *ngIf="auth.user" routerLink="/account" routerLinkActive="active" ariaCurrentWhenActive="page" aria-label="My account" title="My account"><span class="nav-icon" aria-hidden="true">◉</span><span class="nav-label">My account</span></a>
+          <a *ngIf="auth.isAdmin" routerLink="/admin" routerLinkActive="active" ariaCurrentWhenActive="page" aria-label="Admin panel" title="Admin panel"><span class="nav-icon" aria-hidden="true">⚙</span><span class="nav-label">Admin panel</span></a>
         </nav>
         <div class="sidebar-bottom"><div class="ai-symbol" aria-hidden="true">◷</div><strong>Watch. Count. Verify.</strong><p>Predictions close before counting. A result requires complete coverage and the same counting zone.</p><span class="dark-pill">Manual verification</span></div>
         <div class="sidebar-foot">Watch <span>·</span> Predict <span>·</span> Verify</div>
@@ -39,7 +40,7 @@ import { ThemeService } from './services/theme.service';
         <div *ngIf="!preview && connection === 'offline'" class="connection-banner" role="alert"><span>We could not connect to the service. Your data has not loaded.</span><button type="button" class="text-button" (click)="checkConnection()">Try again</button></div>
         <div *ngIf="sessionError" class="global-error" role="alert">{{ sessionError }}</div>
         <div *ngIf="auth.sessionExpired" class="global-error" role="alert">Your session has expired. <a routerLink="/login" [queryParams]="{ returnUrl: currentUrl }">Sign in again</a> to continue.</div>
-        <main id="main-content"><router-outlet></router-outlet></main>
+        <main id="main-content" tabindex="-1"><router-outlet></router-outlet></main>
         <footer class="page-footer"><span>TrafficBet · traffic prediction lab <a routerLink="/how-it-works" class="footer-guide">How it works</a><a *ngIf="auth.isAdmin" routerLink="/admin" class="footer-admin">Admin panel ↗</a></span><span>Virtual credits only · no monetary transactions</span></footer>
       </div>
     </div>

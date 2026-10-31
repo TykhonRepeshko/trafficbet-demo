@@ -14,8 +14,8 @@ import (
 
 func TestRoundScheduleValidation(t *testing.T) {
 	base := defaultRoundSchedule(Stream{})
-	if base.EntrySeconds != 30 || base.CountingSeconds != 30 {
-		t.Fatal("new cameras must default to 30-second entry and counting periods")
+	if base.EntrySeconds != 30 || base.LeadSeconds != 30 || base.CountingSeconds != 30 {
+		t.Fatal("new cameras must default to 30-second entry notice, cutoff lead and count")
 	}
 	if !validRoundSchedule(base) {
 		t.Fatal("default schedule invalid")
@@ -76,12 +76,16 @@ func TestPostgresAutomaticRoundsFiveCamerasConcurrentRestart(t *testing.T) {
 	}
 	for _, id := range ids {
 		markets, err := s.ListMarkets(ctx, &id, "")
-		if err != nil || len(markets) != 1 {
+		if err != nil || len(markets) != 2 {
 			t.Fatal("duplicate or missing scheduled round", id, len(markets), err)
 		}
-		m := markets[0]
-		if m.Status != MarketOpen || !m.BettingClosesAt.After(time.Now()) || m.BettingClosesAt.Sub(m.CreatedAt) < 29*time.Second || m.BettingClosesAt.Sub(m.CreatedAt) > 31*time.Second || m.WindowStart.Sub(m.BettingClosesAt) != 2*time.Minute || m.WindowEnd.Sub(m.WindowStart) != 30*time.Second {
+		m := markets[1]
+		if m.Status != MarketOpen || !m.BettingClosesAt.After(time.Now()) || m.BettingClosesAt.Sub(m.CreatedAt) < 29*time.Second || m.BettingClosesAt.Sub(m.CreatedAt) > 31*time.Second || m.WindowStart.Sub(m.BettingClosesAt) != 30*time.Second || m.WindowEnd.Sub(m.WindowStart) != 30*time.Second {
 			t.Fatal("wrong published terms", m)
+		}
+		next := markets[0]
+		if !next.WindowStart.Equal(m.WindowEnd.Add(30*time.Second)) || next.WindowStart.Sub(m.WindowStart) != time.Minute || next.WindowStart.Sub(next.BettingClosesAt) != 30*time.Second || next.WindowEnd.Sub(next.WindowStart) != 30*time.Second {
+			t.Fatal("unsafe successor terms", next)
 		}
 	}
 	if err := NewStore(s.pool).RunRoundSchedules(ctx); err != nil {
@@ -97,10 +101,10 @@ func TestPostgresAutomaticRoundsFiveCamerasConcurrentRestart(t *testing.T) {
 		}
 	}
 	var count int
-	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM bet_markets`).Scan(&count); err != nil || count != 5 {
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM bet_markets`).Scan(&count); err != nil || count != 10 {
 		t.Fatal("restart created duplicates", count, err)
 	}
-	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE action='market.auto_created' AND actor_user_id IS NULL`).Scan(&count); err != nil || count != 5 {
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE action='market.auto_created' AND actor_user_id IS NULL`).Scan(&count); err != nil || count != 10 {
 		t.Fatal("automatic audit missing", count, err)
 	}
 }
@@ -135,7 +139,7 @@ func TestPostgresAutomaticRoundFailureRollsBackPublicationAndRetries(t *testing.
 		t.Fatal(err)
 	}
 	markets, err = s.ListMarkets(ctx, &stream.ID, "")
-	if err != nil || len(markets) != 1 {
+	if err != nil || len(markets) != 2 {
 		t.Fatal("worker did not recover on next tick", err)
 	}
 }
@@ -146,6 +150,7 @@ func TestPostgresAutomaticRoundsNextCycleDowntimeAndStakes(t *testing.T) {
 	member := integrationUser(t, s, ctx, "schedule-member@example.org", RoleUser, 1000)
 	p := defaultRoundSchedule(stream)
 	p.Enabled = true
+	p.LeadSeconds = 120 // An existing installation's longer wait remains published.
 	if err := s.SaveRoundSchedule(ctx, stream.ID, p); err != nil {
 		t.Fatal(err)
 	}
@@ -153,50 +158,69 @@ func TestPostgresAutomaticRoundsNextCycleDowntimeAndStakes(t *testing.T) {
 	if err := s.runRoundSchedule(ctx, stream.ID, firstNow); err != nil {
 		t.Fatal(err)
 	}
-	markets, _ := s.ListMarkets(ctx, &stream.ID, "")
-	if len(markets) != 1 {
-		t.Fatal("first round missing")
+	markets, err := s.ListMarkets(ctx, &stream.ID, "")
+	if err != nil || len(markets) != 2 {
+		t.Fatal("initial bounded horizon missing", markets, err)
 	}
-	first := markets[0]
+	first, prepublished := markets[1], markets[0]
 	bet, _, err := s.PlaceBet(ctx, member.ID, first.ID, BetSideOver, 100, "automatic-cycle-intent")
 	if err != nil {
 		t.Fatal(err)
 	}
 	p.Threshold = 999
+	p.LeadSeconds = 30
 	p.CountingSeconds = 420
 	p.OddsOver = 2.25
 	p.CountingRule = "Updated counting zone"
 	if err = s.SaveRoundSchedule(ctx, stream.ID, p); err != nil {
 		t.Fatal(err)
 	}
-	if err = s.runRoundSchedule(ctx, stream.ID, first.WindowEnd.Add(-time.Second)); err != nil {
-		t.Fatal(err)
-	}
-	markets, _ = s.ListMarkets(ctx, &stream.ID, "")
-	if len(markets) != 1 {
-		t.Fatal("early next round")
-	}
-	if err = s.runRoundSchedule(ctx, stream.ID, first.WindowEnd); err != nil {
+	if err = s.runRoundSchedule(ctx, stream.ID, first.BettingClosesAt.Add(-time.Nanosecond)); err != nil {
 		t.Fatal(err)
 	}
 	markets, _ = s.ListMarkets(ctx, &stream.ID, "")
 	if len(markets) != 2 {
-		t.Fatal("next cycle missing")
+		t.Fatal("horizon grew despite two accepting rounds")
 	}
-	second := markets[0]
-	if second.Threshold != 999 || second.OddsOver != 2.25 || second.WindowEnd.Sub(second.WindowStart) != 7*time.Minute || !strings.HasPrefix(second.Title, p.CountingRule) {
-		t.Fatal("new settings not applied", second)
+	if err = s.runRoundSchedule(ctx, stream.ID, first.BettingClosesAt); err != nil {
+		t.Fatal(err)
 	}
-	if markets[1].Threshold != first.Threshold || markets[1].OddsOver != first.OddsOver || markets[1].Title != first.Title || markets[1].Status != MarketOpen {
-		t.Fatal("published first round changed")
+	markets, _ = s.ListMarkets(ctx, &stream.ID, "")
+	if len(markets) != 3 {
+		t.Fatal("successor was not replenished at cutoff")
 	}
-	resumedAt := second.WindowEnd.Add(24 * time.Hour)
+	newest := markets[0]
+	if newest.Threshold != 999 || newest.OddsOver != 2.25 || newest.WindowStart.Sub(newest.BettingClosesAt) != 30*time.Second || newest.WindowEnd.Sub(newest.WindowStart) != 7*time.Minute || !strings.HasPrefix(newest.Title, p.CountingRule) {
+		t.Fatal("new settings not applied", newest)
+	}
+	if markets[1].ID != prepublished.ID || markets[1].Threshold != prepublished.Threshold || markets[1].OddsOver != prepublished.OddsOver || markets[1].Title != prepublished.Title || markets[2].ID != first.ID || markets[2].Status != MarketOpen {
+		t.Fatal("published terms changed", markets)
+	}
+	for _, original := range []Market{first, prepublished} {
+		var stored Market
+		for _, market := range markets {
+			if market.ID == original.ID {
+				stored = market
+			}
+		}
+		if !stored.BettingClosesAt.Equal(original.BettingClosesAt) || !stored.WindowStart.Equal(original.WindowStart) || !stored.WindowEnd.Equal(original.WindowEnd) || stored.WindowStart.Sub(stored.BettingClosesAt) != 2*time.Minute {
+			t.Fatal("shorter lead rewrote an existing round", stored)
+		}
+	}
+	if err = s.runRoundSchedule(ctx, stream.ID, prepublished.BettingClosesAt.Add(-time.Nanosecond)); err != nil {
+		t.Fatal(err)
+	}
+	markets, _ = s.ListMarkets(ctx, &stream.ID, "")
+	if len(markets) != 3 {
+		t.Fatal("worker grew a full horizon")
+	}
+	resumedAt := newest.WindowEnd.Add(24 * time.Hour)
 	if err = NewStore(s.pool).runRoundSchedule(ctx, stream.ID, resumedAt); err != nil {
 		t.Fatal(err)
 	}
 	markets, _ = s.ListMarkets(ctx, &stream.ID, "")
-	if len(markets) != 3 || !markets[0].BettingClosesAt.After(resumedAt) {
-		t.Fatal("downtime created stale or catch-up rounds")
+	if len(markets) != 5 || !markets[1].BettingClosesAt.After(resumedAt) || !markets[0].BettingClosesAt.After(resumedAt) {
+		t.Fatal("downtime created catch-up rounds or insufficient horizon", markets)
 	}
 	var balance int64
 	var status string
@@ -230,19 +254,19 @@ func TestPostgresAutomaticRoundsPauseArchiveRestoreAndManualWindows(t *testing.T
 		t.Fatal(err)
 	}
 	snapshot, err := s.ListRoundSchedules(ctx)
-	if err != nil || !snapshot.Schedules[0].NextRunAt.Equal(manual.WindowEnd) || snapshot.Schedules[0].LastMarketID != nil {
+	if err != nil || !snapshot.Schedules[0].NextRunAt.Equal(manual.BettingClosesAt) || snapshot.Schedules[0].LastMarketID == nil {
 		t.Fatal("manual window ignored", snapshot, err)
 	}
 	p.Enabled = false
 	if err = s.SaveRoundSchedule(ctx, stream.ID, p); err != nil {
 		t.Fatal(err)
 	}
-	now := manual.WindowEnd.Add(time.Second)
+	now := manual.BettingClosesAt.Add(time.Second)
 	if err = s.runRoundSchedule(ctx, stream.ID, now); err != nil {
 		t.Fatal(err)
 	}
 	markets, _ := s.ListMarkets(ctx, &stream.ID, "")
-	if len(markets) != 1 {
+	if len(markets) != 2 {
 		t.Fatal("disabled schedule published")
 	}
 	p.Enabled = true
@@ -256,7 +280,7 @@ func TestPostgresAutomaticRoundsPauseArchiveRestoreAndManualWindows(t *testing.T
 		t.Fatal(err)
 	}
 	markets, _ = s.ListMarkets(ctx, &stream.ID, "")
-	if len(markets) != 1 {
+	if len(markets) != 2 {
 		t.Fatal("archived source published")
 	}
 	if err = s.SaveRoundSchedule(ctx, stream.ID, p); !errors.Is(err, ErrConflict) {
@@ -269,7 +293,7 @@ func TestPostgresAutomaticRoundsPauseArchiveRestoreAndManualWindows(t *testing.T
 		t.Fatal(err)
 	}
 	markets, _ = s.ListMarkets(ctx, &stream.ID, "")
-	if len(markets) != 2 {
+	if len(markets) != 3 {
 		t.Fatal("restored source did not resume")
 	}
 	p.Enabled = false
@@ -352,7 +376,7 @@ func TestPostgresRoundScheduleAPIAuthValidationAndLiteralRules(t *testing.T) {
 			t.Fatal("member schedule access", w.Code)
 		}
 	}
-	for _, invalid := range []string{`{}`, strings.Replace(body, `"leadSeconds":120`, `"leadSeconds":1`, 1), strings.TrimSuffix(body, "}") + `,"nextRunAt":"2030-01-01T00:00:00Z"}`, strings.TrimSuffix(body, "}") + `,"lastMarketId":1}`} {
+	for _, invalid := range []string{`{}`, strings.Replace(body, `"leadSeconds":30`, `"leadSeconds":1`, 1), strings.TrimSuffix(body, "}") + `,"nextRunAt":"2030-01-01T00:00:00Z"}`, strings.TrimSuffix(body, "}") + `,"lastMarketId":1}`} {
 		if w := accountTestRequest(handler, "PUT", path, invalid, cookie); w.Code != 400 {
 			t.Fatal("invalid schedule accepted", w.Code, w.Body.String())
 		}

@@ -74,7 +74,17 @@ Outbound access requires HTTPS port 443 and exact hosts in `MEDIA_ALLOWED_HOSTS`
 { "marketId": 1, "side": "over", "stakeCredits": 100 }
 ```
 
-`side` is `over` or `under`. Stake is an integer from 1 through 100,000. The backend checks account, balance, active continuous source type, open status, safe observation gap and entry deadline. Response: `{ "bet": { ... }, "user": { ... } }` with the updated balance.
+`side` is `over`, `under` or `range`. Stake is an integer from 1 through 100,000. The backend checks account, balance, active continuous source type, open status, safe observation gap and entry deadline. Response: `{ "bet": { ... }, "user": { ... } }` with the updated balance.
+
+For a custom range, first make an authenticated `GET /bets/range-quote?marketId=1&from=12&to=25`. Both bounds must be whole numbers from 0 through 100,000,000 and `from <= to`; both are inclusive. The response contains `marketId`, `rangeMin`, `rangeMax`, `odds` and `pricingModel`. Submit those terms through `POST /bets`:
+
+```json
+{ "marketId": 1, "side": "range", "rangeMin": 12, "rangeMax": 25, "quotedOdds": 4.88, "pricingModel": "demo_geometric_v1", "stakeCredits": 100 }
+```
+
+The example odds are illustrative: use the exact quote returned for that round. Go recomputes the quote under the round lock and returns 409 without a debit if odds differ. Range terms are rejected on Over / Under requests. Retries must preserve bounds, quoted odds, model, stake and the idempotency key; accepted retries remain readable after closing/cancellation. Saved bets expose `rangeMin`, `rangeMax`, `rangeOdds` and `pricingModel` in member history and authorized admin lists.
+
+`demo_geometric_v1` is a fixed simulation rule, not an estimate learned from camera traffic. With mean `threshold + 0.5` and `q = mean / (mean + 1)`, inclusive model probability is `q^from - q^(to+1)`. Odds are `clamp(floor(95 / probability) / 100, 1, 100)`, evaluated with stable logarithms; numerical underflow selects the 100× cap. Payout uses the existing integer-hundredths calculation. Quotes are non-cacheable, authenticated reads and never spend credits.
 
 The same user/key/body returns the existing prediction without another debit, including after cutoff, settlement or cancellation. Changed parameters with an existing key return `409`. `GET /bets/my` returns only the session user's history.
 
@@ -102,7 +112,7 @@ The account page response is `{ "items": [...], "total": 63, "page": 1, "pageSiz
 
 Restoration accepts an empty JSON body `{}` and requires the same administrator role and Origin protections as other mutations. It changes only availability and the update timestamp, records `stream.restored` once per restoration, and leaves the source, camera identity, rounds and balances intact. Repeating a restore on an available camera succeeds without another audit entry. Restoration does not certify source health or validate a counting interval.
 
-Stake volume is an administrator-only, non-cacheable read: `{ "asOf": "...", "totals": { ... }, "cameras": [ ... ] }`. A single PostgreSQL statement aggregates the full prediction history independently of list pages. Amounts contain `totalBetCount`, `totalStakeCredits`, `pendingBetCount`, `pendingStakeCredits`, `pendingOverBetCount`, `pendingOverCredits`, `pendingUnderBetCount`, `pendingUnderCredits`, `settledStakeCredits` and `refundedStakeCredits`. Pending means prediction status `pending`, including expired entry deadlines and archived cameras. Settled stakes are the original stakes of `won`/`lost` predictions; refunded stakes are those of `void` predictions. These are stake volumes, not account balances, payout amounts or profit. Consequently total stake volume equals pending + settled + refunded stake volume.
+Stake volume is an administrator-only, non-cacheable read: `{ "asOf": "...", "totals": { ... }, "cameras": [ ... ] }`. A single PostgreSQL statement aggregates the full prediction history independently of list pages. Amounts contain `totalBetCount`, `totalStakeCredits`, `pendingBetCount`, `pendingStakeCredits`, `pendingOverBetCount`, `pendingOverCredits`, `pendingUnderBetCount`, `pendingUnderCredits`, `pendingRangeBetCount`, `pendingRangeCredits`, `settledStakeCredits` and `refundedStakeCredits`. Pending means prediction status `pending`, including expired entry deadlines and archived cameras. Settled stakes are the original stakes of `won`/`lost` predictions; refunded stakes are those of `void` predictions. These are stake volumes, not account balances, payout amounts or profit. Consequently total stake volume equals pending + settled + refunded stake volume.
 
 Each camera has its original `streamId`, title, city and availability, the same amount fields, and a `rounds` array. This array includes every round holding pending stakes, plus rounds currently accepting predictions on available cameras. Each round includes its `marketId`, title, threshold, status, cutoff/counting window and amount fields. Historical totals include settled/voided rounds even though those rounds are omitted from the current-round array. Cameras are ordered by unsettled volume, then availability and title. No user identity or upstream camera URL is included. `asOf` is the database statement time (or server time for an empty catalog); phases in the UI are evaluated at that snapshot. The panel polls every five seconds while mounted and visible, avoids overlapping requests, cancels on navigation, and marks retained data stale on a failed refresh.
 
@@ -142,6 +152,8 @@ Cancellation accepts `{ "reason": "Camera evidence is incomplete" }`, requiring 
 
 `GET /api/admin/round-schedules` returns `{ asOf, schedules }`. Each item includes `streamId`, `streamTitle`, `isActive`, `supported`, the configuration below, `nextRunAt`, `lastCheckedAt`, `lastMarketId` and `awaitingVerification`. New cameras have disabled defaults; withdrawn historical sources are excluded.
 
+Enabled schedules reconcile a bounded horizon of two published accepting rounds. The successor is available before the earlier cutoff; no late bet is accepted on the earlier round. A new counting start is the later of database time plus `entrySeconds + leadSeconds`, or the latest future published counting end plus `entrySeconds`. The deadline is that start minus `leadSeconds`. Thus the default 30-second count and 30-second pause give a new counting interval every 60 seconds; the 30-second safety lead runs ahead of counting without extending cadence. The nearest accepting default round normally starts in 30–90 seconds. `entrySeconds` also guarantees minimum entry notice after startup, downtime or a settings change, rather than specifying the full entry duration of a prepublished successor. Existing published intervals (including manual ones) are respected; settings changes affect newly appended rounds only. `nextRunAt` is the earliest accepting cutoff / queue-refill hint, not a guarantee that no rounds are published before that time. Reconciliation runs every ten seconds and serializes on the source row; an already-published successor covers the tick boundary.
+
 `PUT /api/admin/round-schedules/{streamId}` replaces the editable settings:
 
 ```json
@@ -152,7 +164,7 @@ Cancellation accepts `{ "reason": "Camera evidence is incomplete" }`, requiring 
   "oddsOver": 1.9,
   "oddsUnder": 1.9,
   "entrySeconds": 30,
-  "leadSeconds": 120,
+  "leadSeconds": 30,
   "countingSeconds": 30
 }
 ```

@@ -148,3 +148,130 @@ test('camera cards show the active counting or locked round between short entry 
     assert.equal(h.component.currentRound(38), undefined);
   } finally { h.destroy(); }
 });
+
+test('the single camera directory prioritizes open entries and composes availability, city and search filters', () => {
+  const h=harness();
+  try {
+    const first=camera(38,{city:'Bergen',title:'City approach'}), second=camera(39,{city:'Oslo',title:'Bridge traffic'}), third=camera(40,{city:'Oslo',title:'Tunnel approach'});
+    h.component.loading=false; h.component.streams=[first,second,third];
+    h.component.markets={38:[],39:[market(71,39),market(72,39)],40:[market(73,40)]};
+    assert.deepEqual(h.component.filtered.map(item=>item.id),[39,40,38]);
+    assert.equal(h.component.openCameraCountLabel,2,'Counted two rounds on one camera as two cameras');
+    h.component.availability='open';
+    assert.deepEqual(h.component.filtered.map(item=>item.id),[39,40]);
+    h.component.city='Oslo'; h.component.search='bridge';
+    assert.deepEqual(h.component.filtered.map(item=>item.id),[39]);
+    assert.equal(h.component.hasCameraFilters,true);
+    h.component.clearFilters();
+    assert.equal(h.component.hasCameraFilters,false); assert.equal(h.component.availability,'all');
+    assert.deepEqual(h.component.filtered.map(item=>item.id),[39,40,38]);
+    assert.deepEqual(h.betCalls,[],'Discovery filtering placed a prediction');
+  } finally { h.destroy(); }
+});
+
+test('entry status keeps failed updates unknown and rejects foreign rounds in camera actions', () => {
+  const h=harness();
+  try {
+    h.component.loading=false; h.component.streams=[camera(38),camera(39)];
+    h.component.markets={38:[market(70,39)],39:[market(71,39)]};
+    assert.equal(h.component.nextRound(38),undefined,'A card linked to a round belonging to another camera');
+    assert.equal(h.component.currentRound(38),undefined);
+    assert.equal(h.component.cameraStateLabel(38),'Waiting for a round');
+    assert.equal(h.component.cameraStateLabel(39),'Entries open');
+    h.component.marketErrors[39]=true;
+    assert.equal(h.component.cameraStateLabel(39),'Update unavailable');
+    assert.equal(h.component.openCameraCountLabel,'—');
+    assert.equal(h.component.nextRound(39),undefined,'A stale failed update enabled the prediction action');
+    h.component.availability='open'; assert.deepEqual(h.component.filtered,[]);
+    h.component.marketsLoading=true;
+    assert.equal(h.component.cameraStateLabel(38),'Checking entries');
+  } finally { h.destroy(); }
+});
+
+test('availability ordering retains camera DOM identity when entry windows close or a new camera opens', () => {
+  const h=harness();
+  try {
+    h.component.streams=[camera(38),camera(39)]; h.component.markets={38:[],39:[market(71,39,now+1000)]};
+    const differ=new DefaultIterableDiffer(h.component.trackCamera);
+    differ.diff(h.component.filtered);
+    h.component.now=now+1000;
+    const changes=differ.diff(h.component.filtered), added=[],removed=[];
+    changes?.forEachAddedItem(row=>added.push(row.item.id)); changes?.forEachRemovedItem(row=>removed.push(row.item.id));
+    assert.deepEqual(added,[]); assert.deepEqual(removed,[]);
+    assert.equal(h.component.cameraStateLabel(39),'Entries closed');
+    h.component.markets[38]=[market(72,38,now+10000)];
+    assert.deepEqual(h.component.filtered.map(item=>item.id),[38,39]);
+  } finally { h.destroy(); }
+});
+
+test('deadline urgency applies only to a still-open final ten seconds', () => {
+  const h=harness();
+  try {
+    assert.equal(h.component.entryClosesSoon(market(71,38,now+10001)),false);
+    assert.equal(h.component.entryClosesSoon(market(71,38,now+10000)),true);
+    assert.equal(h.component.entryClosesSoon(market(71,38,now)),false);
+    assert.equal(h.component.entryClosesSoon({bettingClosesAt:'invalid'}),false);
+    assert.equal(h.component.durationSeconds(market(71,38,now+60000,{windowStart:new Date(now+120000).toISOString(),windowEnd:new Date(now+150000).toISOString()})),30);
+  } finally { h.destroy(); }
+});
+
+test('camera actions target the earliest accepting counting interval regardless of API order', () => {
+  const h=harness();
+  try {
+    h.component.streams=[camera()];
+    const earliest=market(71,38,now+30000,{windowStart:new Date(now+150000).toISOString(),windowEnd:new Date(now+180000).toISOString()});
+    const later=market(72,38,now+210000,{windowStart:new Date(now+330000).toISOString(),windowEnd:new Date(now+360000).toISOString()});
+    const foreign=market(70,39,now+10000);
+    const received=[later,foreign,earliest]; h.component.markets={38:received};
+    assert.equal(h.component.nextRound(38),earliest);
+    assert.equal(h.component.currentRound(38),earliest);
+    assert.deepEqual(received.map(item=>item.id),[72,70,71],'Choosing an interval mutated the API result order');
+    assert.equal(h.component.cameraStateLabel(38),'Entries open');
+    assert.equal(h.component.predictsNextRound(38),false);
+    assert.deepEqual(h.betCalls,[]);
+  } finally {h.destroy();}
+});
+
+test('at each entry cutoff the camera immediately links to its next published round while the old count stays visible', () => {
+  const h=harness();
+  try {
+    h.component.streams=[camera()]; h.component.loading=false;
+    const first=market(71,38,now+30000,{windowStart:new Date(now+150000).toISOString(),windowEnd:new Date(now+180000).toISOString()});
+    const second=market(72,38,now+210000,{windowStart:new Date(now+330000).toISOString(),windowEnd:new Date(now+360000).toISOString()});
+    const third=market(73,38,now+390000,{windowStart:new Date(now+510000).toISOString(),windowEnd:new Date(now+540000).toISOString()});
+    h.component.markets={38:[third,second,first]};
+    assert.equal(h.component.nextRound(38).id,71);
+    h.component.now=now+30000;
+    assert.equal(h.component.nextRound(38).id,72);
+    assert.equal(h.component.currentRound(38).id,71,'Upcoming prediction replaced the current counting-zone context');
+    assert.equal(h.component.cameraStateLabel(38),'Next round open');
+    assert.equal(h.component.openCameraCountLabel,1);
+    assert.equal(h.component.predictsNextRound(38),true);
+    h.component.availability='open'; assert.deepEqual(h.component.filtered.map(item=>item.id),[38]);
+    h.component.now=now+150000;
+    assert.equal(h.component.currentRound(38).id,71); assert.equal(h.component.nextRound(38).id,72);
+    h.component.now=now+210000;
+    assert.equal(h.component.currentRound(38).id,72); assert.equal(h.component.nextRound(38).id,73);
+    assert.equal(h.component.cameraStateLabel(38),'Next round open');
+    assert.deepEqual(h.betCalls,[],'Automatic discovery of the next interval submitted a stake');
+  } finally {h.destroy();}
+});
+
+test('a future-round offer stays unknown after an update failure and recovers without changing camera identity', () => {
+  const h=harness();
+  try {
+    h.component.streams=[camera()]; h.component.loading=false;
+    const closed=market(71,38,now-1000,{windowStart:new Date(now+120000).toISOString(),windowEnd:new Date(now+150000).toISOString()});
+    const upcoming=market(72,38,now+180000,{windowStart:new Date(now+300000).toISOString(),windowEnd:new Date(now+330000).toISOString()});
+    h.component.markets={38:[upcoming,closed]};
+    const differ=new DefaultIterableDiffer(h.component.trackCamera); differ.diff(h.component.filtered);
+    assert.equal(h.component.cameraStateLabel(38),'Next round open');
+    h.component.marketErrors[38]=true;
+    assert.equal(h.component.cameraStateLabel(38),'Update unavailable'); assert.equal(h.component.nextRound(38),undefined); assert.equal(h.component.predictsNextRound(38),false);
+    h.component.marketErrors[38]=false;
+    assert.equal(h.component.nextRound(38),upcoming); assert.equal(h.component.cameraStateLabel(38),'Next round open');
+    const changes=differ.diff(h.component.filtered),added=[],removed=[];
+    changes?.forEachAddedItem(item=>added.push(item.item.id)); changes?.forEachRemovedItem(item=>removed.push(item.item.id));
+    assert.deepEqual(added,[]); assert.deepEqual(removed,[]);
+  } finally {h.destroy();}
+});

@@ -1,6 +1,6 @@
 import { HttpErrorResponse, HttpInterceptorFn, HttpResponse } from '@angular/common/http';
 import { defer, delay, of } from 'rxjs';
-import { Bet, CreditLedgerEntry, Market, MarketPayload, StakeAmounts, StakeVolumeSnapshot, StreamMetric, StreamPayload, TrafficStream, User } from '../models';
+import { Bet, CreditLedgerEntry, Market, MarketPayload, RangeQuote, StakeAmounts, StakeVolumeSnapshot, StreamMetric, StreamPayload, TrafficStream, User } from '../models';
 import { RoundScheduleSettings } from '../models';
 
 // Imported exclusively through the preview configuration file replacement.
@@ -35,8 +35,16 @@ function requireUser(): User { return currentUser ?? reject(401, 'Sign in to the
 function requireAdmin(): void { if (requireUser().role !== 'admin') reject(403, 'An administrator account is required.'); }
 const copy = <T>(value: T): T => structuredClone(value);
 
+// Design preview only. The real application always requests its quote from Go.
+function previewRangeQuote(market: Market, from: number, to: number): RangeQuote {
+  if (!Number.isInteger(from) || !Number.isInteger(to) || from<0 || to<from || to>100000000) reject(400,'Enter valid whole-number From and To bounds.');
+  const logQ=Math.log1p(-1/(market.threshold+1.5));
+  const probability=Math.exp(from*logQ)*-Math.expm1((to-from+1)*logQ);
+  return { marketId:market.id, rangeMin:from, rangeMax:to, odds: probability>0 ? Math.max(1,Math.min(100,Math.floor(95/probability)/100)) : 100, pricingModel:'demo_geometric_v1' };
+}
+
 function previewStakeVolume(): StakeVolumeSnapshot {
-  const empty = (): StakeAmounts => ({ totalBetCount: 0, totalStakeCredits: 0, pendingBetCount: 0, pendingStakeCredits: 0, pendingOverBetCount: 0, pendingOverCredits: 0, pendingUnderBetCount: 0, pendingUnderCredits: 0, settledStakeCredits: 0, refundedStakeCredits: 0 });
+  const empty = (): StakeAmounts => ({ pendingRangeBetCount:0, pendingRangeCredits:0, totalBetCount: 0, totalStakeCredits: 0, pendingBetCount: 0, pendingStakeCredits: 0, pendingOverBetCount: 0, pendingOverCredits: 0, pendingUnderBetCount: 0, pendingUnderCredits: 0, settledStakeCredits: 0, refundedStakeCredits: 0 });
   const add = (total: StakeAmounts, value: StakeAmounts): void => { for (const key of Object.keys(value) as Array<keyof StakeAmounts>) total[key] += value[key]; };
   const amounts = (marketId: number): StakeAmounts => {
     const total = empty();
@@ -45,7 +53,8 @@ function previewStakeVolume(): StakeVolumeSnapshot {
       if (bet.status === 'pending') {
         total.pendingBetCount++; total.pendingStakeCredits += bet.stakeCredits;
         if (bet.side === 'over') { total.pendingOverBetCount++; total.pendingOverCredits += bet.stakeCredits; }
-        else { total.pendingUnderBetCount++; total.pendingUnderCredits += bet.stakeCredits; }
+        else if (bet.side==='under') { total.pendingUnderBetCount++; total.pendingUnderCredits += bet.stakeCredits; }
+        else { total.pendingRangeBetCount++; total.pendingRangeCredits+=bet.stakeCredits; }
       } else if (bet.status === 'void') total.refundedStakeCredits += bet.stakeCredits;
       else total.settledStakeCredits += bet.stakeCredits;
     }
@@ -82,6 +91,12 @@ export const previewInterceptor: HttpInterceptorFn = (request, next) => {
       const stream = streams.find((item) => item.id === id && item.isActive) ?? reject(404, 'Camera unavailable.');
       const status = request.params.get('status') ?? 'open';
       result = path.endsWith('/markets') ? markets.filter((market) => market.streamId === id && market.status !== 'draft' && (!status || market.status === status)) : path.endsWith('/metrics') ? metrics.filter((metric) => metric.streamId === id).slice().reverse() : stream;
+    } else if (path === '/api/bets/range-quote' && request.method==='GET') {
+      requireUser();
+      const market=markets.find(item=>item.id===Number(request.params.get('marketId'))) ?? reject(404,'Round not found.');
+      if (market.status!=='open' || Date.now()>=Date.parse(market.bettingClosesAt) || !streams.find(stream=>stream.id===market.streamId)?.isActive) reject(409,'This round is closed.');
+      if (!request.params.has('from') || !request.params.has('to')) reject(400,'Range bounds are required.');
+      result=previewRangeQuote(market,Number(request.params.get('from')),Number(request.params.get('to')));
     } else if (path === '/api/bets/my') result = bets.filter((bet) => bet.userId === requireUser().id).slice().reverse();
     else if (path === '/api/bets' && request.method === 'POST') {
       const user = requireUser();
@@ -100,8 +115,11 @@ export const previewInterceptor: HttpInterceptorFn = (request, next) => {
       if (market.status !== 'open' || Date.now() >= Date.parse(market.bettingClosesAt) || Date.parse(market.windowStart) - Date.parse(market.bettingClosesAt) < 30_000) reject(400, 'Predictions are closed.');
       if (!streams.find((stream) => stream.id === market.streamId)?.isActive) reject(400, 'Camera disabled.');
       if (!Number.isInteger(stake) || stake < 1 || stake > 100000 || stake > user.balanceCredits) reject(400, 'Check your stake and available balance.');
-      if (side !== 'over' && side !== 'under') reject(400, 'Choose an outcome.');
-      const bet: Bet = { id: Math.max(0, ...bets.map((item) => item.id)) + 1, userId: user.id, marketId: market.id, marketTitle: market.title, streamTitle: market.streamTitle, side, stakeCredits: stake, potentialPayoutCredits: Math.round(stake * (side === 'over' ? market.oddsOver : market.oddsUnder)), status: 'pending', createdAt: time(0) };
+      if (side !== 'over' && side !== 'under' && side!=='range') reject(400, 'Choose an outcome.');
+      const quote=side==='range' ? previewRangeQuote(market,Number(body?.['rangeMin']),Number(body?.['rangeMax'])) : undefined;
+      if (quote && (body?.['quotedOdds']!==quote.odds || body?.['pricingModel']!==quote.pricingModel)) reject(409,'Review the updated demo odds before placing.');
+      const odds=quote?.odds ?? (side==='over' ? market.oddsOver : market.oddsUnder);
+      const bet: Bet = { id: Math.max(0, ...bets.map((item) => item.id)) + 1, userId: user.id, marketId: market.id, marketTitle: market.title, streamTitle: market.streamTitle, side, stakeCredits: stake, potentialPayoutCredits: Math.floor((stake*Math.round(odds*100)+50)/100), ...(quote ? {rangeMin:quote.rangeMin,rangeMax:quote.rangeMax,rangeOdds:quote.odds,pricingModel:quote.pricingModel} : {}), status: 'pending', createdAt: time(0) };
       user.balanceCredits -= stake; addLedger(user, 'stake', -stake, bet); bets.push(bet); intents.set(intentId, { fingerprint, bet }); result = { bet, user };
     } else if (path.startsWith('/api/admin/')) {
       requireAdmin();
@@ -133,7 +151,7 @@ export const previewInterceptor: HttpInterceptorFn = (request, next) => {
       else if (path === '/api/admin/round-schedules' && request.method === 'GET') result = {
         asOf: time(0), schedules: streams.map((stream) => ({
           streamId: stream.id, streamTitle: stream.title, isActive: stream.isActive, supported: ['hls', 'youtube', 'mjpeg'].includes(stream.streamType),
-          enabled: false, countingRule: 'Vehicle centers crossing the mid-frame line · both directions', threshold: 30, oddsOver: 1.9, oddsUnder: 1.9, entrySeconds: 30, leadSeconds: 120, countingSeconds: 30,
+          enabled: false, countingRule: 'Vehicle centers crossing the mid-frame line · both directions', threshold: 30, oddsOver: 1.9, oddsUnder: 1.9, entrySeconds: 30, leadSeconds: 30, countingSeconds: 30,
           ...previewSchedules.get(stream.id), nextRunAt: null, lastCheckedAt: null, lastMarketId: null,
           awaitingVerification: markets.filter((market) => market.streamId === stream.id && market.status === 'open' && Date.parse(market.windowEnd) <= Date.now()).length
         }))
@@ -198,7 +216,7 @@ export const previewInterceptor: HttpInterceptorFn = (request, next) => {
         if (market.status !== 'open' || Date.parse(market.windowEnd) > Date.now()) reject(400, 'Settlement is available after the counting interval ends.');
         market.status = 'settled'; market.actualCount = count; market.updatedAt = time(0);
         bets.filter((bet) => bet.marketId === market.id && bet.status === 'pending').forEach((bet) => {
-          bet.status = (bet.side === 'over' ? count > market.threshold : count <= market.threshold) ? 'won' : 'lost'; bet.settledAt = time(0);
+          bet.status = (bet.side === 'range' ? bet.rangeMin!==undefined && bet.rangeMax!==undefined && count>=bet.rangeMin && count<=bet.rangeMax : bet.side === 'over' ? count > market.threshold : count <= market.threshold) ? 'won' : 'lost'; bet.settledAt = time(0);
           if (bet.status === 'won') { const owner = users.find((user) => user.id === bet.userId); if (owner) { owner.balanceCredits += bet.potentialPayoutCredits; addLedger(owner, 'payout', bet.potentialPayoutCredits, bet); } }
         });
         metrics.push({ id: metrics.length + 1, streamId: market.streamId, source: 'manual', vehicleCount: count, intervalStart: market.windowStart, intervalEnd: market.windowEnd, createdAt: time(0) }); result = market;

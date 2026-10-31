@@ -4,20 +4,22 @@
 
 **A full-stack traffic prediction app with virtual credits, live road cameras and an auditable balance ledger.**
 
-Built with **Go, Angular 21 and PostgreSQL 16**, packaged as separate Docker Compose services. Users predict whether a vehicle count will finish above a round's threshold. The project demonstrates transactional account operations, authorization, safe media delivery and a preparation workflow for future computer vision.
+Built with **Go, Angular 21 and PostgreSQL 16**, packaged as separate Docker Compose services. Users enter an inclusive vehicle-count range for a scheduled round, or choose Over / Under against its reference threshold. The project demonstrates transactional account operations, authorization, safe media delivery and a preparation workflow for future computer vision.
 
 **Current stage:** working local portfolio prototype. Credits have no monetary value. AI detection, tracking and automatic settlement are not connected; public production deployment is not configured. Retained-video capture and its annotation workspace are paused to avoid local video storage.
 
 ## What it does
 
 - **Accounts:** registration, password sign-in, persistent balances, prediction history, password changes and session revocation. Registration opens an account with 10,000 virtual credits.
-- **Predictions:** scheduled rounds, fixed odds, server-enforced deadlines, stake debit, reviewed settlement and cancellation with a one-time refund. Per-user idempotency protects against duplicate submissions.
+- **Predictions:** scheduled rounds, custom From / To count ranges, server-quoted demo odds, explicit stake confirmation, server-enforced deadlines, reviewed settlement and cancellation with a one-time refund. Accepted bounds and payouts are immutable; per-user idempotency protects against duplicate submissions. Published fixed Over / Under odds remain available.
 - **Cameras:** six curated HLS views across Norway and the United States, reconnection handling, source resolution reporting and counting-line overlays in previews and fullscreen. Geometry appears after an operator configures a camera; drafts are labelled.
 - **Administration:** user search and pagination, camera archive/restore, schedule configuration, live stake totals and participant/outcome drill-down. API authorization protects administration independently of navigation visibility.
 - **Counting preparation:** versioned rules, reference frames, source observations, round review and an audit trail. Retained-video capture/playback and the annotation workspace are disabled at this stage; historical metadata remains preserved.
-- **Interface:** responsive Angular pages, light/dark themes and a visible How it works guide. Stakes and results are calculated on the server.
+- **Interface:** one camera lobby with entry-state filters, light/dark themes, labelled mobile navigation and a visible How it works guide. When entries close, the form carries its draft to the nearest published accepting round and shows the new counting time and current odds. Spending credits always requires confirmation. Stakes and results are calculated on the server.
 
 For example, a winning **100 cr** prediction at **1.90** returns **190 cr including the stake**. A losing prediction returns zero; cancellation refunds the original 100 cr. Over means strictly greater than the threshold; Under or equal includes equality.
+
+A custom range of **12–25** wins for any verified count from 12 through 25, including both bounds. Go quotes the range using the explicit `demo_geometric_v1` simulation rule: a geometric count distribution with mean `threshold + 0.5`, a 5% model margin, downward odds rounding to two decimals, and a 1×–100× return cap. This is not a probability model fitted to real traffic. Very broad ranges can return only the original stake. The server recomputes and checks the quoted terms before debiting; editing inputs never places a prediction.
 
 ## Architecture
 
@@ -79,7 +81,7 @@ The launcher keeps an existing native database as the default. Stop native mode 
 
 ## Rounds, video and AI boundaries
 
-Default automatic rounds have **30 seconds for predictions → 120-second safety gap → 30 seconds for counting**. Administrators can change future schedules in seconds. Go must remain running to publish new rounds; the scheduler does not invent counts or settle results.
+Automatic schedules keep **two future published rounds accepting entries**, so a member can predict the next interval while the earlier round is locked or counting. The default cadence is **a new 30-second count every 60 seconds**, with a 30-second pause between counting windows. Entries close **30 seconds before each count**; this safety gap does not add to the cadence. The nearest accepting round usually starts counting in **30–90 seconds**. New deadlines provide at least 30 seconds of entry notice, so startup, downtime or already published windows can temporarily increase that wait. Successors are published early and can accept predictions for longer. Counting windows do not overlap. Administrators can change settings for newly published rounds; existing times, odds and accepted predictions stay fixed. Go must remain running to replenish the queue; the scheduler does not invent counts or settle results. A cutoff gap alone does not establish source timing or prevent independent access to public footage.
 
 A stream that plays successfully does not prove exact sensor capture time or complete footage. Source operators can interrupt, reposition or blur a camera. There is no intentionally added delay buffer, and public camera access cannot prevent somebody watching the operator's source independently.
 

@@ -14,7 +14,7 @@ const bundle = await build({ stdin: { contents: "export { AdminRoundSchedulesCom
 await writeFile(output, bundle.outputFiles[0].text);
 const { AdminRoundSchedulesComponent, ApiService, previewInterceptor } = await import(output.href);
 await unlink(output);
-const settings = () => ({ enabled: true, countingRule: 'Vehicle centers crossing the mid-frame line', threshold: 30, oddsOver: 1.9, oddsUnder: 1.9, entrySeconds: 30, leadSeconds: 120, countingSeconds: 30 });
+const settings = () => ({ enabled: true, countingRule: 'Vehicle centers crossing the mid-frame line', threshold: 30, oddsOver: 1.9, oddsUnder: 1.9, entrySeconds: 30, leadSeconds: 30, countingSeconds: 30 });
 const schedule = (extra = {}) => ({ ...settings(), streamId: 41, streamTitle: 'Bergen', isActive: true, supported: true, nextRunAt: '2030-01-01T12:12:00Z', lastCheckedAt: '2030-01-01T12:00:00Z', lastMarketId: 11, awaitingVerification: 1, ...extra });
 const snapshot = (extra = {}) => ({ asOf: '2030-01-01T12:00:00Z', schedules: [schedule(extra)] });
 

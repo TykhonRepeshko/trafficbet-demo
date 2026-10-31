@@ -5,7 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { Subscription, timeout } from 'rxjs';
 import { AdminStakeBet, BetStatus, StakeBetPage } from '../models';
 import { ApiService } from '../services/api.service';
-import { apiError, betLabels } from '../services/ui-helpers';
+import { apiError, predictionLabel, betLabels } from '../services/ui-helpers';
 
 @Component({ selector: 'app-admin-stake-details', standalone: true, imports: [DatePipe, DecimalPipe, NgFor, NgIf, FormsModule], template: `
   <section class="stake-inspector" aria-labelledby="stake-inspector-title" [attr.aria-busy]="loading">
@@ -15,7 +15,7 @@ import { apiError, betLabels } from '../services/ui-helpers';
     <p class="volume-error" role="alert" *ngIf="error">{{ error }} {{ result ? 'The previous snapshot for this selection is shown; it may be out of date.' : '' }} <button type="button" class="text-button" (click)="refresh()" [disabled]="loading">Retry</button></p>
     <div class="loading-state" role="status" *ngIf="loading && !result"><span class="spinner"></span> Loading individual predictions…</div>
     <ng-container *ngIf="result as pageData"><p class="stake-inspector-count" role="status">Showing {{ rangeStart }}–{{ rangeEnd }} of {{ pageData.total | number:'1.0-0' }} predictions · <strong>{{ pageData.stakeCredits | number:'1.0-0' }} cr</strong> across all matching pages</p>
-      <div class="table-panel" *ngIf="pageData.items.length"><table class="stake-inspector-table"><thead><tr><th>Member</th><th>Round / prediction</th><th>Outcome</th><th>Stake</th><th>Potential return</th><th>Status</th><th>Placed</th></tr></thead><tbody><tr *ngFor="let bet of pageData.items; trackBy: trackBet"><td><strong>{{ bet.displayName }}</strong><small class="table-subtitle">Member #{{ bet.userId }}</small><small class="table-subtitle stake-member-email">{{ bet.email }}</small></td><td><strong>Round #{{ bet.marketId }} · Prediction #{{ bet.id }}</strong><small class="table-subtitle">{{ bet.marketTitle }}</small></td><td>{{ bet.side === 'over' ? 'Over' : 'Under or equal' }}</td><td><strong>{{ bet.stakeCredits | number:'1.0-0' }} cr</strong></td><td>{{ bet.potentialPayoutCredits | number:'1.0-0' }} cr<small class="table-subtitle">Includes original stake</small></td><td><span [class]="'status-pill ' + bet.status">{{ betLabels[bet.status] }}</span></td><td>{{ bet.createdAt | date:'MMM d, HH:mm:ss' }}</td></tr></tbody></table></div>
+      <div class="table-panel" *ngIf="pageData.items.length"><table class="stake-inspector-table"><thead><tr><th>Member</th><th>Round / prediction</th><th>Outcome</th><th>Stake</th><th>Potential return</th><th>Status</th><th>Placed</th></tr></thead><tbody><tr *ngFor="let bet of pageData.items; trackBy: trackBet"><td><strong>{{ bet.displayName }}</strong><small class="table-subtitle">Member #{{ bet.userId }}</small><small class="table-subtitle stake-member-email">{{ bet.email }}</small></td><td><strong>Round #{{ bet.marketId }} · Prediction #{{ bet.id }}</strong><small class="table-subtitle">{{ bet.marketTitle }}</small></td><td>{{ predictionLabel(bet) }}</td><td><strong>{{ bet.stakeCredits | number:'1.0-0' }} cr</strong></td><td>{{ bet.potentialPayoutCredits | number:'1.0-0' }} cr<small class="table-subtitle">Includes original stake</small></td><td><span [class]="'status-pill ' + bet.status">{{ betLabels[bet.status] }}</span></td><td>{{ bet.createdAt | date:'MMM d, HH:mm:ss' }}</td></tr></tbody></table></div>
       <p class="volume-no-rounds" *ngIf="!pageData.items.length">No predictions match this camera, round and status.</p>
       <nav class="admin-user-pagination" aria-label="Individual prediction pages"><div><button class="button compact" type="button" (click)="changePage(1)" [disabled]="loading || page <= 1">First</button><button class="button compact" type="button" (click)="changePage(page - 1)" [disabled]="loading || page <= 1">Previous</button><span>Page {{ page }} of {{ pageData.totalPages }}</span><button class="button compact" type="button" (click)="changePage(page + 1)" [disabled]="loading || page >= pageData.totalPages">Next</button><button class="button compact" type="button" (click)="changePage(pageData.totalPages)" [disabled]="loading || page >= pageData.totalPages">Last</button></div></nav>
     </ng-container>
@@ -30,7 +30,7 @@ export class AdminStakeDetailsComponent implements OnChanges, OnInit, OnDestroy 
   private readonly api = inject(ApiService);
   private readonly document = inject(DOCUMENT);
   private readonly destroyRef = inject(DestroyRef);
-  readonly betLabels = betLabels;
+  readonly predictionLabel = predictionLabel; readonly betLabels = betLabels;
   status: BetStatus | 'all' = 'pending';
   page = 1; pageSize = 25; loading = false; error = '';
   result?: StakeBetPage;

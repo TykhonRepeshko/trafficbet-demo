@@ -46,7 +46,7 @@ type RoundScheduleSnapshot struct {
 
 func defaultRoundSchedule(stream Stream) RoundScheduleSettings {
 	return RoundScheduleSettings{CountingRule: strings.TrimSuffix(seedCountingTitle(stream), " · 5 min"),
-		Threshold: 3, OddsOver: 1.9, OddsUnder: 1.9, EntrySeconds: 30, LeadSeconds: 120, CountingSeconds: 30}
+		Threshold: 3, OddsOver: 1.9, OddsUnder: 1.9, EntrySeconds: 30, LeadSeconds: 30, CountingSeconds: 30}
 }
 
 func validRoundSchedule(p RoundScheduleSettings) bool {
@@ -200,9 +200,8 @@ func (s *Store) runRoundSchedule(ctx context.Context, id int64, now time.Time) e
 		return nil
 	}
 	var p RoundScheduleSettings
-	var next time.Time
-	err = tx.QueryRow(ctx, `SELECT enabled,counting_rule,threshold,odds_over,odds_under,entry_seconds,lead_seconds,counting_seconds,next_run_at
-        FROM round_schedules WHERE stream_id=$1 FOR UPDATE`, id).Scan(&p.Enabled, &p.CountingRule, &p.Threshold, &p.OddsOver, &p.OddsUnder, &p.EntrySeconds, &p.LeadSeconds, &p.CountingSeconds, &next)
+	err = tx.QueryRow(ctx, `SELECT enabled,counting_rule,threshold,odds_over,odds_under,entry_seconds,lead_seconds,counting_seconds
+        FROM round_schedules WHERE stream_id=$1 FOR UPDATE`, id).Scan(&p.Enabled, &p.CountingRule, &p.Threshold, &p.OddsOver, &p.OddsUnder, &p.EntrySeconds, &p.LeadSeconds, &p.CountingSeconds)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil
 	}
@@ -220,35 +219,55 @@ func (s *Store) runRoundSchedule(ctx context.Context, id int64, now time.Time) e
 	if _, err = tx.Exec(ctx, `UPDATE round_schedules SET last_checked_at=$2 WHERE stream_id=$1`, id, now); err != nil {
 		return err
 	}
-	if next.After(now) {
-		return tx.Commit(ctx)
-	}
-	var existingEnd *time.Time
-	if err = tx.QueryRow(ctx, `SELECT max(window_end) FROM bet_markets WHERE stream_id=$1 AND status='open' AND window_end>$2`, id, now).Scan(&existingEnd); err != nil {
+	// next_run_at is a UI/worker hint rather than a publication barrier. Always
+	// reconcile the bounded horizon so upgrades, cancellations and restarts can
+	// repair a missing successor even when an older hint lies in the future.
+	var accepting int
+	var earliestClose, existingEnd *time.Time
+	if err = tx.QueryRow(ctx, `SELECT
+        count(*) FILTER (WHERE status='open' AND betting_closes_at>$2),
+        min(betting_closes_at) FILTER (WHERE status='open' AND betting_closes_at>$2),
+        max(window_end)
+        FROM bet_markets WHERE stream_id=$1 AND status IN ('open','settled') AND window_end>$2`,
+		id, now).Scan(&accepting, &earliestClose, &existingEnd); err != nil {
 		return err
 	}
-	if existingEnd != nil {
-		// Respect already published manual or automatic rounds, even after a
-		// schedule has been disabled, re-enabled or restored from an archive.
-		_, err = tx.Exec(ctx, `UPDATE round_schedules SET next_run_at=$2 WHERE stream_id=$1`, id, *existingEnd)
+	var lastCreated *int64
+	for accepting < 2 {
+		// Entry notice and the safety lead run before counting. Only the pause
+		// between counts affects cadence; the lead must not serialize rounds.
+		// Respect every published interval, including manual ones, and leave
+		// sufficient entry notice when resuming after downtime or a settings change.
+		start := now.Add(time.Duration(p.EntrySeconds+p.LeadSeconds) * time.Second)
+		if existingEnd != nil {
+			following := existingEnd.Add(time.Duration(p.EntrySeconds) * time.Second)
+			if following.After(start) {
+				start = following
+			}
+		}
+		closes := start.Add(-time.Duration(p.LeadSeconds) * time.Second)
+		end := start.Add(time.Duration(p.CountingSeconds) * time.Second)
+		var marketID int64
+		err = tx.QueryRow(ctx, `INSERT INTO bet_markets(stream_id,title,threshold,window_start,window_end,odds_over,odds_under,status,betting_closes_at)
+        VALUES($1,$2,$3,$4,$5,$6,$7,'open',$8) RETURNING id`, id, fmt.Sprintf("%s · %d sec", p.CountingRule, p.CountingSeconds), p.Threshold, start, end, p.OddsOver, p.OddsUnder, closes).Scan(&marketID)
 		if err != nil {
 			return err
 		}
-		return tx.Commit(ctx)
+		if err = auditTx(ctx, tx, "market.auto_created", "market", marketID, map[string]any{"streamId": id, "settings": p}); err != nil {
+			return err
+		}
+		lastCreated = &marketID
+		if earliestClose == nil || closes.Before(*earliestClose) {
+			deadline := closes
+			earliestClose = &deadline
+		}
+		accepting++
+		existingEnd = &end
 	}
-	closes := now.Add(time.Duration(p.EntrySeconds) * time.Second)
-	start := closes.Add(time.Duration(p.LeadSeconds) * time.Second)
-	end := start.Add(time.Duration(p.CountingSeconds) * time.Second)
-	var marketID int64
-	err = tx.QueryRow(ctx, `INSERT INTO bet_markets(stream_id,title,threshold,window_start,window_end,odds_over,odds_under,status,betting_closes_at)
-        VALUES($1,$2,$3,$4,$5,$6,$7,'open',$8) RETURNING id`, id, fmt.Sprintf("%s · %d sec", p.CountingRule, p.CountingSeconds), p.Threshold, start, end, p.OddsOver, p.OddsUnder, closes).Scan(&marketID)
-	if err != nil {
-		return err
-	}
-	if _, err = tx.Exec(ctx, `UPDATE round_schedules SET next_run_at=$2,last_market_id=$3 WHERE stream_id=$1`, id, end, marketID); err != nil {
-		return err
-	}
-	if err = auditTx(ctx, tx, "market.auto_created", "market", marketID, map[string]any{"streamId": id, "settings": p}); err != nil {
+	// Keep at least one already-published accepting successor while the
+	// earlier round is locked/counting, even between the ten-second ticks.
+	if _, err = tx.Exec(ctx, `UPDATE round_schedules SET next_run_at=$2,last_market_id=COALESCE($3,last_market_id) WHERE stream_id=$1`,
+		id, earliestClose, lastCreated); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)

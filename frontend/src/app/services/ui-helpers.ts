@@ -1,4 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
+import type { Bet } from '../models';
+export function predictionLabel(bet: Bet): string { return bet.side === 'range' ? `${bet.rangeMin}–${bet.rangeMax} vehicles (inclusive)` : bet.side === 'over' ? 'Over the threshold' : 'Under or equal to the threshold'; }
 export function apiError(error: unknown, fallback = 'The request could not be completed. Please try again.'): string {
   if (!(error instanceof HttpErrorResponse)) return fallback;
   if (error.status === 0 || error.status === 502 || error.status === 503 || error.status === 504) return 'The service is unavailable. Please try again in a moment.';

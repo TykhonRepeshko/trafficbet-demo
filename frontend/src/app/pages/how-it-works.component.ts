@@ -23,12 +23,12 @@ import { RouterLink } from '@angular/router';
         <article class="rules-step">
           <span class="rules-step-number" aria-hidden="true">02</span>
           <h2>Check the round</h2>
-          <p>Read the threshold, odds, entry deadline and counting interval. Predictions close before counting starts.</p>
+          <p>Check the selected round’s entry deadline and exact counting times. While an earlier round is locked or counting, you can place a prediction on the next published round. These times are shared by everyone; your custom range describes the number of vehicles, not the duration.</p>
         </article>
         <article class="rules-step">
           <span class="rules-step-number" aria-hidden="true">03</span>
           <h2>Make your call</h2>
-          <p>Sign in, choose a whole-number credit stake and pick Over or Under or equal. At a threshold of 120, Over means 121 or more; Under or equal means 120 or fewer.</p>
+          <p>Sign in and enter From and To vehicle counts, for example 12 and 25. Both bounds are included: 12, 20 and 25 win; 11 and 26 lose. Check the server-calculated demo odds, enter a whole-number stake and press Place prediction to confirm. Selecting or editing a range never spends credits.</p>
         </article>
         <article class="rules-step">
           <span class="rules-step-number" aria-hidden="true">04</span>
@@ -41,7 +41,7 @@ import { RouterLink } from '@angular/router';
         <article class="rules-detail">
           <span class="eyebrow">01 / THE COUNT</span>
           <h2>One zone. One interval.</h2>
-          <p>Default automatic rounds accept predictions for 30 seconds, keep a safety gap, then count vehicles for 30 seconds. Check the exact deadline and counting times on each round.</p>
+          <p>Default automatic rounds start a new count every 60 seconds: 30 seconds counting vehicles and a 30-second pause between counts. Predictions close 30 seconds before each count starts. The nearest accepting round usually starts counting in 30–90 seconds; startup and already published windows can temporarily increase that wait. Upcoming rounds are published in advance, so entries for a future round can stay open while an earlier round finishes. Check the exact deadline and counting times before confirming; already published rounds keep their times.</p>
           <p>The round defines the road lanes, crossing line and direction before entries close. Count vehicles captured from the start of the interval up to, but excluding, its end.</p>
           <p>A turquoise line marks the configured crossing zone. A draft or preview label means the line still needs review or is not the selected round’s published rule. Read the round’s Counting rules before predicting.</p>
           <p>The camera’s capture time determines which vehicles belong to the round. A delayed frame arriving in your player does not change the interval.</p>
@@ -51,12 +51,14 @@ import { RouterLink } from '@angular/router';
           <h2>Know what your stake means</h2>
           <p>Your stake leaves your balance when a prediction is accepted. A winning payout includes the original stake: 100 cr at odds of 1.80 returns 180 cr in total. Payouts are rounded to the nearest whole credit.</p>
           <p>A losing prediction returns no credits. If a round is cancelled, each pending prediction receives its original stake back.</p>
-          <p>Credits cannot be purchased, withdrawn or exchanged for money. There are no deposits or cash payouts.</p>
+          <p>Custom-range odds use a fixed geometric simulation model with a reference mean equal to the round threshold plus 0.5, a 5% model margin, downward rounding to two decimals, and a return capped from 1× to 100×. This is a demonstration rule, not a forecast fitted to traffic data. Wider ranges generally reduce the return; sufficiently broad ranges return only the stake. Over / Under remains available with its published round odds.
+          </p><p>Credits cannot be purchased, withdrawn or exchanged for money. There are no deposits or cash payouts.</p>
         </article>
         <article class="rules-detail">
           <span class="eyebrow">03 / THE DEADLINE</span>
           <h2>Entries close before the action</h2>
-          <p>Each round shows its own deadline, at least 30 seconds before counting begins. Once that deadline passes, no new predictions are accepted. The displayed times use your local time zone.</p>
+          <p>Each round shows its own deadline, at least 30 seconds before counting begins. Once that deadline passes, no new predictions are accepted for that round. You can choose the next published round while its entries remain open. The displayed times use your local time zone.</p>
+          <p>Your confirmation always identifies the future counting interval that receives your stake. Changing a range, switching rounds or preparing a draft does not spend credits; only pressing Place prediction submits it.</p>
           <p>These are public camera feeds, also available from their source operators. Playback can lag, and delaying a player cannot make a public feed private. The published deadline stays the same wherever you watch.</p>
         </article>
         <article class="rules-detail">

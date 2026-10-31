@@ -411,7 +411,7 @@ func TestPostgresExplicitDemoSeed(t *testing.T) {
 		t.Fatal(err)
 	}
 	markets, err := s.ListMarkets(ctx, &streams[0].ID, "")
-	if err != nil || len(markets) != 1 || !markets[0].BettingClosesAt.After(time.Now()) {
+	if err != nil || len(markets) != 2 || !markets[0].BettingClosesAt.After(time.Now()) || !markets[1].BettingClosesAt.After(time.Now()) {
 		t.Fatal("seed is not idempotent or betting window invalid", err)
 	}
 }

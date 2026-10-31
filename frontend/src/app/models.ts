@@ -1,7 +1,7 @@
 export type Role = 'admin' | 'user';
 export type StreamType = 'hls' | 'mp4' | 'youtube' | 'iframe' | 'rtsp' | 'image' | 'mjpeg';
 export type MarketStatus = 'draft' | 'open' | 'settled' | 'void';
-export type BetSide = 'over' | 'under';
+export type BetSide = 'over' | 'under' | 'range';
 export type BetStatus = 'pending' | 'won' | 'lost' | 'void';
 
 export interface User {
@@ -22,6 +22,8 @@ export interface UserPage {
 }
 
 export interface StakeAmounts {
+  pendingRangeBetCount: number;
+  pendingRangeCredits: number;
   totalBetCount: number;
   totalStakeCredits: number;
   pendingBetCount: number;
@@ -133,6 +135,14 @@ export interface MarketPayload {
   status: Exclude<MarketStatus, 'settled'>;
 }
 
+export interface RangeQuote {
+  marketId: number;
+  rangeMin: number;
+  rangeMax: number;
+  odds: number;
+  pricingModel: string;
+}
+
 export interface SettlementVerification {
   captureTimeVerified: boolean;
   coverageVerified: boolean;
@@ -141,6 +151,10 @@ export interface SettlementVerification {
 }
 
 export interface Bet {
+  rangeMin?: number;
+  rangeMax?: number;
+  rangeOdds?: number;
+  pricingModel?: string;
   id: number;
   userId: number;
   marketId: number;

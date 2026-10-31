@@ -29,7 +29,8 @@
             "styles": [
               "src/styles.css",
               "src/styles-theme.css",
-              "src/styles-predictions.css"
+              "src/styles-predictions.css",
+              "src/styles-usability.css"
             ],
             "scripts": []
           },

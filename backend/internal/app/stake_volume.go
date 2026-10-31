@@ -10,6 +10,8 @@ import (
 )
 
 type StakeAmounts struct {
+	PendingRangeBetCount int64 `json:"pendingRangeBetCount"`
+	PendingRangeCredits  int64 `json:"pendingRangeCredits"`
 	TotalBetCount        int64 `json:"totalBetCount"`
 	TotalStakeCredits    int64 `json:"totalStakeCredits"`
 	PendingBetCount      int64 `json:"pendingBetCount"`
@@ -52,10 +54,10 @@ type StakeVolumeSnapshot struct {
 func (total *StakeAmounts) add(value StakeAmounts) error {
 	targets := []*int64{&total.TotalBetCount, &total.TotalStakeCredits, &total.PendingBetCount, &total.PendingStakeCredits,
 		&total.PendingOverBetCount, &total.PendingOverCredits, &total.PendingUnderBetCount, &total.PendingUnderCredits,
-		&total.SettledStakeCredits, &total.RefundedStakeCredits}
+		&total.SettledStakeCredits, &total.RefundedStakeCredits, &total.PendingRangeBetCount, &total.PendingRangeCredits}
 	values := []int64{value.TotalBetCount, value.TotalStakeCredits, value.PendingBetCount, value.PendingStakeCredits,
 		value.PendingOverBetCount, value.PendingOverCredits, value.PendingUnderBetCount, value.PendingUnderCredits,
-		value.SettledStakeCredits, value.RefundedStakeCredits}
+		value.SettledStakeCredits, value.RefundedStakeCredits, value.PendingRangeBetCount, value.PendingRangeCredits}
 	for i, amount := range values {
 		if amount < 0 || *targets[i] > math.MaxInt64-amount {
 			return fmt.Errorf("stake volume exceeds supported range")
@@ -78,7 +80,7 @@ func (s *Store) StakeVolume(ctx context.Context) (StakeVolumeSnapshot, error) {
 		count(b.id) FILTER (WHERE b.status='pending' AND b.side='over'),COALESCE(sum(b.stake_credits) FILTER (WHERE b.status='pending' AND b.side='over'),0),
 		count(b.id) FILTER (WHERE b.status='pending' AND b.side='under'),COALESCE(sum(b.stake_credits) FILTER (WHERE b.status='pending' AND b.side='under'),0),
 		COALESCE(sum(b.stake_credits) FILTER (WHERE b.status IN ('won','lost')),0),COALESCE(sum(b.stake_credits) FILTER (WHERE b.status='void'),0),
-		statement_timestamp()
+		statement_timestamp(),count(b.id) FILTER (WHERE b.status='pending' AND b.side='range'),COALESCE(sum(b.stake_credits) FILTER (WHERE b.status='pending' AND b.side='range'),0)
 		FROM streams s LEFT JOIN bet_markets m ON m.stream_id=s.id LEFT JOIN bets b ON b.market_id=m.id
 		GROUP BY s.id,m.id ORDER BY s.id,m.betting_closes_at,m.id`)
 	if err != nil {
@@ -95,7 +97,7 @@ func (s *Store) StakeVolume(ctx context.Context) (StakeVolumeSnapshot, error) {
 			&round.MarketID, &round.Title, &round.Status, &round.Threshold, &round.BettingClosesAt, &round.WindowStart, &round.WindowEnd,
 			&amounts.TotalBetCount, &amounts.TotalStakeCredits, &amounts.PendingBetCount, &amounts.PendingStakeCredits,
 			&amounts.PendingOverBetCount, &amounts.PendingOverCredits, &amounts.PendingUnderBetCount, &amounts.PendingUnderCredits,
-			&amounts.SettledStakeCredits, &amounts.RefundedStakeCredits, &snapshot.AsOf); err != nil {
+			&amounts.SettledStakeCredits, &amounts.RefundedStakeCredits, &snapshot.AsOf, &amounts.PendingRangeBetCount, &amounts.PendingRangeCredits); err != nil {
 			return snapshot, err
 		}
 		if err := snapshot.Totals.add(*amounts); err != nil {

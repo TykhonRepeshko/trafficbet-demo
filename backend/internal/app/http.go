@@ -48,6 +48,7 @@ func (api *API) Routes() http.Handler {
 	mux.HandleFunc("/api/media/streams/", api.withCORS(api.handleMedia))
 	mux.HandleFunc("/api/bets", api.withCORS(api.requireAuth(api.handleBets)))
 	mux.HandleFunc("/api/bets/my", api.withCORS(api.requireAuth(api.handleMyBets)))
+	mux.HandleFunc("/api/bets/range-quote", api.withCORS(api.requireAuth(api.handleRangeQuote)))
 	mux.HandleFunc("/api/admin/streams", api.withCORS(api.requireAdmin(api.handleAdminStreams)))
 	mux.HandleFunc("/api/admin/streams/", api.withCORS(api.requireAdmin(api.handleAdminStreamByID)))
 	mux.HandleFunc("/api/admin/markets", api.withCORS(api.requireAdmin(api.handleAdminMarkets)))
@@ -327,9 +328,13 @@ func (api *API) handleBets(w http.ResponseWriter, r *http.Request) {
 	}
 	user, _ := currentUser(r.Context())
 	var input struct {
-		MarketID     int64  `json:"marketId"`
-		Side         string `json:"side"`
-		StakeCredits int64  `json:"stakeCredits"`
+		MarketID     int64    `json:"marketId"`
+		Side         string   `json:"side"`
+		StakeCredits int64    `json:"stakeCredits"`
+		RangeMin     *int     `json:"rangeMin"`
+		RangeMax     *int     `json:"rangeMax"`
+		QuotedOdds   *float64 `json:"quotedOdds"`
+		PricingModel *string  `json:"pricingModel"`
 	}
 	if !decodeJSON(w, r, &input) {
 		return
@@ -343,7 +348,18 @@ func (api *API) handleBets(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "idempotency_key_required", "A valid Idempotency-Key is required.")
 		return
 	}
-	bet, updatedUser, err := api.store.PlaceBet(r.Context(), user.ID, input.MarketID, input.Side, input.StakeCredits, key)
+	var quote *RangeQuote
+	if input.Side == BetSideRange {
+		if input.RangeMin == nil || input.RangeMax == nil || input.QuotedOdds == nil || input.PricingModel == nil || !validCountRange(*input.RangeMin, *input.RangeMax) || !validOdds(*input.QuotedOdds) || *input.PricingModel != rangePricingModel {
+			writeError(w, 400, "invalid_range", "Choose valid From and To bounds and request current demo odds before placing.")
+			return
+		}
+		quote = &RangeQuote{MarketID: input.MarketID, RangeMin: *input.RangeMin, RangeMax: *input.RangeMax, Odds: *input.QuotedOdds, PricingModel: *input.PricingModel}
+	} else if input.RangeMin != nil || input.RangeMax != nil || input.QuotedOdds != nil || input.PricingModel != nil {
+		writeError(w, 400, "invalid_range", "Range terms require a range prediction.")
+		return
+	}
+	bet, updatedUser, err := api.store.placePrediction(r.Context(), user.ID, input.MarketID, input.Side, input.StakeCredits, key, quote)
 	if err != nil {
 		writeStoreError(w, err)
 		return
@@ -870,5 +886,5 @@ func validMarketStatus(value string) bool {
 }
 
 func validBetSide(value string) bool {
-	return value == BetSideOver || value == BetSideUnder
+	return value == BetSideOver || value == BetSideUnder || value == BetSideRange
 }

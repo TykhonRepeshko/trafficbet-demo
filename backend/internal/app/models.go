@@ -26,6 +26,7 @@ const (
 
 	BetSideOver  = "over"
 	BetSideUnder = "under"
+	BetSideRange = "range"
 )
 
 type User struct {
@@ -89,6 +90,10 @@ type SettlementVerification struct {
 }
 
 type Bet struct {
+	RangeMin               *int       `json:"rangeMin,omitempty"`
+	RangeMax               *int       `json:"rangeMax,omitempty"`
+	RangeOdds              *float64   `json:"rangeOdds,omitempty"`
+	PricingModel           *string    `json:"pricingModel,omitempty"`
 	ID                     int64      `json:"id"`
 	UserID                 int64      `json:"userId"`
 	MarketID               int64      `json:"marketId"`

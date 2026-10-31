@@ -170,7 +170,9 @@ try {
         $testNodePath = Get-ProjectNode
         Push-Location (Join-Path $checkRoot 'frontend')
         try {
-            & $testNodePath --test src/app/tests/frontend-regressions.test.mjs src/app/tests/video-player-regressions.test.mjs src/app/tests/theme-regressions.test.mjs src/app/tests/round-entry-regressions.test.mjs src/app/tests/homepage-regressions.test.mjs src/app/tests/admin-volume-regressions.test.mjs src/app/tests/round-schedule-regressions.test.mjs src/app/tests/streaming-lab-regressions.test.mjs src/app/tests/preparation-regressions.test.mjs src/app/tests/evaluation-regressions.test.mjs
+            $testFiles = @(Get-ChildItem -LiteralPath src/app/tests -Filter '*.test.mjs' | Sort-Object Name | ForEach-Object FullName)
+            if ($testFiles.Count -eq 0) { throw 'No Angular regression test files were found.' }
+            & $testNodePath --test @testFiles
             if ($LASTEXITCODE -ne 0) { throw "Angular regression tests failed with exit code $LASTEXITCODE." }
         } finally { Pop-Location }
     }

@@ -1,0 +1,160 @@
+:host { display: block; min-width: 0; }
+.camera-detail-page .detail-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; align-items: start; }
+.watch-column { width: 100%; max-width: 1120px; min-width: 0; margin-inline: auto; }
+.camera-quick-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 22px; margin: -8px 0 24px; }
+.camera-quick-actions .button { min-height: 44px; font-size: 13px; }
+.camera-quick-actions .text-button { font-size: 13px; }
+.camera-quick-actions > span { font-size: 12px; color: var(--muted); }
+.camera-detail-page .prediction-column { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; min-width: 0; scroll-margin-top: 20px; }
+.camera-detail-page .prediction-panel { padding: 26px; background: var(--surface); }
+.prediction-intro { display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: 18px; }
+.prediction-intro > div:first-child { flex: 1 1 300px; min-width: 0; }
+.camera-detail-page .prediction-panel h2 { font-size: 28px; line-height: 1.3; margin: 10px 0; }
+.prediction-intro .small-note { font-size: 13px; margin: 0; line-height: 1.7; }
+.prediction-balance { display: grid; gap: 7px; padding: 13px 17px; border: 1px solid var(--line); border-radius: 9px; background: var(--bg); }
+.prediction-balance > span { font-size: 11px; color: var(--muted); }
+.prediction-balance > strong { font-size: 24px; font-variant-numeric: tabular-nums; }
+.prediction-balance small { font-size: 12px; color: var(--muted); }
+.round-picker-heading { border-top: 1px solid var(--line); margin-top: 22px; padding-top: 20px; }
+.round-picker-heading h3 { font-size: 16px; margin: 0 0 7px; }
+.round-picker-heading p { margin: 0; font-size: 12px; line-height: 1.7; color: var(--muted); }
+.round-update-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; margin: 12px 0; }
+.round-update-row .small-note, .round-update-row .text-button { font-size: 11px; margin: 0; }
+.camera-detail-page .prediction-round-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 360px)); gap: 12px; align-items: stretch; }
+.camera-detail-page .prediction-market.round-selector-card { display: flex; flex-direction: column; grid-column: auto; padding: 17px; margin: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); min-width: 0; }
+.camera-detail-page .prediction-market.round-selector-card.selected-market { border: 2px solid var(--orange); padding: 16px; }
+.round-selector-card .market-meta { font-size: 11px; color: var(--muted); }
+.round-selector-card .tag { font-size: 10px; }
+.camera-detail-page .round-selector-card h3 { font-size: 20px; line-height: 1.4; margin: 13px 0 7px; font-variant-numeric: tabular-nums; }
+.round-selector-meta { font-size: 12px; line-height: 1.7; color: var(--muted); margin: 0 0 10px; }
+.round-selector-deadline { font-size: 12px; color: var(--muted); margin: auto 0 0; }
+.round-selector-deadline strong { color: var(--ink); font-variant-numeric: tabular-nums; }
+.select-round-button { width: 100%; min-height: 44px; margin-top: 12px; font-size: 12px; }
+.select-round-button[aria-pressed="true"] { border-color: var(--orange); }
+.prediction-composer { border: 1px solid var(--line); border-radius: 12px; padding: 24px; margin-top: 22px; scroll-margin-top: 20px; background: var(--surface); min-width: 0; }
+.composer-heading { display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.composer-heading h3 { font-size: 24px; line-height: 1.4; margin: 7px 0 0; }
+.composer-heading .tag { font-size: 11px; font-variant-numeric: tabular-nums; }
+.round-timers { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; margin-top: 18px; }
+.entry-timer, .count-start-timer { display: grid; align-content: center; gap: 8px; min-width: 0; padding: 18px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+.entry-timer { border: 2px solid var(--orange); }
+.round-timers span { font-size: 13px; font-weight: 650; line-height: 1.6; color: var(--ink); }
+.round-timers strong { font-size: clamp(28px, 5vw, 42px); line-height: 1.15; font-weight: 750; letter-spacing: 1px; font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
+.count-start-timer strong { font-size: clamp(23px, 4vw, 32px); }
+.round-timers small { font-size: 11px; line-height: 1.8; color: var(--muted); }
+.entry-timer.closing-soon { border-color: var(--red); }
+.entry-timer.closing-soon strong, .entry-timer.closing-soon small { color: var(--red); }
+.watch-column .current-round-timer strong { font-size: 20px; letter-spacing: .5px; font-variant-numeric: tabular-nums; }
+.composer-context { font-size: 13px; line-height: 1.8; color: var(--muted); max-width: 740px; margin: 12px 0 22px; }
+.composer-context strong { color: var(--ink); }
+.round-context-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 14px 28px; padding: 16px 18px; margin-top: 22px; border: 1px solid var(--line); border-radius: 9px; background: var(--bg); }
+.round-context-strip > div { display: grid; gap: 6px; }
+.round-context-strip span { font-size: 11px; line-height: 1.7; color: var(--muted); }
+.round-context-strip strong { font-size: 13px; line-height: 1.7; font-variant-numeric: tabular-nums; }
+.round-context-strip p { margin: 0; font-size: 12px; line-height: 1.8; color: var(--muted); flex: 1 1 180px; }
+.prediction-target-time { display: grid; gap: 7px; padding: 18px; margin: 16px 0 24px; border: 1px solid var(--line); border-left: 3px solid var(--orange); border-radius: 8px; background: var(--bg); }
+.prediction-target-time > span, .prediction-target-time small { color: var(--muted); font-size: 12px; line-height: 1.7; }
+.prediction-target-time strong { font-size: 25px; line-height: 1.5; font-variant-numeric: tabular-nums; }
+.target-clock { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 10px; max-width: 390px; font-size: clamp(16px, 3.8vw, 25px); line-height: 1.5; font-weight: 700; font-variant-numeric: tabular-nums; }
+.target-clock time { min-width: 0; white-space: nowrap; }
+.target-clock > span { color: var(--muted); font-size: 16px; }
+.target-change:empty { display: none; }
+.target-change p { padding: 12px 15px; margin: 0 0 16px; border-left: 3px solid var(--orange); border-radius: 5px; background: var(--bg); font-size: 12px; line-height: 1.8; color: var(--muted); }
+.target-change strong { color: var(--ink); }
+.video-rule-context { display: flex; flex-wrap: wrap; gap: 5px 14px; color: var(--muted); font-size: 11px; line-height: 1.8; margin: 12px 0 0; }
+.watch-column .round-context-strip { margin-top: 12px; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; padding: 12px 0 0; gap: 8px 22px; }
+.watch-column .round-context-strip > div { gap: 2px; }
+.watch-column .round-context-strip p { flex-basis: 100%; }
+.prediction-form { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(240px, .9fr); gap: 28px; align-items: start; }
+.composer-fields, .composer-summary { min-width: 0; }
+.range-picker { border: 0; padding: 0; margin: 0 0 22px; min-width: 0; }
+.range-picker legend { font-size: 15px; line-height: 1.6; font-weight: 650; }
+.prediction-modes { display: flex; gap: 10px; flex-wrap: wrap; margin: 15px 0 20px; }
+.prediction-modes .button { min-height: 44px; font-size: 12px; }
+.prediction-modes [aria-pressed="true"] { outline: 2px solid var(--orange); outline-offset: 2px; }
+.range-bounds { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 12px; }
+.range-bounds label { display: grid; gap: 8px; font-size: 13px; }
+.range-bounds label small { font-size: 11px; font-weight: 400; color: var(--muted); }
+.range-bounds label, .range-bounds input { min-width: 0; }
+.field-step { display: inline-grid; place-items: center; width: 24px; height: 24px; margin-right: 7px; border: 1px solid var(--line); border-radius: 50%; color: var(--muted); font-size: 12px; vertical-align: middle; }
+.range-bounds input { width: 100%; min-height: 58px; font-size: 26px; font-variant-numeric: tabular-nums; }
+.range-bounds > span { align-self: end; height: 58px; display: grid; place-items: center; color: var(--muted); }
+.range-picker .small-note, .composer-fields > .small-note { font-size: 12px; line-height: 1.8; }
+.range-quote-status { font-size: 16px; line-height: 1.6; font-weight: 650; margin: 14px 0 10px; }
+.range-pricing-note { color: var(--muted); font-size: 12px; line-height: 1.8; }
+.range-pricing-note summary { cursor: pointer; }
+.range-pricing-note p { margin: 10px 0; }
+.camera-detail-page .choice-row { gap: 12px; }
+.camera-detail-page .range-choice { display: flex; flex-direction: column; flex: 1; align-items: stretch; text-align: left; min-height: 114px; padding: 13px; gap: 8px; }
+.range-choice > span { font-size: 18px; font-weight: 700; }
+.range-choice > strong { font-size: 13px; }
+.range-choice > small { font-size: 11px; }
+.range-choice.selected-outcome { outline: 2px solid currentColor; outline-offset: 2px; }
+.stake-field { display: block; margin: 0 0 9px; font-size: 14px; font-weight: 650; }
+.stake-field small { font-size: 12px; font-weight: 400; color: var(--muted); }
+.prediction-stake-input { width: 100%; min-height: 52px; font-size: 23px; font-variant-numeric: tabular-nums; }
+.stake-presets { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.stake-presets .button { min-height: 44px; padding: 9px 12px; font-size: 12px; }
+.stake-presets .button.is-active { border-color: var(--orange); outline: 1px solid var(--orange); outline-offset: 1px; }
+.review-heading { font-size: 15px; line-height: 1.6; margin: 0 0 20px; }
+.stake-review .return-preview { border-block: 1px solid var(--line); padding-block: 14px; }
+.stake-review .return-preview strong { font-size: 22px; }
+.composer-summary { padding: 20px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+.stake-review { margin-bottom: 20px; }
+.stake-review > div { display: flex; align-items: start; justify-content: space-between; gap: 14px; font-size: 13px; line-height: 1.7; }
+.stake-review > div + div { margin-top: 16px; }
+.stake-review span { color: var(--muted); min-width: 0; }
+.stake-review small { display: block; font-size: 11px; }
+.stake-review strong { text-align: right; font-variant-numeric: tabular-nums; min-width: 0; max-width: 65%; overflow-wrap: anywhere; }
+.confirm-prediction { display: grid; justify-content: center; gap: 4px; width: 100%; min-height: 52px; padding: 12px; font-size: 14px; text-align: center; }
+.confirm-prediction small { font-size: 12px; font-weight: 500; }
+.confirmation-help { font-size: 12px; line-height: 1.8; color: var(--muted); margin: 12px 0; }
+.prediction-feedback:empty { display: none; }
+.prediction-success { display: flex; align-items: start; gap: 16px; grid-column: 1/-1; padding: 22px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+.prediction-success > span { display: grid; place-items: center; flex: 0 0 38px; height: 38px; border: 1px solid var(--teal); color: var(--teal); border-radius: 50%; font-size: 24px; }
+.prediction-success h4 { margin: 0 0 10px; font-size: 20px; }
+.prediction-success p { color: var(--muted); font-size: 13px; line-height: 1.9; margin: 0 0 18px; }
+.prediction-success-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.prediction-success-actions .button { min-height: 44px; font-size: 12px; }
+.prediction-receipt { margin: 16px 0; padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font-size: 13px; line-height: 1.8; }
+.prediction-receipt p { margin: 8px 0; }
+.prediction-receipt .text-button { font-size: 13px; }
+.place-action-note { font-size: 11px; line-height: 1.8; margin-bottom: 0; }
+.composer-rules { margin-top: 20px; border-top: 1px solid var(--line); padding-top: 15px; }
+.composer-rules > summary, .prediction-deadlines > summary { cursor: pointer; font-size: 12px; font-weight: 650; line-height: 1.7; }
+.composer-sign-in { padding: 20px; background: var(--bg); border: 1px solid var(--line); border-radius: 9px; }
+.composer-sign-in strong { font-size: 17px; }
+.composer-sign-in p { color: var(--muted); font-size: 13px; line-height: 1.8; }
+.composer-sign-in .button { min-height: 44px; margin-right: 18px; }
+.composer-sign-in .text-button { display: inline-block; font-size: 13px; margin-top: 10px; }
+.prediction-deadlines { margin-top: 22px; padding-top: 17px; border-top: 1px solid var(--line); }
+.prediction-deadlines p { font-size: 12px; line-height: 1.8; }
+.credits-note { font-size: 11px; }
+.camera-information-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; align-items: start; }
+.about-camera > p { font-size: 12px; line-height: 1.8; }
+.source-row { font-size: 11px; flex-wrap: wrap; }
+.source-row strong { overflow-wrap: anywhere; }
+.source-row .text-button { font-size: 12px; }
+.metrics-panel .small-note, .ai-note p { font-size: 12px; line-height: 1.8; }
+.ai-note strong { font-size: 13px; }
+:is(.prediction-composer, .prediction-column):focus-visible, :is(button, a, input, summary):focus-visible { outline: 3px solid var(--orange); outline-offset: 4px; }
+@media (max-width: 1000px) { .prediction-form, .camera-information-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 650px) {
+  .camera-detail-page .prediction-panel { padding: 20px 15px; }
+  .camera-detail-page .prediction-panel h2 { font-size: 24px; }
+  .prediction-balance { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+  .camera-detail-page .prediction-round-grid { grid-template-columns: minmax(0, 1fr); }
+  .prediction-composer { padding: 18px 13px; }
+  .round-timers { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .entry-timer, .count-start-timer { padding: 15px; }
+  .entry-timer strong { font-size: 36px; }
+  .count-start-timer { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; }
+  .count-start-timer small { grid-column: 1/-1; }
+  .count-start-timer strong { font-size: 23px; }
+  .composer-heading h3 { font-size: 22px; }
+  .composer-summary { padding: 16px 13px; }
+  .camera-quick-actions > span { flex-basis: 100%; }
+  .round-update-row { align-items: start; }
+  .range-bounds { gap: 8px; }
+  .range-bounds input { font-size: 23px; }
+}

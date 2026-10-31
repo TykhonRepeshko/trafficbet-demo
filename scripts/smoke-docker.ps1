@@ -170,7 +170,7 @@ try {
     Assert-Smoke ($streams.Count -eq 6 -and @($streams | Where-Object sourceOwner -eq 'Norwegian Public Roads Administration (Statens vegvesen)').Count -eq 5 -and @($streams | Where-Object sourceOwner -eq 'California Department of Transportation (Caltrans)').Count -eq 1) 'Production seed did not include the six attributed cameras.'
     Assert-Smoke (@($streams | Where-Object { $_.streamUrl -notmatch '^/api/media/streams/\d+/index\.m3u8$' }).Count -eq 0) 'Public camera metadata exposes upstream media addresses.'
     $schedules = (Read-SmokeJSON (Invoke-SmokeHTTP '/api/admin/round-schedules' 200 'GET' $null $administrator)).schedules
-    Assert-Smoke (@($schedules | Where-Object { -not $_.enabled -or $_.entrySeconds -ne 30 -or $_.countingSeconds -ne 30 -or $_.leadSeconds -ne 120 }).Count -eq 0) 'Seeded round schedules did not retain the short entry/counting windows and safety gap.'
+    Assert-Smoke (@($schedules | Where-Object { -not $_.enabled -or $_.entrySeconds -ne 30 -or $_.countingSeconds -ne 30 -or $_.leadSeconds -ne 30 }).Count -eq 0) 'Seeded round schedules did not retain the short entry/counting windows and safety gap.'
     # The account workflow must not race a 30-second demo entry period on a
     # slow build host. Its own source has no scheduler and a controlled deadline.
     $source = @(Read-SmokeJSON (Invoke-SmokeHTTP '/api/admin/streams' 200 'GET' $null $administrator))[0]

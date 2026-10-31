@@ -1,4 +1,7 @@
 /* The prediction lobby leads with real rounds. Camera imagery stays unaltered. */
+.round-range-action{width:100%;min-height:48px;justify-content:center;text-align:center;margin-top:auto}
+.round-alternative{margin-top:16px;font-size:12px;line-height:1.7;color:var(--muted)}.round-alternative>summary{cursor:pointer}.round-alternative .round-outcomes{margin-top:14px}.camera-range-hint{font-size:12px;line-height:1.8;color:var(--muted)}
+.demo-range-bounds{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:16px;margin:20px 0;color:var(--muted)}.demo-range-bounds>div{display:grid;gap:8px;padding:16px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}.demo-range-bounds>div>span{font-size:10px;letter-spacing:1px}.demo-range-bounds strong{font-size:30px;color:var(--ink);font-variant-numeric:tabular-nums}
 .camera-home.prediction-home {
   --prediction-muted: #53667a;
   --prediction-subtle: #f4f7f9;
@@ -307,24 +310,49 @@
   border-radius: 11px;
   background: var(--prediction-accent-bg);
 }
-.camera-home.prediction-home .home-round-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 6px 10px;
-}
 .camera-home.prediction-home .home-round-status {
   color: var(--prediction-accent);
   font-size: 10px;
   line-height: 1.5;
   font-weight: 700;
 }
-.camera-home.prediction-home .home-round-time {
-  color: var(--prediction-muted);
-  font-size: 10px;
+.camera-home.prediction-home .camera-entry-timer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px 12px;
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--ink);
+}
+.camera-home.prediction-home .camera-entry-timer > span {
+  font-size: 12px;
   line-height: 1.5;
+  font-weight: 650;
+}
+.camera-home.prediction-home .camera-entry-timer > strong {
+  font-size: 32px;
+  line-height: 1.1;
+  font-weight: 750;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.camera-home.prediction-home .camera-entry-timer > small {
+  grid-column: 1 / -1;
+  color: var(--prediction-muted);
+  font-size: 11px;
+  line-height: 1.6;
+  font-variant-numeric: tabular-nums;
+}
+.camera-home.prediction-home .camera-entry-timer.closing-soon {
+  border-color: var(--prediction-accent-border);
+  box-shadow: inset 3px 0 0 var(--prediction-accent);
+}
+.camera-home.prediction-home .camera-entry-timer.closing-soon > strong {
+  color: var(--prediction-accent);
 }
 .camera-home.prediction-home .camera-round-panel > strong {
   color: var(--ink);
@@ -384,6 +412,10 @@
   text-decoration: none;
 }
 .camera-home.prediction-home .camera-card-action > span { font-size: 17px; flex-shrink: 0; line-height: 1; }
+/* Keep action text above the generic theme rule for links inside round cards. */
+.camera-home.prediction-home .home-camera-round > .camera-card-action.camera-prediction-link {
+  color: var(--camera-action-ink);
+}
 .camera-home.prediction-home .camera-stake-note {
   color: var(--prediction-muted);
   font-size: 10px;
@@ -549,4 +581,84 @@
 @media (prefers-reduced-motion: reduce) {
   .camera-home.prediction-home .home-camera-card,
   .camera-home.prediction-home .camera-card-action { transition: none; }
+}
+
+/* One discovery grid: status first, then the next available action. */
+.camera-home.prediction-home .home-intro-compact {
+  grid-template-columns: minmax(0, 1fr) minmax(260px, .72fr);
+  gap: 32px;
+  margin: 0 0 18px;
+  align-items: center;
+}
+:root[data-theme="dark"] .camera-home.prediction-home .home-intro-compact { background: transparent; }
+.camera-home.prediction-home .home-intro-compact h1 { font-size: clamp(29px, 3vw, 42px); line-height: 1.16; margin: 16px 0 14px; letter-spacing: -1.2px; }
+.camera-home.prediction-home .home-intro-compact .home-intro-copy > p { max-width: 520px; margin: 0; font-size: 14px; line-height: 1.8; }
+.home-journey { list-style: none; display: grid; gap: 15px; margin: 0; padding: 0; }
+.home-journey li { display: flex; gap: 12px; align-items: start; }
+.home-journey li > span { display: grid; place-items: center; flex: 0 0 27px; height: 27px; border-radius: 50%; background: var(--surface); border: 1px solid var(--line); color: var(--prediction-accent); font-size: 12px; font-weight: 700; }
+.home-journey li > div { display: grid; gap: 4px; }
+.home-journey strong { font-size: 13px; line-height: 1.5; color: var(--ink); }
+.home-journey small { font-size: 12px; line-height: 1.5; color: var(--prediction-muted); }
+.home-quick-help { margin: 20px 0 22px; border-bottom: 1px solid var(--line); padding-bottom: 18px; font-size: 12px; color: var(--prediction-muted); line-height: 1.7; }
+.home-quick-help > summary { cursor: pointer; width: fit-content; color: var(--prediction-accent); font-weight: 650; padding: 5px 0; }
+.home-quick-help-content { display: grid; grid-template-columns: 1fr 1fr; gap: 20px 30px; margin-top: 18px; padding: 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.home-quick-help-content > div { min-width: 0; }
+.home-quick-help-content > div > strong { color: var(--ink); }
+.home-quick-help-content p { margin: 9px 0 0; }
+.home-quick-help-content .demo-choices { margin-top: 13px; }
+.home-quick-help-content > a { grid-column: 1/-1; font-size: 12px; }
+.camera-lobby-toolbar { position: sticky; top: 0; z-index: 6; display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 12px 0; margin-bottom: 20px; background: var(--bg); border-bottom: 1px solid var(--line); scroll-margin-top: 12px; }
+.camera-availability { display: inline-flex; padding: 4px; gap: 4px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.camera-availability > button { display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 42px; padding: 10px 14px; border: 0; border-radius: 7px; background: transparent; color: var(--prediction-muted); font-size: 12px; font-weight: 600; }
+.camera-availability > button[aria-pressed="true"] { background: var(--prediction-accent-bg); color: var(--prediction-accent); box-shadow: inset 0 0 0 1px var(--prediction-accent-border); }
+.camera-availability button > span { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; background: var(--bg); border-radius: 4px; font-size: 11px; font-variant-numeric: tabular-nums; }
+.camera-lobby-toolbar > .button { min-height: 44px; font-size: 12px; }
+.camera-home.prediction-home .home-directory .home-section-heading { margin-bottom: 12px; }
+.camera-home.prediction-home .home-directory h2 { font-size: 26px; margin-top: 0; }
+.camera-home.prediction-home .home-filters { margin-top: 17px; }
+.camera-home.prediction-home .home-search input, .camera-home.prediction-home .home-city-filter select { font-size: 13px; min-height: 46px; }
+.camera-home.prediction-home .camera-card-heading { align-items: start; }
+.camera-home.prediction-home .camera-state-badge { grid-column: 2; grid-row: 1; padding: 5px 7px; border-radius: 5px; background: var(--prediction-subtle); color: var(--prediction-muted); max-width: 140px; font-size: 10px; line-height: 1.5; font-weight: 650; text-align: right; }
+.camera-home.prediction-home .camera-state-badge.entries-open { background: var(--prediction-green-bg); color: var(--prediction-green); }
+.camera-home.prediction-home .camera-state-badge.state-unknown { background: var(--prediction-subtle); color: var(--prediction-muted); }
+.camera-home.prediction-home .camera-entries-open { border-color: var(--prediction-green-border); }
+.camera-count-time { display: grid; gap: 5px; color: var(--prediction-muted); }
+.camera-count-time > span, .camera-count-time > small { font-size: 11px; line-height: 1.6; }
+.camera-count-time > strong { font-size: 15px; line-height: 1.5; color: var(--ink); font-variant-numeric: tabular-nums; }
+.camera-round-window { color: var(--prediction-muted); font-size: 11px; line-height: 1.8; margin: 0; font-variant-numeric: tabular-nums; }
+.camera-home.prediction-home .camera-round-state strong { font-size: 14px; }
+.camera-home.prediction-home .camera-round-state p { font-size: 12px; line-height: 1.7; }
+.camera-home.prediction-home .camera-card-action { min-height: 48px; font-size: 13px; }
+.home-bottom-note { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 26px 0 0; color: var(--prediction-muted); font-size: 12px; line-height: 1.8; }
+.home-bottom-note > a { color: var(--prediction-accent); text-underline-offset: 3px; }
+.camera-home.prediction-home :is(.camera-availability button, .home-quick-help summary, .home-bottom-note a, .lobby-refresh):focus-visible { outline: 3px solid var(--prediction-focus); outline-offset: 3px; }
+@media (max-width: 960px) {
+  .camera-home.prediction-home .home-intro-compact { grid-template-columns: 1fr; gap: 22px; }
+  .home-journey { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  .home-journey li { gap: 9px; }
+  .home-journey small { font-size: 11px; }
+}
+@media (max-width: 600px) {
+  .camera-home.prediction-home .home-intro-compact { padding: 0; gap: 19px; }
+  .camera-home.prediction-home .home-intro-compact h1 { font-size: 32px; }
+  .camera-home.prediction-home .home-intro-compact .home-intro-copy > p { font-size: 13px; }
+  .home-journey { grid-template-columns: 1fr; gap: 12px; }
+  .home-journey li > div { display: block; }
+  .home-journey small { display: block; font-size: 12px; margin-top: 3px; }
+  .home-quick-help { margin: 17px 0 10px; padding-bottom: 13px; }
+  .home-quick-help-content { grid-template-columns: 1fr; padding: 15px; gap: 20px; }
+  .camera-lobby-toolbar { gap: 8px; margin-bottom: 18px; padding: 9px 0; }
+  .camera-availability { min-width: 0; flex: 1; padding: 3px; gap: 3px; }
+  .camera-availability > button { flex: 1; padding: 9px 8px; font-size: 11px; gap: 6px; min-height: 42px; }
+  .camera-lobby-toolbar > .button { padding: 10px 11px; font-size: 11px; }
+  .camera-home.prediction-home .home-search { flex-basis: 100%; }
+  .camera-home.prediction-home .home-city-filter { flex: 1; width: auto; }
+  .camera-home.prediction-home .home-filters .button { min-height: 44px; font-size: 12px; }
+  .camera-home.prediction-home .camera-state-badge { max-width: 125px; }
+}
+@media (max-width: 360px) {
+  .camera-lobby-toolbar { flex-wrap: wrap; }
+  .camera-availability { flex-basis: 100%; }
+  .camera-lobby-toolbar > .button { margin-left: auto; }
+  .camera-home.prediction-home .camera-entry-timer { grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 11px; }
 }
