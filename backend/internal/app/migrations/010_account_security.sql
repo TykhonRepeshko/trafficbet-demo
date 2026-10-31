@@ -1,0 +1,9 @@
+ALTER TABLE auth_sessions ADD COLUMN id BIGSERIAL UNIQUE;
+CREATE TABLE auth_mfa (
+ user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+ secret_cipher BYTEA NOT NULL,
+ enabled BOOLEAN NOT NULL DEFAULT false,
+ pending_until TIMESTAMPTZ NOT NULL,
+ last_step BIGINT NOT NULL DEFAULT -1,
+ recovery_hashes TEXT[] NOT NULL DEFAULT '{}'
+);

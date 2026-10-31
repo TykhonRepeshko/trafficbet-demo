@@ -1,0 +1,113 @@
+name: trafficbet
+
+services:
+  postgres:
+    build:
+      context: ./postgres
+    environment:
+      POSTGRES_DB: trafficbet
+      POSTGRES_USER: trafficbet
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run scripts/setup.ps1 to generate local secrets}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks: [database]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -h 127.0.0.1 -U trafficbet -d trafficbet"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 1g
+    cpus: 2
+    restart: unless-stopped
+
+  migrate:
+    build:
+      context: ./backend
+    entrypoint: [/app/migrate]
+    environment:
+      DATABASE_URL: postgres://trafficbet:${POSTGRES_PASSWORD:?Run scripts/setup.ps1}@postgres:5432/trafficbet?sslmode=disable
+      RUNTIME_DATABASE_USER: trafficbet_runtime
+      RUNTIME_DATABASE_PASSWORD: ${POSTGRES_RUNTIME_PASSWORD:?Run scripts/setup.ps1}
+    networks: [database]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 64
+    mem_limit: 256m
+    restart: "no"
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      HTTP_ADDR: ":8080"
+      APP_ENV: ${APP_ENV:-development}
+      DATABASE_URL: postgres://trafficbet_runtime:${POSTGRES_RUNTIME_PASSWORD:?Run scripts/setup.ps1}@postgres:5432/trafficbet?sslmode=disable
+      RUN_DATABASE_MIGRATIONS: "false"
+      EVIDENCE_DIRECTORY: /app/evidence
+      VIDEO_DECODER_PATH: /usr/bin/ffmpeg
+      WORKER_TOKEN: ${WORKER_TOKEN:?Run scripts/setup.ps1}
+      SOURCE_OBSERVER_ENABLED: ${SOURCE_OBSERVER_ENABLED:-true}
+      VIDEO_EVIDENCE_ENABLED: ${VIDEO_EVIDENCE_ENABLED:-false}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:4200}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-false}
+      DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:-}
+      DEMO_PLAYER_PASSWORD: ${DEMO_PLAYER_PASSWORD:-}
+      MEDIA_ALLOWED_HOSTS: ${MEDIA_ALLOWED_HOSTS:-kamera.vegvesen.no,wzmedia.dot.ca.gov,cwwp2.dot.ca.gov}
+    networks: [web, database]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - evidence_data:/app/evidence
+    healthcheck:
+      test: [CMD, /app/api, healthcheck]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 128
+    mem_limit: 512m
+    cpus: 2
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "127.0.0.1:4200:8080"
+    networks: [web]
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:8080/api/health]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 64
+    mem_limit: 128m
+    cpus: 1
+    restart: unless-stopped
+
+networks:
+  web:
+  database:
+    internal: true
+
+volumes:
+  postgres_data:
+  evidence_data:

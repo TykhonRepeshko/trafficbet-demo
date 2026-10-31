@@ -1,0 +1,116 @@
+# Disposable full-stack checks. No application volumes and no application ports.
+name: trafficbet-smoke
+services:
+  postgres:
+    build:
+      context: ./postgres
+    environment:
+      POSTGRES_DB: trafficbet_smoke
+      POSTGRES_USER: trafficbet
+      POSTGRES_PASSWORD: ${SMOKE_POSTGRES_PASSWORD:?Use scripts/smoke-docker.ps1}
+    tmpfs:
+      - /var/lib/postgresql/data
+    networks: [database]
+    labels:
+      trafficbet.smoke-run: ${SMOKE_RUN_ID:?Use scripts/smoke-docker.ps1}
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -h 127.0.0.1 -U trafficbet -d trafficbet_smoke"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    mem_limit: 512m
+    cpus: 1
+
+  migrate:
+    build:
+      context: ./backend
+    entrypoint: [/app/migrate]
+    environment:
+      DATABASE_URL: postgres://trafficbet:${SMOKE_POSTGRES_PASSWORD:?Use scripts/smoke-docker.ps1}@postgres:5432/trafficbet_smoke?sslmode=disable
+      RUNTIME_DATABASE_USER: trafficbet_runtime
+      RUNTIME_DATABASE_PASSWORD: ${SMOKE_RUNTIME_PASSWORD:?Use scripts/smoke-docker.ps1}
+    networks: [database]
+    labels:
+      trafficbet.smoke-run: ${SMOKE_RUN_ID:?Use scripts/smoke-docker.ps1}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 64
+    mem_limit: 256m
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      HTTP_ADDR: ":8080"
+      APP_ENV: development
+      DATABASE_URL: postgres://trafficbet_runtime:${SMOKE_RUNTIME_PASSWORD:?Use scripts/smoke-docker.ps1}@postgres:5432/trafficbet_smoke?sslmode=disable
+      RUN_DATABASE_MIGRATIONS: "false"
+      EVIDENCE_DIRECTORY: /app/evidence
+      VIDEO_DECODER_PATH: /usr/bin/ffmpeg
+      SOURCE_OBSERVER_ENABLED: "false"
+      WORKER_TOKEN: ${SMOKE_WORKER_TOKEN:?Use scripts/smoke-docker.ps1}
+      FRONTEND_ORIGIN: http://localhost:4201
+      COOKIE_SECURE: "false"
+      SEED_DEMO_DATA: "true"
+      DEMO_ADMIN_PASSWORD: ${SMOKE_ADMIN_PASSWORD:?Use scripts/smoke-docker.ps1}
+      DEMO_PLAYER_PASSWORD: ${SMOKE_PLAYER_PASSWORD:?Use scripts/smoke-docker.ps1}
+      MEDIA_ALLOWED_HOSTS: kamera.vegvesen.no,wzmedia.dot.ca.gov,cwwp2.dot.ca.gov
+    networks: [web, database]
+    labels:
+      trafficbet.smoke-run: ${SMOKE_RUN_ID:?Use scripts/smoke-docker.ps1}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    tmpfs:
+      - /app/evidence:size=64m,mode=0700,uid=65532,gid=65532
+    healthcheck:
+      test: [CMD, /app/api, healthcheck]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 128
+    mem_limit: 512m
+    cpus: 2
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "127.0.0.1:4201:8080"
+    networks: [web]
+    labels:
+      trafficbet.smoke-run: ${SMOKE_RUN_ID:?Use scripts/smoke-docker.ps1}
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:8080/api/health]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 64
+    mem_limit: 128m
+    cpus: 1
+
+networks:
+  web:
+    labels:
+      trafficbet.smoke-run: ${SMOKE_RUN_ID:?Use scripts/smoke-docker.ps1}
+  database:
+    internal: true
+    labels:
+      trafficbet.smoke-run: ${SMOKE_RUN_ID:?Use scripts/smoke-docker.ps1}

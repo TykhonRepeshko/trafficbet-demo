@@ -1,0 +1,255 @@
+{
+  "source": {
+    "name": "Cala Bona harbour",
+    "ownerPage": "https://www.calabonahotel.com/en/webcam/",
+    "embed": "https://rtsp.me/embed/5tYtr3zD/",
+    "scope": "fixed harbour view; transport test only; outside the prediction catalog"
+  },
+  "mainObservation": {
+    "startedUTC": "2026-10-17T20:33:30.988725+00:00",
+    "requestedSeconds": 900,
+    "camera": "Cala Bona harbour",
+    "scope": "protocol experiment; unsuitable traffic-counting view",
+    "rtcFrames": 17503,
+    "rtcErrors": 0,
+    "rtcSessions": 2,
+    "rtcFrameGapsOver2s": 0,
+    "rtcMaxFrameGapSeconds": 0.703,
+    "hlsRequests": 837,
+    "hlsRequestErrors": 0,
+    "hlsSegments": 157,
+    "hlsDecodedFrames": 19350,
+    "hlsMissingSequences": 0,
+    "hlsEndlist": false,
+    "exactMatchedFrames": 8186,
+    "privateICECandidatesDiscarded": 4,
+    "presenceContinuationRequired": true,
+    "intentionalPresenceBreaks": [
+      {
+        "startSeconds": 595.703,
+        "endSeconds": 616.453
+      }
+    ],
+    "rtcFirstFrameSeconds": 0.359,
+    "rtcDimensions": [
+      800,
+      450
+    ],
+    "hlsTargetDuration": 7.0,
+    "llHlsParts": false,
+    "programDateTime": false,
+    "hlsFirstFrameSeconds": 3.328,
+    "hlsDimensions": [
+      800,
+      450
+    ],
+    "hlsMediaSpanSeconds": 896.749,
+    "elapsedSeconds": 900.671,
+    "finishedUTC": "2026-10-17T20:48:31.664268+00:00",
+    "hlsMinusRtcArrivalSeconds": {
+      "samples": 8186,
+      "min": 0.297,
+      "median": 3.922,
+      "p95": 7.093,
+      "max": 9.094
+    },
+    "measurementLimit": "Receiver startup and exact-frame arrival difference; excludes browser rendering and player buffer, and is not absolute capture-to-screen latency."
+  },
+  "unambiguousTimingCalibration": {
+    "startedUTC": "2026-10-17T20:38:33.638337+00:00",
+    "requestedSeconds": 180,
+    "camera": "Cala Bona harbour",
+    "scope": "protocol experiment; unsuitable traffic-counting view",
+    "rtcFrames": 3485,
+    "rtcErrors": 0,
+    "rtcSessions": 1,
+    "rtcFrameGapsOver2s": 0,
+    "rtcMaxFrameGapSeconds": 0.703,
+    "hlsRequests": 164,
+    "hlsRequestErrors": 0,
+    "hlsSegments": 40,
+    "hlsDecodedFrames": 5190,
+    "hlsMissingSequences": 0,
+    "hlsEndlist": false,
+    "exactMatchedFrames": 1338,
+    "privateICECandidatesDiscarded": 2,
+    "presenceContinuationRequired": false,
+    "intentionalPresenceBreaks": [],
+    "rtcDecodedMediaSeconds": 179.766,
+    "hlsTargetDuration": 7.0,
+    "llHlsParts": false,
+    "programDateTime": false,
+    "hlsFirstFrameSeconds": 0.469,
+    "hlsDimensions": [
+      800,
+      450
+    ],
+    "rtcFirstFrameSeconds": 0.859,
+    "rtcDimensions": [
+      800,
+      450
+    ],
+    "hlsMediaSpanSeconds": 240.598,
+    "elapsedSeconds": 180.672,
+    "finishedUTC": "2026-10-17T20:41:34.325603+00:00",
+    "ambiguousFingerprintsExcluded": 0,
+    "hlsMinusRtcArrivalSeconds": {
+      "samples": 1338,
+      "min": 0.657,
+      "median": 4.156,
+      "p95": 8.562,
+      "max": 14.563
+    },
+    "measurementLimit": "Receiver startup and exact-frame arrival difference; excludes browser rendering and player buffer, and is not absolute capture-to-screen latency."
+  },
+  "additionalObservation": {
+    "startedUTC": "2026-10-17T20:48:51.874472+00:00",
+    "requestedSeconds": 60,
+    "camera": "Cala Bona harbour",
+    "scope": "protocol experiment; unsuitable traffic-counting view",
+    "rtcFrames": 1232,
+    "rtcErrors": 0,
+    "rtcSessions": 1,
+    "rtcFrameGapsOver2s": 0,
+    "rtcMaxFrameGapSeconds": 0.609,
+    "hlsRequests": 57,
+    "hlsRequestErrors": 0,
+    "hlsSegments": 20,
+    "hlsDecodedFrames": 2580,
+    "hlsMissingSequences": 0,
+    "hlsEndlist": false,
+    "exactMatchedFrames": 813,
+    "privateICECandidatesDiscarded": 2,
+    "presenceContinuationRequired": false,
+    "intentionalPresenceBreaks": [],
+    "rtcDecodedMediaSeconds": 59.122,
+    "hlsTargetDuration": 7.0,
+    "llHlsParts": false,
+    "programDateTime": false,
+    "hlsFirstFrameSeconds": 0.5,
+    "hlsDimensions": [
+      800,
+      450
+    ],
+    "rtcFirstFrameSeconds": 1.343,
+    "rtcDimensions": [
+      800,
+      450
+    ],
+    "hlsMediaSpanSeconds": 119.538,
+    "elapsedSeconds": 60.781,
+    "finishedUTC": "2026-10-17T20:49:52.659657+00:00",
+    "ambiguousFingerprintsExcluded": 0,
+    "hlsMinusRtcArrivalSeconds": {
+      "samples": 813,
+      "min": 0.328,
+      "median": 4.078,
+      "p95": 8.938,
+      "max": 10.938
+    },
+    "measurementLimit": "Receiver startup and exact-frame arrival difference; excludes browser rendering and player buffer, and is not absolute capture-to-screen latency."
+  },
+  "existingHlsReference": {
+    "camera": 38,
+    "startedUTC": "2026-10-17T20:25:27.959128+00:00",
+    "requestedSeconds": 900.0,
+    "playlistSuccesses": 172,
+    "segmentSuccesses": 91,
+    "decodedSegments": 91,
+    "decodedFrames": 22624,
+    "requestErrors": 23,
+    "retryRecoveries": 1,
+    "terminalRequestFailures": 5,
+    "masterRefreshes": 0,
+    "endlistSeen": false,
+    "sequenceAdvances": 86,
+    "sequenceRegressions": 0,
+    "ptsRegressions": 0,
+    "longestNewSegmentGapSeconds": 67.219,
+    "maximumRequestSeconds": 1.656,
+    "errorsByKind": {
+      "HTTP 502": 23
+    },
+    "snapshots": [
+      "frame-0001.png",
+      "frame-0065.png",
+      "frame-0135.png",
+      "frame-0200.png",
+      "frame-0260.png",
+      "frame-0325.png",
+      "frame-0417.png",
+      "frame-0484.png",
+      "frame-0554.png",
+      "frame-0624.png",
+      "frame-0689.png",
+      "frame-0764.png",
+      "frame-0834.png",
+      "frame-0899.png",
+      "frame-final.png"
+    ],
+    "framingSamples": 453,
+    "framingCandidates": 0,
+    "framingFlaggedSnapshots": [],
+    "framingSampleIntervalPTSSeconds": 2,
+    "framingMeasurementResolution": "256x144, crop x13:243/y12:126",
+    "firstChildHandleSHA256": "90ec756c8ec6d7f005676df19e0145102caa4914afcf448094016c91a9880c81",
+    "currentChildHandleSHA256": "90ec756c8ec6d7f005676df19e0145102caa4914afcf448094016c91a9880c81",
+    "firstSequence": 20552,
+    "lastSequence": 20643,
+    "firstPTS": 14636.8282,
+    "lastPTS": 15574.0695,
+    "lastDecodedUTC": "2026-10-17T20:40:27.387096+00:00",
+    "elapsedSeconds": 904.172,
+    "finishedUTC": "2026-10-17T20:40:32.147088+00:00",
+    "sameChildHandleThroughout": true,
+    "tailWithoutNewSegmentSeconds": 4.766,
+    "successfulHTTPRequests": 264,
+    "errorsByResource": {
+      "playlist": 23
+    },
+    "missingDecodedSequenceCount": 3,
+    "missingDecodedSequences": [
+      20591,
+      20592,
+      20593
+    ],
+    "observedPTSGapsOverHalfSecond": [
+      {
+        "afterSequence": 20590,
+        "beforeSequence": 20594,
+        "seconds": 32.36
+      }
+    ],
+    "maximumObservedPTSGapSeconds": 32.36,
+    "completeFrameCoverageProven": false,
+    "browserRenderingTested": false,
+    "minimumReferenceGradientCorrelation": 0.675548,
+    "minimumPreviousGradientCorrelation": 0.661238,
+    "maximumReferenceAlignmentShiftPixels": 0
+  },
+  "framing": {
+    "samples": 16,
+    "minimumGradientCorrelation": 0.87279,
+    "maximumAlignmentShiftPixels": 0
+  },
+  "checks": {
+    "frontendCasesPassed": 110,
+    "goUnitAssertionsPassed": 127,
+    "goVet": true,
+    "productionBuild": true,
+    "previewBuild": true,
+    "composeSyntax": true,
+    "postgresIntegrationExecuted": false,
+    "dockerRuntimeExecuted": false,
+    "browserRenderingTested": false,
+    "savedAccountsAndBalancesPreserved": true,
+    "fiveCameraIdsUnchanged": [
+      38,
+      39,
+      40,
+      41,
+      42
+    ],
+    "frontendSecretCanaryCheck": true
+  }
+}

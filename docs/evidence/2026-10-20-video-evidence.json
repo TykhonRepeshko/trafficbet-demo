@@ -1,0 +1,129 @@
+{
+  "recordedAt": "2026-10-20T19:46:10.6498353Z",
+  "scope": "Actual retained camera 41 footage, not rendered-browser playback or trusted sensor UTC",
+  "captures": [
+    {
+      "id": 1,
+      "streamId": 41,
+      "requestedSeconds": 30,
+      "durationMs": 39680,
+      "clipSha256": "e7eff5a8a5d020d8ebdcceff4bca63e85283c9bc085195c8970abdf4a4f8caea",
+      "retainedBytes": 4126017,
+      "decodedFrames": 992,
+      "segmentCount": 4,
+      "framesDecoded": true,
+      "relativeCoverageComplete": true,
+      "captureTimeTrusted": false,
+      "captureStart": null,
+      "framingStatus": "stable_sampled",
+      "missingSequences": [],
+      "ptsGaps": [],
+      "issues": [
+        "receipt_span_seconds_30_not_capture_utc"
+      ],
+      "captureDiagnostics": null
+    },
+    {
+      "id": 2,
+      "streamId": 41,
+      "requestedSeconds": 600,
+      "durationMs": 600157,
+      "clipSha256": "ab5ec3f6d99f0ade25a9dfb935ad68e7abce7f906699ea10a06feb9c774bf2e3",
+      "retainedBytes": 58198802,
+      "decodedFrames": 15004,
+      "segmentCount": 60,
+      "framesDecoded": true,
+      "relativeCoverageComplete": true,
+      "captureTimeTrusted": false,
+      "captureStart": null,
+      "framingStatus": "stable_sampled",
+      "missingSequences": [],
+      "ptsGaps": [],
+      "issues": [
+        "receipt_span_seconds_641_not_capture_utc"
+      ],
+      "captureDiagnostics": null
+    },
+    {
+      "id": 3,
+      "streamId": 41,
+      "requestedSeconds": 300,
+      "durationMs": 9920,
+      "clipSha256": "1487564946715cdd36ffd38eb94f1ba5fa1075e36a042bf5cd29699a6c5ed2a0",
+      "retainedBytes": 805588,
+      "decodedFrames": 248,
+      "segmentCount": 1,
+      "framesDecoded": true,
+      "relativeCoverageComplete": false,
+      "captureTimeTrusted": false,
+      "captureStart": null,
+      "framingStatus": "stable_sampled",
+      "missingSequences": [],
+      "ptsGaps": [],
+      "issues": [
+        "capture_window_incomplete",
+        "receipt_span_seconds_413_not_capture_utc"
+      ],
+      "captureDiagnostics": null
+    },
+    {
+      "id": 4,
+      "streamId": 41,
+      "requestedSeconds": 300,
+      "durationMs": 300079,
+      "clipSha256": "a80d9f6eeb0d90745421d56c2304d1c7fe572cf64b59cabdd978d0e279ed27e9",
+      "retainedBytes": 27707594,
+      "decodedFrames": 7502,
+      "segmentCount": 30,
+      "framesDecoded": true,
+      "relativeCoverageComplete": true,
+      "captureTimeTrusted": false,
+      "captureStart": null,
+      "framingStatus": "stable_sampled",
+      "missingSequences": [],
+      "ptsGaps": [],
+      "issues": [
+        "capture_job_wall_seconds_312_not_capture_utc"
+      ],
+      "captureDiagnostics": {
+        "manifestPolls": 126,
+        "manifestFailures": 0,
+        "segmentAttempts": 30,
+        "segmentFailures": 0,
+        "invalidHandles": 0,
+        "captureWallMs": 291483,
+        "processingMs": 21138
+      }
+    }
+  ],
+  "completeLongCaptureIds": [
+    2,
+    4
+  ],
+  "completeLongDurationMs": 900236,
+  "completeLongFrames": 22506,
+  "sharedSourceSegmentHashes": 0,
+  "sourceDuplicateDetectionLimit": "Byte identity only; not every re-encoded duplicate",
+  "actualPrivateClipRange206": true,
+  "annotations": {
+    "ids": [
+      1,
+      2,
+      3
+    ],
+    "provenance": "assistant_assisted",
+    "intervals": 3,
+    "candidateCrossings": 10,
+    "uncertainCrossings": 10,
+    "independentlyAccepted": 0
+  },
+  "hostSleep": {
+    "sleepEvent": "Kernel-Power 42",
+    "sleepUTC": "2026-10-20T19:26:26Z",
+    "resumeEvent": "Power-Troubleshooter 1",
+    "resumeUTC": "2026-10-20T19:33:15Z",
+    "affectedCaptureId": 3,
+    "retryCaptureId": 4,
+    "temporaryIdleGuardCleared": true
+  }
+}

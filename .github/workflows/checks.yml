@@ -1,0 +1,71 @@
+name: Project checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: trafficbet
+          POSTGRES_PASSWORD: isolated-ci-only-password
+          POSTGRES_DB: trafficbet_tests
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd 'pg_isready -U trafficbet -d trafficbet_tests'
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Go unit checks
+        working-directory: backend
+        run: |
+          go test -count=1 ./...
+          go vet ./...
+      - name: Isolated PostgreSQL integration
+        working-directory: backend
+        env:
+          TEST_DATABASE_URL: postgres://trafficbet:isolated-ci-only-password@127.0.0.1:5432/trafficbet_tests?sslmode=disable
+        run: go test -count=1 -timeout=180s -run '^TestPostgres' ./...
+      - name: Angular checks
+        working-directory: frontend
+        env:
+          NG_CLI_ANALYTICS: 'false'
+        run: |
+          npm ci --no-fund
+          node --test src/app/tests/*.test.mjs
+          npm run build
+          npm run build:preview -- --output-path dist/trafficbet-preview
+          npm audit --audit-level=high
+      - name: Go vulnerability check
+        working-directory: backend
+        run: |
+          go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+      - name: Container tests
+        env:
+          POSTGRES_PASSWORD: isolated-container-ci-only-password
+        run: |
+          docker compose -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from tests
+      - name: Remove isolated test containers
+        if: always()
+        env:
+          POSTGRES_PASSWORD: isolated-container-ci-only-password
+        run: docker compose -f docker-compose.test.yml down --volumes

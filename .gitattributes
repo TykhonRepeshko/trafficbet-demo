@@ -1,0 +1,10 @@
+# Keep Linux container scripts reproducible after Windows checkouts.
+* text=auto eol=lf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.woff binary
+*.woff2 binary
