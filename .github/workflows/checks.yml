@@ -54,7 +54,7 @@ jobs:
           node --test src/app/tests/*.test.mjs
           npm run build
           npm run build:preview -- --output-path dist/trafficbet-preview
-          npm audit --audit-level=high
+          npm audit --audit-level=moderate
       - name: Go vulnerability check
         working-directory: backend
         run: |

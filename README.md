@@ -99,7 +99,7 @@ Docker API/Nginx services run without root, with read-only root filesystems, dro
 
 Local HTTP is for loopback development. Public deployment requires HTTPS, secure cookies, an exact HTTPS frontend Origin, production configuration and infrastructure review. Email ownership verification, SMTP recovery, production load testing and operational monitoring remain unfinished. Virtual credits do not remove account-security requirements.
 
-Dependency scans are point-in-time checks. Angular's build-tool Undici override pins the fixed compatible 7.30.1 release while remaining on Angular 21. The Go toolchain minimum includes the October certificate-verification fix. Historical and current image findings are recorded in [Docker verification](docs/23-docker-verification.md); this project does not claim a vulnerability-free deployment.
+Dependency scans are point-in-time checks. Scoped overrides pin Undici 7.30.1 for Angular's builder and glob 14.0.3 / minimatch 11.0.3 within Angular CLI 21. The latter fix the two advisories behind the earlier 16 moderate development-dependency findings. Compatibility checks exercise package preparation, ignore rules, delegated update targets and cache verification. Angular remains on version 21; CI audits the full dependency tree at moderate severity. The Go toolchain minimum includes the October certificate-verification fix. Historical and current image findings are recorded in [Docker verification](docs/23-docker-verification.md); this project does not claim a vulnerability-free deployment.
 
 ## Verification
 
