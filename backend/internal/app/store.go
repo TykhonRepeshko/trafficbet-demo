@@ -18,7 +18,13 @@ var ErrConflict = errors.New("conflict")
 
 type Store struct {
 	pool *pgxpool.Pool
+	// staggerRounds offsets each camera's counting windows (see staggeredStart) so the AI worker never has
+	// to count every camera at the same moment.
+	staggerRounds bool
 }
+
+// SetRoundStagger enables per-camera phase offsets for newly published rounds.
+func (s *Store) SetRoundStagger(enabled bool) { s.staggerRounds = enabled }
 
 func OpenDB(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
 	cfg, err := pgxpool.ParseConfig(databaseURL)
@@ -568,7 +574,19 @@ func (s *Store) SettleMarket(ctx context.Context, marketID int64, actualCount in
 	if err := requireVersionedRoundReview(ctx, tx, marketID, actualCount); err != nil {
 		return Market{}, err
 	}
+	updated, err := settleLockedMarket(ctx, tx, market, actualCount, "manual", map[string]any{"verificationPolicy": settlementVerificationPolicy, "verification": verification})
+	if err != nil {
+		return Market{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Market{}, err
+	}
+	return updated, nil
+}
 
+// settleLockedMarket pays winners, records the count and audits the settlement.
+// The caller holds the market row lock, has validated the count and commits.
+func settleLockedMarket(ctx context.Context, tx pgx.Tx, market Market, actualCount int, metricSource string, details map[string]any) (Market, error) {
 	rows, err := tx.Query(ctx, `
 		SELECT id, user_id, side, potential_payout_credits,range_min,range_max
 		FROM bets
@@ -650,20 +668,20 @@ func (s *Store) SettleMarket(ctx context.Context, marketID int64, actualCount in
 	var metricID int64
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO stream_metrics (stream_id, source, vehicle_count, interval_start, interval_end)
-		VALUES ($1, 'manual', $2, $3, $4)
+		VALUES ($1, $5, $2, $3, $4)
 		ON CONFLICT (stream_id,source,interval_start,interval_end) DO UPDATE SET vehicle_count=stream_metrics.vehicle_count WHERE stream_metrics.vehicle_count=EXCLUDED.vehicle_count
 		RETURNING id
-	`, market.StreamID, actualCount, market.WindowStart, market.WindowEnd).Scan(&metricID); err != nil {
+	`, market.StreamID, actualCount, market.WindowStart, market.WindowEnd, metricSource).Scan(&metricID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Market{}, fmt.Errorf("%w: a different count already exists for this interval", ErrConflict)
 		}
 		return Market{}, err
 	}
-	if err := auditTx(ctx, tx, "market.settled", "market", market.ID, map[string]any{"actualCount": actualCount, "settledBets": len(pending), "verificationPolicy": settlementVerificationPolicy, "verification": verification}); err != nil {
-		return Market{}, err
+	audit := map[string]any{"actualCount": actualCount, "settledBets": len(pending)}
+	for key, value := range details {
+		audit[key] = value
 	}
-
-	if err := tx.Commit(ctx); err != nil {
+	if err := auditTx(ctx, tx, "market.settled", "market", market.ID, audit); err != nil {
 		return Market{}, err
 	}
 	return updated, nil
@@ -672,7 +690,8 @@ func (s *Store) SettleMarket(ctx context.Context, marketID int64, actualCount in
 func (s *Store) ListBetsForUser(ctx context.Context, userID int64) ([]Bet, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT b.id, b.user_id, b.market_id, m.title, s.title, b.side, b.stake_credits,
-		       b.potential_payout_credits, b.status, b.created_at, b.settled_at,b.range_min,b.range_max,b.range_odds,b.pricing_model
+		       b.potential_payout_credits, b.status, b.created_at, b.settled_at,b.range_min,b.range_max,b.range_odds,b.pricing_model,
+		       m.actual_count, COALESCE(m.void_reason, '')
 		FROM bets b
 		JOIN bet_markets m ON m.id = b.market_id
 		JOIN streams s ON s.id = m.stream_id
@@ -690,7 +709,8 @@ func (s *Store) ListAllBets(ctx context.Context, marketID *int64) ([]Bet, error)
 	args := []any{}
 	query := `
 		SELECT b.id, b.user_id, b.market_id, m.title, s.title, b.side, b.stake_credits,
-		       b.potential_payout_credits, b.status, b.created_at, b.settled_at,b.range_min,b.range_max,b.range_odds,b.pricing_model
+		       b.potential_payout_credits, b.status, b.created_at, b.settled_at,b.range_min,b.range_max,b.range_odds,b.pricing_model,
+		       m.actual_count, COALESCE(m.void_reason, '')
 		FROM bets b
 		JOIN bet_markets m ON m.id = b.market_id
 		JOIN streams s ON s.id = m.stream_id
@@ -819,6 +839,7 @@ func scanBets(rows pgx.Rows) ([]Bet, error) {
 			&bet.ID, &bet.UserID, &bet.MarketID, &bet.MarketTitle, &bet.StreamTitle,
 			&bet.Side, &bet.StakeCredits, &bet.PotentialPayoutCredits, &bet.Status,
 			&bet.CreatedAt, &settledAt, &bet.RangeMin, &bet.RangeMax, &bet.RangeOdds, &bet.PricingModel,
+			&bet.ActualCount, &bet.VoidReason,
 		); err != nil {
 			return nil, err
 		}

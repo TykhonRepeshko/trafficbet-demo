@@ -12,6 +12,8 @@ import (
 
 type Config struct {
 	SourceObserverEnabled bool
+	AutomaticSettlement   bool
+	RoundStagger          bool
 	VideoEvidenceEnabled  bool
 	HTTPAddr              string
 	DatabaseURL           string
@@ -38,7 +40,7 @@ func LoadConfig() Config {
 		DemoPlayerPassword:    os.Getenv("DEMO_PLAYER_PASSWORD"),
 		MediaAllowedHosts:     parseMediaAllowedHosts(os.Getenv("MEDIA_ALLOWED_HOSTS")),
 	}
-	for key, target := range map[string]*bool{"COOKIE_SECURE": &cfg.CookieSecure, "SEED_DEMO_DATA": &cfg.SeedDemoData, "SOURCE_OBSERVER_ENABLED": &cfg.SourceObserverEnabled, "VIDEO_EVIDENCE_ENABLED": &cfg.VideoEvidenceEnabled} {
+	for key, target := range map[string]*bool{"COOKIE_SECURE": &cfg.CookieSecure, "SEED_DEMO_DATA": &cfg.SeedDemoData, "SOURCE_OBSERVER_ENABLED": &cfg.SourceObserverEnabled, "AUTOMATIC_SETTLEMENT_ENABLED": &cfg.AutomaticSettlement, "ROUND_STAGGER": &cfg.RoundStagger, "VIDEO_EVIDENCE_ENABLED": &cfg.VideoEvidenceEnabled} {
 		if value := os.Getenv(key); value != "" {
 			parsed, err := strconv.ParseBool(value)
 			if err != nil {

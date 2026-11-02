@@ -40,24 +40,26 @@ type User struct {
 
 type Stream struct {
 	CountingGuide *PublicCountingGuide `json:"countingGuide,omitempty"`
-	ID            int64                `json:"id"`
-	Title         string               `json:"title"`
-	City          string               `json:"city"`
-	Country       string               `json:"country"`
-	LocationLabel string               `json:"locationLabel"`
-	Description   string               `json:"description"`
-	StreamType    string               `json:"streamType"`
-	StreamURL     string               `json:"streamUrl"`
-	ThumbnailURL  string               `json:"thumbnailUrl"`
-	SourceOwner   string               `json:"sourceOwner"`
-	SourcePageURL string               `json:"sourcePageUrl"`
-	TermsURL      string               `json:"termsUrl"`
-	UsageNotes    string               `json:"usageNotes"`
-	Latitude      *float64             `json:"latitude,omitempty"`
-	Longitude     *float64             `json:"longitude,omitempty"`
-	IsActive      bool                 `json:"isActive"`
-	CreatedAt     time.Time            `json:"createdAt"`
-	UpdatedAt     time.Time            `json:"updatedAt"`
+	// Why automation paused this camera's rounds (no readable clock, no line yet).
+	AutomationPause string    `json:"automationPause,omitempty"`
+	ID              int64     `json:"id"`
+	Title           string    `json:"title"`
+	City            string    `json:"city"`
+	Country         string    `json:"country"`
+	LocationLabel   string    `json:"locationLabel"`
+	Description     string    `json:"description"`
+	StreamType      string    `json:"streamType"`
+	StreamURL       string    `json:"streamUrl"`
+	ThumbnailURL    string    `json:"thumbnailUrl"`
+	SourceOwner     string    `json:"sourceOwner"`
+	SourcePageURL   string    `json:"sourcePageUrl"`
+	TermsURL        string    `json:"termsUrl"`
+	UsageNotes      string    `json:"usageNotes"`
+	Latitude        *float64  `json:"latitude,omitempty"`
+	Longitude       *float64  `json:"longitude,omitempty"`
+	IsActive        bool      `json:"isActive"`
+	CreatedAt       time.Time `json:"createdAt"`
+	UpdatedAt       time.Time `json:"updatedAt"`
 }
 
 type Market struct {
@@ -105,6 +107,8 @@ type Bet struct {
 	Status                 string     `json:"status"`
 	CreatedAt              time.Time  `json:"createdAt"`
 	SettledAt              *time.Time `json:"settledAt,omitempty"`
+	ActualCount            *int       `json:"actualCount,omitempty"`
+	VoidReason             string     `json:"voidReason,omitempty"`
 }
 
 type StreamMetric struct {

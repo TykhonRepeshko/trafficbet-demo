@@ -104,3 +104,12 @@ func (s *Store) RevokeSession(ctx context.Context, hash []byte) error {
 	}
 	return tx.Commit(ctx)
 }
+
+// nullableActor returns the signed-in user's id, or nil for system actions
+// (automatic counting) so foreign keys to users stay valid.
+func nullableActor(ctx context.Context) any {
+	if user, ok := currentUser(ctx); ok && user.ID > 0 {
+		return user.ID
+	}
+	return nil
+}

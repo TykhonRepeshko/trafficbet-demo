@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -134,7 +135,7 @@ func (s *Store) SaveRoundSchedule(ctx context.Context, streamID int64, settings 
         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)
         ON CONFLICT(stream_id) DO UPDATE SET enabled=EXCLUDED.enabled,counting_rule=EXCLUDED.counting_rule,threshold=EXCLUDED.threshold,
         odds_over=EXCLUDED.odds_over,odds_under=EXCLUDED.odds_under,entry_seconds=EXCLUDED.entry_seconds,lead_seconds=EXCLUDED.lead_seconds,
-        counting_seconds=EXCLUDED.counting_seconds,next_run_at=CASE WHEN NOT round_schedules.enabled AND EXCLUDED.enabled THEN now() ELSE round_schedules.next_run_at END,updated_at=now()`,
+        counting_seconds=EXCLUDED.counting_seconds,automation_note=NULL,next_run_at=CASE WHEN NOT round_schedules.enabled AND EXCLUDED.enabled THEN now() ELSE round_schedules.next_run_at END,updated_at=now()`,
 		streamID, settings.Enabled, settings.CountingRule, settings.Threshold, settings.OddsOver, settings.OddsUnder, settings.EntrySeconds, settings.LeadSeconds, settings.CountingSeconds)
 	if err != nil {
 		return err
@@ -232,6 +233,13 @@ func (s *Store) runRoundSchedule(ctx context.Context, id int64, now time.Time) e
 		id, now).Scan(&accepting, &earliestClose, &existingEnd); err != nil {
 		return err
 	}
+	threshold, automatic, err := automaticThreshold(ctx, tx, id, p.CountingSeconds, now)
+	if err != nil {
+		return err
+	}
+	if !automatic {
+		threshold = p.Threshold
+	}
 	var lastCreated *int64
 	for accepting < 2 {
 		// Entry notice and the safety lead run before counting. Only the pause
@@ -245,15 +253,18 @@ func (s *Store) runRoundSchedule(ctx context.Context, id int64, now time.Time) e
 				start = following
 			}
 		}
+		if s.staggerRounds {
+			start = staggeredStart(start, id, time.Duration(p.CountingSeconds+p.EntrySeconds)*time.Second)
+		}
 		closes := start.Add(-time.Duration(p.LeadSeconds) * time.Second)
 		end := start.Add(time.Duration(p.CountingSeconds) * time.Second)
 		var marketID int64
 		err = tx.QueryRow(ctx, `INSERT INTO bet_markets(stream_id,title,threshold,window_start,window_end,odds_over,odds_under,status,betting_closes_at)
-        VALUES($1,$2,$3,$4,$5,$6,$7,'open',$8) RETURNING id`, id, fmt.Sprintf("%s · %d sec", p.CountingRule, p.CountingSeconds), p.Threshold, start, end, p.OddsOver, p.OddsUnder, closes).Scan(&marketID)
+        VALUES($1,$2,$3,$4,$5,$6,$7,'open',$8) RETURNING id`, id, fmt.Sprintf("%s · %d sec", p.CountingRule, p.CountingSeconds), threshold, start, end, p.OddsOver, p.OddsUnder, closes).Scan(&marketID)
 		if err != nil {
 			return err
 		}
-		if err = auditTx(ctx, tx, "market.auto_created", "market", marketID, map[string]any{"streamId": id, "settings": p}); err != nil {
+		if err = auditTx(ctx, tx, "market.auto_created", "market", marketID, map[string]any{"streamId": id, "settings": p, "threshold": threshold, "automaticThreshold": automatic}); err != nil {
 			return err
 		}
 		lastCreated = &marketID
@@ -272,6 +283,47 @@ func (s *Store) runRoundSchedule(ctx context.Context, id int64, now time.Time) e
 	}
 	return tx.Commit(ctx)
 }
+
+// roundPhases is how many phase groups cameras are spread over: with a 60 s cadence, windows of cameras in
+// different groups start 20 s apart, so their AI counting does not compete for the CPU at the same moment.
+const roundPhases = 3
+
+// staggeredStart moves a window start forward (never earlier, so entry notice only grows) to the camera's
+// phase slot: the next instant t with (t − phase) a multiple of the cadence. Chains then stay aligned because
+// each following window starts exactly one cadence later.
+func staggeredStart(start time.Time, streamID int64, cadence time.Duration) time.Time {
+	if cadence <= 0 {
+		return start
+	}
+	phase := time.Duration(((streamID%roundPhases)+roundPhases)%roundPhases) * cadence / roundPhases
+	offset := (start.UnixNano() - int64(phase)) % int64(cadence)
+	if offset < 0 {
+		offset += int64(cadence)
+	}
+	if offset == 0 {
+		return start
+	}
+	return start.Add(cadence - time.Duration(offset))
+}
+
+// automaticThreshold sets the Over/Under line (and the centre of the range odds)
+// to the median of recent AI counts, rescaled to the round's counting length, so
+// the reference threshold follows real traffic without an operator. With fewer
+// than automaticThresholdMinRounds recent AI counts the configured value stays.
+func automaticThreshold(ctx context.Context, tx pgx.Tx, streamID int64, countingSeconds int, now time.Time) (int, bool, error) {
+	var rounds int
+	var median *float64
+	err := tx.QueryRow(ctx, `SELECT count(*), percentile_cont(0.5) WITHIN GROUP (ORDER BY rate) FROM (
+        SELECT vehicle_count::float8 * $2 / EXTRACT(EPOCH FROM interval_end-interval_start) AS rate
+        FROM stream_metrics WHERE stream_id=$1 AND source='ai' AND interval_end > $3::timestamptz - interval '2 hours'
+        ORDER BY interval_end DESC LIMIT 30) recent`, streamID, countingSeconds, now).Scan(&rounds, &median)
+	if err != nil || rounds < automaticThresholdMinRounds || median == nil {
+		return 0, false, err
+	}
+	return min(max(int(math.Round(*median)), 0), 100000000), true, nil
+}
+
+const automaticThresholdMinRounds = 5
 
 // The scheduler belongs to the API process, including Docker. It never settles
 // predictions or guesses counts. Stale slots are skipped after downtime.
