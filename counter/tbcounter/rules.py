@@ -6,6 +6,7 @@
 worker never counts or publishes anything the backend would interpret differently.
 Times are UTC epoch seconds (float); points are normalised image coordinates.
 """
+
 from __future__ import annotations
 
 import math
@@ -36,22 +37,29 @@ class Definition:
     anchor: str = "bottom_center"
     time_basis: str = "capture_utc"
     notes: str = ""
+    road_regions: tuple[tuple[Point, ...], ...] = ()
 
     @staticmethod
     def from_json(data: dict[str, Any]) -> "Definition":
         return Definition(
             label=str(data.get("label", "")),
-            line_start=Point(float(data["lineStart"]["x"]), float(data["lineStart"]["y"])),
+            line_start=Point(
+                float(data["lineStart"]["x"]), float(data["lineStart"]["y"])
+            ),
             line_end=Point(float(data["lineEnd"]["x"]), float(data["lineEnd"]["y"])),
             directions=tuple(data.get("directions") or ()),
             classes=tuple(data.get("classes") or ()),
             anchor=str(data.get("anchor", "")),
             time_basis=str(data.get("timeBasis", "")),
             notes=str(data.get("notes", "")),
+            road_regions=tuple(
+                tuple(Point(float(p["x"]), float(p["y"])) for p in polygon)
+                for polygon in (data.get("roadRegions") or ())
+            ),
         )
 
     def to_json(self) -> dict[str, Any]:
-        return {
+        result = {
             "label": self.label,
             "lineStart": self.line_start.to_json(),
             "lineEnd": self.line_end.to_json(),
@@ -61,6 +69,11 @@ class Definition:
             "timeBasis": self.time_basis,
             "notes": self.notes,
         }
+        if self.road_regions:
+            result["roadRegions"] = [
+                [p.to_json() for p in polygon] for polygon in self.road_regions
+            ]
+        return result
 
 
 @dataclass(frozen=True)
@@ -78,7 +91,9 @@ def _valid_text(value: str, minimum: int, maximum: int) -> bool:
 
 
 def _finite_unit(p: Point) -> bool:
-    return all(not math.isnan(v) and not math.isinf(v) and 0 <= v <= 1 for v in (p.x, p.y))
+    return all(
+        not math.isnan(v) and not math.isinf(v) and 0 <= v <= 1 for v in (p.x, p.y)
+    )
 
 
 def valid_definition(d: Definition) -> bool:
@@ -92,17 +107,97 @@ def valid_definition(d: Definition) -> bool:
         return False
 
     def valid_list(values: tuple[str, ...], allowed: tuple[str, ...]) -> bool:
-        return 0 < len(values) <= len(allowed) and len(set(values)) == len(values) and all(v in allowed for v in values)
+        return (
+            0 < len(values) <= len(allowed)
+            and len(set(values)) == len(values)
+            and all(v in allowed for v in values)
+        )
 
-    return valid_list(d.directions, DIRECTIONS) and valid_list(d.classes, CLASSES)
+    return (
+        valid_road_regions(d.road_regions)
+        and valid_list(d.directions, DIRECTIONS)
+        and valid_list(d.classes, CLASSES)
+    )
 
 
-def crossing_candidate(rule: Definition, before: Point, after: Point, before_at: float, after_at: float,
-                       start: float, end: float, vehicle_class: str) -> Crossing | None:
+def _edge_side(a, b, p):
+    return (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x)
+
+
+def _edge_contains(a, b, p):
+    return (
+        abs(_edge_side(a, b, p)) <= 1e-9
+        and min(a.x, b.x) - 1e-9 <= p.x <= max(a.x, b.x) + 1e-9
+        and min(a.y, b.y) - 1e-9 <= p.y <= max(a.y, b.y) + 1e-9
+    )
+
+
+def valid_road_regions(regions):
+    if len(regions) > 8:
+        return False
+    for polygon in regions:
+        if not 3 <= len(polygon) <= 12 or not all(_finite_unit(p) for p in polygon):
+            return False
+        area = 0.0
+        for i, a in enumerate(polygon):
+            b = polygon[(i + 1) % len(polygon)]
+            if math.hypot(a.x - b.x, a.y - b.y) < 1e-5:
+                return False
+            area += a.x * b.y - b.x * a.y
+            for j in range(i + 1, len(polygon)):
+                if j == i + 1 or (i == 0 and j == len(polygon) - 1):
+                    continue
+                c, e = polygon[j], polygon[(j + 1) % len(polygon)]
+                if (
+                    _edge_contains(a, b, c)
+                    or _edge_contains(a, b, e)
+                    or _edge_contains(c, e, a)
+                    or _edge_contains(c, e, b)
+                    or (
+                        _edge_side(a, b, c) * _edge_side(a, b, e) < 0
+                        and _edge_side(c, e, a) * _edge_side(c, e, b) < 0
+                    )
+                ):
+                    return False
+        if abs(area) < 0.0002:
+            return False
+    return True
+
+
+def in_road_regions(regions, p):
+    if not regions:
+        return True
+    for polygon in regions:
+        inside = False
+        for i, a in enumerate(polygon):
+            b = polygon[(i + 1) % len(polygon)]
+            if _edge_contains(a, b, p):
+                return True
+            if (a.y > p.y) != (b.y > p.y) and p.x < (b.x - a.x) * (p.y - a.y) / (
+                b.y - a.y
+            ) + a.x:
+                inside = not inside
+        if inside:
+            return True
+    return False
+
+
+def crossing_candidate(
+    rule: Definition,
+    before: Point,
+    after: Point,
+    before_at: float,
+    after_at: float,
+    start: float,
+    end: float,
+    vehicle_class: str,
+) -> Crossing | None:
     """Return the crossing between two consecutive observations of one track, if it counts."""
     if not valid_definition(rule) or not after_at > before_at or not end > start:
         return None
-    if vehicle_class not in rule.classes:
+    if vehicle_class not in rule.classes and not (
+        vehicle_class == "vehicle" and set(CLASSES).issubset(rule.classes)
+    ):
         return None
     for p in (before, after):
         if p.x < 0 or p.x > 1 or p.y < 0 or p.y > 1 or p.x != p.x or p.y != p.y:
@@ -126,7 +221,7 @@ def crossing_candidate(rule: Definition, before: Point, after: Point, before_at:
     y = before.y + (after.y - before.y) * ratio
     dx, dy = le.x - ls.x, le.y - ls.y
     along = ((x - ls.x) * dx + (y - ls.y) * dy) / (dx * dx + dy * dy)
-    if along < 0 or along > 1:
+    if along < 0 or along > 1 or not in_road_regions(rule.road_regions, Point(x, y)):
         return None
     at = before_at + ratio * (after_at - before_at)
     if at < start or not at < end:
@@ -147,10 +242,16 @@ class _TrackState:
     areas: list[float] = field(default_factory=list)
     strong: int = 0
     crossing: dict[str, Any] | None = None
-    size: float = 0.0          # last accepted box diagonal, normalised by the frame diagonal
-    velocity: tuple[float, float] = (0.0, 0.0)  # anchor motion, normalised frame units per second
-    moves: int = 0                               # velocity samples so far
-    stitched: bool = False     # already continued by a newer track id
+    passage: dict[str, Any] | None = (
+        None  # observed pass, including pre-roll, for motion reconciliation only
+    )
+    size: float = 0.0  # last accepted box diagonal, normalised by the frame diagonal
+    velocity: tuple[float, float] = (
+        0.0,
+        0.0,
+    )  # anchor motion, normalised frame units per second
+    moves: int = 0  # velocity samples so far
+    stitched: bool = False  # already continued by a newer track id
 
 
 class CrossingCounter:
@@ -165,12 +266,35 @@ class CrossingCounter:
     appears within `stitch_gap` seconds next to where an uncrossed track was lost continues that track.
     """
 
-    def __init__(self, rule: Definition, start: float, end: float, width: int, height: int,
-                 min_conf: float = 0.2, strong_conf: float = 0.35, min_strong: int = 2, max_area_jump: float = 3.5,
-                 stitch_gap: float = 0.8, stitch_reach: float = 1.2, duplicate_gap: float = 0.35,
-                 duplicate_overlap: float = 0.6) -> None:
-        self.rule, self.start, self.end, self.width, self.height = rule, start, end, width, height
-        self.min_conf, self.strong_conf, self.min_strong, self.max_area_jump = min_conf, strong_conf, min_strong, max_area_jump
+    def __init__(
+        self,
+        rule: Definition,
+        start: float,
+        end: float,
+        width: int,
+        height: int,
+        min_conf: float = 0.2,
+        strong_conf: float = 0.35,
+        min_strong: int = 2,
+        max_area_jump: float = 3.5,
+        stitch_gap: float = 0.8,
+        stitch_reach: float = 1.2,
+        duplicate_gap: float = 0.35,
+        duplicate_overlap: float = 0.6,
+    ) -> None:
+        self.rule, self.start, self.end, self.width, self.height = (
+            rule,
+            start,
+            end,
+            width,
+            height,
+        )
+        self.min_conf, self.strong_conf, self.min_strong, self.max_area_jump = (
+            min_conf,
+            strong_conf,
+            min_strong,
+            max_area_jump,
+        )
         self.stitch_gap, self.stitch_reach = stitch_gap, stitch_reach
         self.duplicate_gap, self.duplicate_overlap = duplicate_gap, duplicate_overlap
         self.tracks: dict[int, _TrackState] = {}
@@ -183,17 +307,32 @@ class CrossingCounter:
             return track_id
         best, best_distance = None, None
         for tid, state in self.tracks.items():
-            if state.stitched or state.crossing is not None or state.last is None or not 0 < at - state.last_at <= self.stitch_gap:
+            if (
+                state.stitched
+                or state.crossing is not None
+                or state.last is None
+                or not 0 < at - state.last_at <= self.stitch_gap
+            ):
                 continue
             # Where the lost vehicle would be now: a stopped car cannot reappear beyond the line.
             dt = at - state.last_at
-            px, py = state.last.x + state.velocity[0] * dt, state.last.y + state.velocity[1] * dt
-            distance = self._diag_fraction((point.x - px) * self.width, (point.y - py) * self.height)
-            if _line_side(self.rule, state.last) * _line_side(self.rule, point) < 0 and \
-                    _line_side(self.rule, Point(px, py)) * _line_side(self.rule, point) <= 0:
+            px, py = (
+                state.last.x + state.velocity[0] * dt,
+                state.last.y + state.velocity[1] * dt,
+            )
+            distance = self._diag_fraction(
+                (point.x - px) * self.width, (point.y - py) * self.height
+            )
+            if (
+                _line_side(self.rule, state.last) * _line_side(self.rule, point) < 0
+                and _line_side(self.rule, Point(px, py)) * _line_side(self.rule, point)
+                <= 0
+            ):
                 continue  # the join would credit a crossing the lost vehicle could not have made by now
             reach = self.stitch_reach * max(state.size, size, 0.02)
-            if distance <= reach and (best_distance is None or distance < best_distance):
+            if distance <= reach and (
+                best_distance is None or distance < best_distance
+            ):
                 best, best_distance = tid, distance
         if best is None:
             return track_id
@@ -204,17 +343,33 @@ class CrossingCounter:
     def _diag_fraction(self, dx: float, dy: float) -> float:
         return math.hypot(dx, dy) / math.hypot(self.width, self.height)
 
-    def observe(self, track_id: int, vehicle_class: str, confidence: float,
-                xyxy: tuple[float, float, float, float], at: float) -> None:
-        x1, y1, x2, y2 = xyxy
+    def observe(
+        self,
+        track_id: int,
+        vehicle_class: str,
+        confidence: float,
+        xyxy: tuple[float, float, float, float],
+        at: float,
+    ) -> None:
+        # NumPy float32 coordinates must not promote epoch-second arithmetic to
+        # float32 (which would lose whole seconds and break window boundaries).
+        x1, y1, x2, y2 = (float(v) for v in xyxy)
+        confidence, at = float(confidence), float(at)
         if track_id in self.alias:
             track_id = self.alias[track_id]
         elif track_id not in self.tracks and confidence >= self.min_conf:
-            point = Point(min(max((x1 + x2) / 2 / self.width, 0.0), 1.0), min(max(y2 / self.height, 0.0), 1.0))
-            target = self._stitch(track_id, point, self._diag_fraction(x2 - x1, y2 - y1), at)
+            point = Point(
+                min(max((x1 + x2) / 2 / self.width, 0.0), 1.0),
+                min(max(y2 / self.height, 0.0), 1.0),
+            )
+            target = self._stitch(
+                track_id, point, self._diag_fraction(x2 - x1, y2 - y1), at
+            )
             if target != track_id:
                 self.alias[track_id] = target
-                self.tracks[target].areas.clear()  # the new id's box size starts a fresh footprint baseline
+                self.tracks[
+                    target
+                ].areas.clear()  # the new id's box size starts a fresh footprint baseline
                 track_id = target
         state = self.tracks.setdefault(track_id, _TrackState())
         if confidence < self.min_conf:
@@ -230,20 +385,85 @@ class CrossingCounter:
             state.strong += 1
         state.votes[vehicle_class] = state.votes.get(vehicle_class, 0.0) + confidence
         cls = max(state.votes.items(), key=lambda kv: kv[1])[0]
-        point = Point(min(max((x1 + x2) / 2 / self.width, 0.0), 1.0), min(max(y2 / self.height, 0.0), 1.0))
+        point = Point(
+            min(max((x1 + x2) / 2 / self.width, 0.0), 1.0),
+            min(max(y2 / self.height, 0.0), 1.0),
+        )
+        # Pixel-region boxes have integer edges and can land exactly on the
+        # line. Keep the last non-touching observation, so A -> line -> B is a
+        # crossing, while A -> line -> A remains only a touch.
+        if abs(_line_side(self.rule, point)) <= 1e-9:
+            return
+        if state.last is not None and state.passage is None:
+            passage = crossing_candidate(
+                self.rule,
+                state.last,
+                point,
+                state.last_at,
+                at,
+                self.start - 15,
+                self.end,
+                cls,
+            )
+            if passage is not None:
+                state.passage = {
+                    "trackId": int(track_id),
+                    "class": passage.vehicle_class,
+                    "direction": passage.direction,
+                    "at": passage.at,
+                    "box": (x1, y1, x2, y2),
+                }
         if state.last is not None and state.crossing is None:
-            crossing = crossing_candidate(self.rule, state.last, point, state.last_at, at, self.start, self.end, cls)
+            crossing = crossing_candidate(
+                self.rule,
+                state.last,
+                point,
+                state.last_at,
+                at,
+                self.start,
+                self.end,
+                cls,
+            )
             if crossing is not None:
-                state.crossing = {"trackId": int(track_id), "class": crossing.vehicle_class,
-                                  "direction": crossing.direction, "at": crossing.at, "box": (x1, y1, x2, y2)}
+                state.crossing = {
+                    "trackId": int(track_id),
+                    "class": crossing.vehicle_class,
+                    "direction": crossing.direction,
+                    "at": crossing.at,
+                    "box": (x1, y1, x2, y2),
+                }
         if state.last is not None and at > state.last_at:
-            vx, vy = (point.x - state.last.x) / (at - state.last_at), (point.y - state.last.y) / (at - state.last_at)
-            state.velocity = (0.5 * state.velocity[0] + 0.5 * vx, 0.5 * state.velocity[1] + 0.5 * vy) if state.moves else (vx, vy)
+            vx, vy = (point.x - state.last.x) / (at - state.last_at), (
+                point.y - state.last.y
+            ) / (at - state.last_at)
+            state.velocity = (
+                (0.5 * state.velocity[0] + 0.5 * vx, 0.5 * state.velocity[1] + 0.5 * vy)
+                if state.moves
+                else (vx, vy)
+            )
             state.moves += 1
         state.last, state.last_at, state.stitched = point, at, False
 
     def _counted(self, state: _TrackState) -> bool:
-        return state.crossing is not None and state.strong >= self.min_strong
+        required = (
+            max(8, self.min_strong)
+            if state.crossing and state.crossing["class"] == "vehicle"
+            else self.min_strong
+        )
+        return state.crossing is not None and state.strong >= required
+
+    def confirmed_passage(self, track_id: int) -> dict[str, Any] | None:
+        """An observed, class-confirmed pass; this never adds a settled crossing."""
+        state = self.tracks.get(self.alias.get(track_id, track_id))
+        if state is None or state.passage is None:
+            return None
+        passage = state.crossing or state.passage
+        required = (
+            max(8, self.min_strong)
+            if passage["class"] == "vehicle"
+            else self.min_strong
+        )
+        return passage if state.strong >= required else None
 
     @staticmethod
     def _overlap(a: tuple[float, ...], b: tuple[float, ...]) -> float:
@@ -257,12 +477,20 @@ class CrossingCounter:
 
     def _distinct(self) -> tuple[list[dict[str, Any]], int]:
         """Counted crossings, merging duplicate tracks of one vehicle (e.g. a body box and a headlight-glare box
-        crossing together): same direction, within `duplicate_gap` seconds, one box mostly inside the other."""
+        crossing together): same direction, within `duplicate_gap` seconds, one box mostly inside the other.
+        """
         kept: list[dict[str, Any]] = []
         duplicates = 0
-        for c in sorted((s.crossing for s in self.tracks.values() if self._counted(s)), key=lambda c: c["at"]):
-            if any(k["direction"] == c["direction"] and abs(k["at"] - c["at"]) <= self.duplicate_gap
-                   and self._overlap(k["box"], c["box"]) >= self.duplicate_overlap for k in kept):
+        for c in sorted(
+            (s.crossing for s in self.tracks.values() if self._counted(s)),
+            key=lambda c: c["at"],
+        ):
+            if any(
+                k["direction"] == c["direction"]
+                and abs(k["at"] - c["at"]) <= self.duplicate_gap
+                and self._overlap(k["box"], c["box"]) >= self.duplicate_overlap
+                for k in kept
+            ):
                 duplicates += 1
                 continue
             kept.append(c)
@@ -278,7 +506,11 @@ class CrossingCounter:
 
     @property
     def rejected(self) -> int:
-        return sum(1 for s in self.tracks.values() if s.crossing is not None and not self._counted(s))
+        return sum(
+            1
+            for s in self.tracks.values()
+            if s.crossing is not None and not self._counted(s)
+        )
 
     @property
     def count(self) -> int:

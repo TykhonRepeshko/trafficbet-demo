@@ -47,6 +47,7 @@ if (Test-LocalListener 4200) {
         try {
             $existingHealth = Invoke-RestMethod 'http://localhost:4200/api/health' -TimeoutSec 2
             if ($existingHealth.ok) {
+                if ($existingHealth.automaticSettlement) { & (Join-Path $PSScriptRoot 'start-counter-local.ps1') }
                 Write-Host 'The real application is already running: http://localhost:4200 . No services were restarted.'
                 return
             }
@@ -118,6 +119,8 @@ try {
         WORKER_TOKEN = $settings['WORKER_TOKEN']
         SOURCE_OBSERVER_ENABLED = $(if ($settings.ContainsKey('SOURCE_OBSERVER_ENABLED')) { $settings['SOURCE_OBSERVER_ENABLED'] } else { 'true' })
         VIDEO_EVIDENCE_ENABLED = $(if ($settings.ContainsKey('VIDEO_EVIDENCE_ENABLED')) { $settings['VIDEO_EVIDENCE_ENABLED'] } else { 'false' })
+        AUTOMATIC_SETTLEMENT_ENABLED = $(if ($settings.ContainsKey('AUTOMATIC_SETTLEMENT_ENABLED')) { $settings['AUTOMATIC_SETTLEMENT_ENABLED'] } else { 'false' })
+        ROUND_STAGGER = $(if ($settings.ContainsKey('ROUND_STAGGER')) { $settings['ROUND_STAGGER'] } else { 'true' })
         SEED_DEMO_DATA = $settings['SEED_DEMO_DATA']
         DEMO_ADMIN_PASSWORD = $settings['DEMO_ADMIN_PASSWORD']
         DEMO_PLAYER_PASSWORD = $settings['DEMO_PLAYER_PASSWORD']
@@ -146,6 +149,7 @@ try {
         } catch { Start-Sleep -Milliseconds 250 }
     }
     if (-not $ready) { throw 'Go API did not become healthy. Inspect .local-data/api.stderr.log privately.' }
+    if ($health.automaticSettlement) { & (Join-Path $PSScriptRoot 'start-counter-local.ps1') }
     Write-Host 'Real Go API + PostgreSQL are ready. Accounts, sessions and balances are saved.'
     Write-Host 'Application: http://localhost:4200 . Registration: /register . Stop with Ctrl+C.'
     Write-Host 'Persistent database: .local-data/postgres . Preserve it together with .env.'
@@ -156,6 +160,10 @@ try {
         Invoke-ProjectNpm run start
     } finally { Pop-Location }
 } finally {
-    if ($apiProcess -and -not $apiProcess.HasExited) { Stop-Process -Id $apiProcess.Id -Force }
-    if ($startedDatabase) { & (Join-Path $postgresBin 'pg_ctl.exe') -D $databaseRoot -m fast -w stop }
+    try {
+        if ($apiProcess -and $health.automaticSettlement) { & (Join-Path $PSScriptRoot 'start-counter-local.ps1') -Stop }
+    } finally {
+        if ($apiProcess -and -not $apiProcess.HasExited) { Stop-Process -Id $apiProcess.Id -Force }
+        if ($startedDatabase) { & (Join-Path $postgresBin 'pg_ctl.exe') -D $databaseRoot -m fast -w stop }
+    }
 }

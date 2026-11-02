@@ -1,6 +1,7 @@
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $localRoot = Join-Path $projectRoot '.local-data'
+& (Join-Path $PSScriptRoot 'start-counter-local.ps1') -Stop
 # Stop only the Angular server whose command belongs to this exact checkout.
 # Its launcher then closes the API and PostgreSQL in its finally block.
 $listeners = Get-NetTCPConnection -State Listen -LocalPort 4200 -ErrorAction SilentlyContinue
@@ -31,3 +32,6 @@ if (Test-Path -LiteralPath (Join-Path $databaseRoot 'PG_VERSION')) {
     if ($LASTEXITCODE -eq 0) { & $pgCtl -D $databaseRoot -m fast -w stop }
 }
 Write-Host 'Local services stopped. Saved accounts, balances and camera settings were preserved.'
+# The launcher's finally block may already have stopped PostgreSQL. Its
+# pg_ctl status=3 means "not running", not a failure of this completed stop.
+$global:LASTEXITCODE = 0

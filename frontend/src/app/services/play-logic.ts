@@ -5,7 +5,7 @@ export const OPEN_ENDED_MAX = 100000000;
 /** A round is offered only if the player still has time to read the options and confirm. */
 export const MIN_ENTRY_MS = 12_000;
 
-export type LivePhase = 'waiting' | 'counting' | 'checking' | 'result';
+export type LivePhase = 'waiting' | 'syncing' | 'counting' | 'checking' | 'result';
 
 export function rangeLabel(quote: Pick<RangeQuote, 'rangeMin' | 'rangeMax'>): string {
   if (quote.rangeMax >= OPEN_ENDED_MAX) return `${quote.rangeMin}+`;
@@ -18,9 +18,9 @@ export function playableStreams(streams: readonly TrafficStream[]): TrafficStrea
 }
 
 /** The nearest round that still accepts predictions long enough and has a frozen AI counting line. */
-export function pickMarket(markets: readonly Market[], now: number): Market | undefined {
+export function pickMarket(markets: readonly Market[], now: number, requireVersioned = true): Market | undefined {
   return [...markets]
-    .filter((market) => market.status === 'open' && market.countingRules?.mode === 'versioned' && Date.parse(market.bettingClosesAt) - now >= MIN_ENTRY_MS)
+    .filter((market) => market.status === 'open' && (!requireVersioned || market.countingRules?.mode === 'versioned') && Date.parse(market.bettingClosesAt) - now >= MIN_ENTRY_MS)
     .sort((a, b) => Date.parse(a.bettingClosesAt) - Date.parse(b.bettingClosesAt))[0];
 }
 
@@ -29,8 +29,8 @@ export function randomItem<T>(items: readonly T[], random: () => number = Math.r
 }
 
 /**
- * Where the round is from the viewer's point of view. With `displayed` (capture time of the frame on screen)
- * the phases follow the video, so the count ticks when a vehicle crosses on screen; otherwise wall-clock time.
+ * The scheduled start follows wall-clock time; a delayed feed is a separate syncing phase.
+ * Once the video reaches the window, counting follows its capture time so crossings stay in sync.
  * A settled result is revealed once the video has shown the whole window (or 90 s later at the latest).
  */
 export function livePhase(round: Pick<LiveRound, 'status' | 'windowStart' | 'windowEnd'>, displayed: number | null, now: number): LivePhase {
@@ -38,7 +38,8 @@ export function livePhase(round: Pick<LiveRound, 'status' | 'windowStart' | 'win
   const t = displayed ?? now / 1000;
   if (round.status === 'void') return 'result';
   if (round.status === 'settled' && (displayed === null || t >= end || now / 1000 > end + 90)) return 'result';
-  if (t < start) return 'waiting';
+  if (now / 1000 < start) return 'waiting';
+  if (t < start) return 'syncing';
   if (t < end) return 'counting';
   return 'checking';
 }

@@ -46,13 +46,24 @@ test('only AI-countable cameras and rounds with enough entry time are offered', 
 test('the live count follows the frame on screen, not the analysis', () => {
   const live = { vehicleCount: 3, crossings: [{ at: at(32_000) }, { at: at(40_000) }, { at: at(55_000) }], segments: [{ seq: 10, startUtc: at(28_000), duration: 12 }], processedUntil: at(60_000), updatedAt: iso(now) };
   const r = round({ live });
-  assert.equal(logic.livePhase(r, at(29_000), now + 50_000), 'waiting', 'video still shows the time before the window');
+  assert.equal(logic.livePhase(r, at(29_000), now + 50_000), 'syncing', 'a delayed frame must not extend the scheduled countdown');
   assert.equal(logic.liveCount(r, at(29_000)), 0);
   assert.equal(logic.livePhase(r, at(41_000), now + 70_000), 'counting');
   assert.equal(logic.liveCount(r, at(41_000)), 2, 'only crossings already shown are counted');
   assert.equal(logic.livePhase(r, at(61_000), now + 90_000), 'checking');
   assert.equal(logic.liveCount(r, null), 3, 'without a video clock the latest analysed count is shown');
   assert.equal(logic.livePhase(r, null, now + 40_000), 'counting', 'wall-clock fallback');
+});
+
+test('the 30-second safety interval ends on schedule despite a delayed live feed', () => {
+  const r = round();
+  // Fast-forward the complete interval without sleeping or modifying a live schedule.
+  for (const elapsed of [0, 10_000, 29_999]) {
+    assert.equal(logic.livePhase(r, at(elapsed - 45_000), now + elapsed), 'waiting');
+  }
+  assert.equal(logic.livePhase(r, at(-15_000), now + 30_000), 'syncing');
+  assert.equal(logic.livePhase(r, at(30_000), now + 75_000), 'counting');
+  assert.equal(logic.livePhase(r, at(35_000), now + 20_000), 'waiting', 'a clock-ahead frame cannot start the round early');
 });
 
 test('a settled result is revealed when the video has shown the whole window', () => {

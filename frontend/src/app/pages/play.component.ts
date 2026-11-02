@@ -18,9 +18,9 @@ interface Ticket { marketId: number; label: string; stake: number; payout: numbe
 @Component({ selector: 'app-play', standalone: true, imports: [DecimalPipe, FormsModule, NgFor, NgIf, RouterLink, VideoPlayerComponent, IconComponent], styleUrl: './play.component.css', template: `
   <section class="play" [class.has-game]="!!stream && !!market">
     <div class="play-hero" *ngIf="!stream || !market">
-      <span class="tb-chip is-live"><span class="tb-dot is-pulse"></span>Live road cameras · counted by AI</span>
+      <span class="tb-chip is-live"><span class="tb-dot is-pulse"></span>Live road cameras · virtual predictions</span>
       <h1>How many vehicles will cross the line?</h1>
-      <p>We pick a live camera at random. Predict the next 30-second count, then watch the AI count it in real time. Payouts are automatic.</p>
+      <p>We pick a live camera at random. Predict the next 30-second vehicle count with virtual credits. Results are verified before credits are returned.</p>
       <button type="button" class="tb-btn tb-btn-primary play-cta" (click)="start()" [disabled]="stage === 'finding'">
         <span class="tb-spinner" *ngIf="stage === 'finding'"></span><app-icon *ngIf="stage !== 'finding'" name="play" [size]="20"></app-icon>{{ stage === 'finding' ? 'Finding a camera…' : 'Make a prediction' }}
       </button>
@@ -29,7 +29,7 @@ interface Ticket { marketId: number; label: string; stake: number; payout: numbe
       <ol class="play-steps">
         <li><app-icon name="camera" [size]="18"></app-icon>A random live camera</li>
         <li><app-icon name="grid" [size]="18"></app-icon>Pick a range or an exact number</li>
-        <li><app-icon name="eye" [size]="18"></app-icon>Watch the AI count live</li>
+        <li><app-icon name="eye" [size]="18"></app-icon>Watch the counting window</li>
       </ol>
     </div>
 
@@ -37,9 +37,9 @@ interface Ticket { marketId: number; label: string; stake: number; payout: numbe
       <div class="play-stage">
         <div class="play-video">
           <app-video-player [stream]="stream" [autoplay]="true" [countingSnapshot]="market.countingRules">
-            <div vp-overlay class="hud" *ngIf="stage === 'placed'" [class.is-live]="phase === 'counting' && !behind" [class.is-behind]="behind" [class.is-done]="phase === 'result'">
+            <div vp-overlay class="hud" *ngIf="stage === 'placed' && automaticSettlement" [class.is-live]="phase === 'counting' && !behind" [class.is-behind]="behind" [class.is-done]="phase === 'result'">
               <div class="hud-count" [class.is-flash]="flash"><small>AI count</small><strong class="tb-num">{{ count }}</strong></div>
-              <div class="hud-status"><span class="tb-spinner hud-spin" *ngIf="behind"></span><span class="hud-dot" *ngIf="phase === 'counting' && !behind"></span>{{ hudStatus }}</div>
+              <div class="hud-status"><span class="tb-spinner hud-spin" *ngIf="behind || phase === 'syncing'"></span><span class="hud-dot" *ngIf="phase === 'counting' && !behind"></span>{{ hudStatus }}</div>
             </div>
           </app-video-player>
         </div>
@@ -88,7 +88,7 @@ interface Ticket { marketId: number; label: string; stake: number; payout: numbe
         <ng-container *ngIf="stage === 'placed' && ticket">
           <div class="slip-ticket"><span>Your pick</span><strong>{{ ticket.label }} vehicles</strong><small>{{ ticket.stake | number:'1.0-0' }} cr · pays {{ ticket.payout | number:'1.0-0' }} cr</small></div>
           <div class="slip-live" *ngIf="phase !== 'result'">
-            <div class="slip-live-count" [class.is-behind]="behind"><small>AI count</small><strong class="tb-num">{{ count }}{{ behind ? '+' : '' }}</strong></div>
+            <div class="slip-live-count" *ngIf="automaticSettlement" [class.is-behind]="behind"><small>AI count</small><strong class="tb-num">{{ count }}{{ behind ? '+' : '' }}</strong></div>
             <div class="slip-live-text"><strong>{{ phaseTitle }}</strong><span>{{ phaseHint }}</span></div>
             <div class="slip-progress" *ngIf="phase === 'counting'"><span [style.width.%]="windowProgress"></span></div>
           </div>
@@ -96,7 +96,7 @@ interface Ticket { marketId: number; label: string; stake: number; payout: numbe
             <app-icon [name]="live.status === 'void' ? 'info' : won ? 'trophy' : 'alert'" [size]="28"></app-icon>
             <ng-container *ngIf="live.status === 'settled'">
               <strong>{{ won ? 'You won ' + (ticket.payout | number:'1.0-0') + ' cr!' : 'Not this time' }}</strong>
-              <span>The AI counted <b>{{ live.actualCount }}</b> vehicles · your pick was {{ ticket.label }}.</span>
+              <span>Verified count: <b>{{ live.actualCount }}</b> vehicles · your pick was {{ ticket.label }}.</span>
             </ng-container>
             <ng-container *ngIf="live.status === 'void'">
               <strong>Round refunded</strong><span>{{ refundReason }} Your {{ ticket.stake | number:'1.0-0' }} cr is back.</span>
@@ -118,6 +118,7 @@ export class PlayComponent implements OnDestroy {
   @ViewChild(VideoPlayerComponent) player?: VideoPlayerComponent;
 
   stage: Stage = 'idle';
+  automaticSettlement = false;
   stream?: TrafficStream; market?: Market;
   options: RangeQuote[] = [];
   choice: Choice = { kind: 'option', index: 1 };
@@ -151,6 +152,7 @@ export class PlayComponent implements OnDestroy {
   get stakeLimit(): number { return Math.min(100000, this.balance); }
   get closesIn(): number { return this.market ? (Date.parse(this.market.bettingClosesAt) - this.now) / 1000 : 0; }
   get countSeconds(): number { return this.market ? Math.round((Date.parse(this.market.windowEnd) - Date.parse(this.market.windowStart)) / 1000) : 30; }
+  get safetyLeadSeconds(): number { return this.market ? Math.round((Date.parse(this.market.windowStart) - Date.parse(this.market.bettingClosesAt)) / 1000) : 30; }
   get selectedQuote(): RangeQuote | undefined {
     if (this.choice.kind === 'option') return this.options[this.choice.index];
     return this.exactQuote && this.exactQuote.rangeMin === this.exact && this.exactQuote.rangeMax === this.exact ? this.exactQuote : undefined;
@@ -171,24 +173,30 @@ export class PlayComponent implements OnDestroy {
     const start = Date.parse(this.market.windowStart) / 1000, end = Date.parse(this.market.windowEnd) / 1000, t = this.displayed ?? this.now / 1000;
     return Math.min(100, Math.max(0, ((t - start) / (end - start)) * 100));
   }
-  private get secondsToStart(): number { return this.market ? Date.parse(this.market.windowStart) / 1000 - (this.displayed ?? this.now / 1000) : 0; }
+  private get secondsToStart(): number { return this.market ? (Date.parse(this.market.windowStart) - this.now) / 1000 : 0; }
   private get secondsToEnd(): number { return this.market ? Date.parse(this.market.windowEnd) / 1000 - (this.displayed ?? this.now / 1000) : 0; }
   get phaseTitle(): string {
     switch (this.phase) {
       case 'waiting': return `Counting starts in ${mmss(this.secondsToStart)}`;
+      case 'syncing': return 'Counting window started';
       case 'counting': return `Counting live · ${mmss(this.secondsToEnd)} left`;
       default: return 'Counting finished';
     }
   }
   get phaseHint(): string {
+    if (!this.automaticSettlement) return this.phase === 'checking' ? 'Awaiting operator verification. Follow the result in My predictions.' : 'Manual verification mode. The result will be reviewed after this counting window.';
     switch (this.phase) {
-      case 'waiting': return 'Watch the turquoise line. Every vehicle that crosses it is counted.';
-      case 'counting': return this.behind ? 'The AI is a few seconds behind this video — the count will catch up.' : this.displayed === null ? 'The AI count updates as the video is analysed.' : 'The count follows the video you are watching.';
+      case 'waiting': return this.closesIn > 0
+        ? `Entries are still open. Counting starts ${this.safetyLeadSeconds} seconds after they close.`
+        : `Entries are closed. The ${this.safetyLeadSeconds}-second safety interval is counting down.`;
+      case 'syncing': return 'The scheduled start has arrived. Waiting for the live video to reach the counting window.';
+      case 'counting': return this.behind ? 'The AI is still analysing this video — the count will catch up.' : this.displayed === null ? 'The AI count updates as the video is analysed.' : 'The count follows the video you are watching.';
       default: return 'Confirming the AI result…';
     }
   }
   get hudStatus(): string {
     if (this.phase === 'waiting') return `Starts in ${mmss(this.secondsToStart)}`;
+    if (this.phase === 'syncing') return 'Waiting for video…';
     if (this.behind) return this.phase === 'counting' ? `AI catching up · ${mmss(this.secondsToEnd)}` : 'AI catching up…';
     if (this.phase === 'counting') return `Live · ${mmss(this.secondsToEnd)}`;
     if (this.phase === 'checking') return 'Confirming…';
@@ -214,13 +222,14 @@ export class PlayComponent implements OnDestroy {
   find(avoid?: number): void {
     this.error = ''; this.stage = 'finding'; this.findSub?.unsubscribe();
     if (this.retryTimer) { window.clearTimeout(this.retryTimer); this.retryTimer = undefined; }
-    this.findSub = this.api.listStreams().pipe(
+    this.findSub = forkJoin({ streams: this.api.listStreams(), health: this.api.health() }).pipe(
       timeout(10_000),
-      switchMap((streams) => {
+      switchMap(({ streams, health }) => {
+        this.automaticSettlement = health.automaticSettlement === true;
         const candidates = playableStreams(streams);
         if (!candidates.length) return of([] as { stream: TrafficStream; market?: Market }[]);
         return forkJoin(candidates.map((stream) => this.api.listPublicMarkets(stream.id).pipe(
-          timeout(10_000), map((markets) => ({ stream, market: pickMarket(markets, Date.now()) })), catchError(() => of({ stream, market: undefined })))));
+          timeout(10_000), map((markets) => ({ stream, market: pickMarket(markets, Date.now(), this.automaticSettlement) })), catchError(() => of({ stream, market: undefined })))));
       })
     ).subscribe({
       next: (found) => {
@@ -263,7 +272,7 @@ export class PlayComponent implements OnDestroy {
       next: (markets) => {
         this.refreshingMarket = false;
         if (this.stream?.id !== stream.id || this.stage !== 'betting') return;
-        const next = pickMarket(markets, Date.now());
+        const next = pickMarket(markets, Date.now(), this.automaticSettlement);
         if (next) this.showRound(stream, next); else this.find(stream.id);
       },
       error: () => { this.refreshingMarket = false; if (this.stage === 'betting') this.find(stream.id); }

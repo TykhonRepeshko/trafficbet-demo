@@ -97,7 +97,7 @@ func validateLiveProgress(input LiveProgressInput, start, end time.Time) error {
 
 func validLiveClass(class string) bool {
 	switch class {
-	case "car", "van", "bus", "truck", "motorcycle":
+	case "car", "van", "bus", "truck", "motorcycle", "vehicle":
 		return true
 	}
 	return false

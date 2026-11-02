@@ -11,7 +11,7 @@ export class ApiService {
   private readonly http = inject(HttpClient);
   private readonly base = environment.apiUrl;
   private readonly credentials = { withCredentials: true };
-  health(): Observable<{ ok: boolean }> { return this.http.get<{ ok: boolean }>(`${this.base}/health`, this.credentials); }
+  health(): Observable<{ ok: boolean; automaticSettlement?: boolean }> { return this.http.get<{ ok: boolean; automaticSettlement?: boolean }>(`${this.base}/health`, this.credentials); }
   sourceHealth(): Observable<SourceHealth> { return this.http.get<SourceHealth>(`${this.base}/admin/source-health`, this.credentials); }
   preparation(id: number): Observable<CountingPreparation> { return this.http.get<CountingPreparation>(`${this.base}/admin/preparation/${id}`, this.credentials); }
   referenceURL(id: number, ref: number): string { return `${this.base}/admin/preparation/${id}/references/${ref}`; }

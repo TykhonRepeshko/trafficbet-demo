@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
-VERSION = "1.0.0"
+VERSION = "1.3.1"
 
 
 def _float(name: str, default: float, low: float, high: float) -> float:
@@ -30,6 +30,9 @@ class Config:
     poll_seconds: float
     log_level: str
     wide_coverage: bool = True
+    auto_calibration_enabled: bool = True
+    hybrid_motion: bool = False
+    device: str = "cpu"
 
     @property
     def worker_name(self) -> str:
@@ -52,10 +55,33 @@ def load() -> Config:
         buffer_seconds=_float("BUFFER_SECONDS", 420, 120, 1800),
         poll_seconds=_float("POLL_SECONDS", 5, 1, 60),
         log_level=os.environ.get("LOG_LEVEL", "INFO").upper(),
-        wide_coverage=os.environ.get("WIDE_COVERAGE", "true").strip().lower() not in ("0", "false", "no", "off"),
+        wide_coverage=os.environ.get("WIDE_COVERAGE", "true").strip().lower()
+        not in ("0", "false", "no", "off"),
+        auto_calibration_enabled=os.environ.get("AUTO_CALIBRATION_ENABLED", "true")
+        .strip()
+        .lower()
+        not in ("0", "false", "no", "off"),
+        hybrid_motion=os.environ.get("HYBRID_MOTION_ENABLED", "false").strip().lower()
+        in ("1", "true", "yes", "on"),
+        device=os.environ.get("DEVICE", "cpu").strip().lower(),
     )
     if len(cfg.worker_token) < 32:
         raise ValueError("WORKER_TOKEN must contain at least 32 characters")
-    if cfg.model not in ("yolox-tiny", "yolox-nano", "rfdetr-nano", "rfdetr-small", "rfdetr-medium", "rfdetr-large"):
-        raise ValueError("MODEL must be yolox-tiny, yolox-nano or an Apache-2.0 RF-DETR size (rfdetr-nano|small|medium|large)")
+    if cfg.model not in (
+        "yolox-tiny",
+        "yolox-nano",
+        "yolox-s",
+        "yolox-m",
+        "rfdetr-nano",
+        "rfdetr-small",
+        "rfdetr-medium",
+        "rfdetr-large",
+    ):
+        raise ValueError(
+            "MODEL must be yolox-tiny|nano|s|m or rfdetr-nano|small|medium|large"
+        )
+    if cfg.device not in ("cpu", "cuda"):
+        raise ValueError("DEVICE must be cpu or cuda")
+    if cfg.device == "cuda" and not cfg.model.startswith("yolox-"):
+        raise ValueError("The CUDA image currently supports YOLOX models only")
     return cfg

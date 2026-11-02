@@ -24,14 +24,15 @@ type CountingPoint struct {
 	Y float64 `json:"y"`
 }
 type CountingDefinition struct {
-	Label      string        `json:"label"`
-	LineStart  CountingPoint `json:"lineStart"`
-	LineEnd    CountingPoint `json:"lineEnd"`
-	Directions []string      `json:"directions"`
-	Classes    []string      `json:"classes"`
-	Anchor     string        `json:"anchor"`
-	TimeBasis  string        `json:"timeBasis"`
-	Notes      string        `json:"notes"`
+	Label       string            `json:"label"`
+	LineStart   CountingPoint     `json:"lineStart"`
+	LineEnd     CountingPoint     `json:"lineEnd"`
+	Directions  []string          `json:"directions"`
+	Classes     []string          `json:"classes"`
+	Anchor      string            `json:"anchor"`
+	TimeBasis   string            `json:"timeBasis"`
+	Notes       string            `json:"notes"`
+	RoadRegions [][]CountingPoint `json:"roadRegions,omitempty"`
 }
 type CountingReference struct {
 	ID                int64     `json:"id"`
@@ -169,7 +170,7 @@ func validCountingDefinition(d CountingDefinition) bool {
 		}
 		return true
 	}
-	return validList(d.Directions, map[string]bool{"A_to_B": true, "B_to_A": true}) && validList(d.Classes, map[string]bool{"car": true, "van": true, "bus": true, "truck": true, "motorcycle": true})
+	return validRoadRegions(d.RoadRegions) && validList(d.Directions, map[string]bool{"A_to_B": true, "B_to_A": true}) && validList(d.Classes, map[string]bool{"car": true, "van": true, "bus": true, "truck": true, "motorcycle": true})
 }
 func sourceFingerprint(s Stream) string { v := mediaFingerprint(s); return hex.EncodeToString(v[:]) }
 func (s *Store) CountingPreparation(ctx context.Context, id int64) (CountingPreparation, error) {

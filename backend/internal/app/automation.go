@@ -105,6 +105,28 @@ func normalizeAutomaticResult(in AutomaticResultInput) (AutomaticResultInput, er
 		return in, err
 	}
 	in.Evidence = evidence
+	if in.Outcome == "counted" {
+		var quality struct {
+			Motion *struct {
+				Method               string   `json:"method"`
+				WarmupFrames         int      `json:"warmupFrames"`
+				RequiredWarmupFrames int      `json:"requiredWarmupFrames"`
+				Issues               []string `json:"qualityIssues"`
+			} `json:"motion"`
+			Issues    []string          `json:"qualityIssues"`
+			Crossings []json.RawMessage `json:"crossings"`
+		}
+		if err := json.Unmarshal(evidence, &quality); err != nil {
+			return in, fmt.Errorf("%w: invalid counting evidence", ErrInvalid)
+		}
+		if quality.Motion != nil && quality.Motion.Method == "semantic_pixel_motion_v1" {
+			if quality.Issues == nil || quality.Motion.Issues == nil || len(quality.Issues) != 0 || len(quality.Motion.Issues) != 0 ||
+				quality.Motion.RequiredWarmupFrames < 1 || quality.Motion.WarmupFrames < quality.Motion.RequiredWarmupFrames ||
+				quality.Crossings == nil || len(quality.Crossings) != *in.VehicleCount {
+				return in, fmt.Errorf("%w: hybrid results need complete warmup, matching crossings and no quality issues", ErrInvalid)
+			}
+		}
+	}
 	return in, nil
 }
 

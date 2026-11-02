@@ -120,6 +120,7 @@ services:
       PROCESSORS: "4"
       DETECTOR_THREADS: "2"
       OMP_THREAD_LIMIT: "1"
+      HYBRID_MOTION_ENABLED: ${HYBRID_MOTION_ENABLED:-false}
       CALIBRATION_SECONDS: "120"
       LOG_LEVEL: INFO
     networks: [web]

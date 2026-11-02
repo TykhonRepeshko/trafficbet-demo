@@ -4,9 +4,9 @@
 
 **A full-stack traffic prediction app with virtual credits, live road cameras and an auditable balance ledger.**
 
-Built with **Go, Angular 21 and PostgreSQL 16**, packaged as separate Docker Compose services. Users enter an inclusive vehicle-count range for a scheduled round, or choose Over / Under against its reference threshold. The project demonstrates transactional account operations, authorization, safe media delivery and **fully automatic, human-free counting and settlement** by a computer-vision worker.
+Built with **Go, Angular 21 and PostgreSQL 16**, packaged as separate Docker Compose services. Users enter an inclusive vehicle-count range for a scheduled round, or choose Over / Under against its reference threshold. The project demonstrates transactional account operations, authorization, safe media delivery and an **experimental computer-vision worker for automatic counting and settlement**.
 
-**Current stage:** working local portfolio prototype. Credits have no monetary value. An AI worker (`counter/`) detects and tracks vehicles, calibrates each camera's counting line by itself and reports every round; the API settles counted rounds and refunds unverifiable ones with no operator involved. Public production deployment is not configured. Retained-video capture and its annotation workspace are paused to avoid local video storage.
+**Current stage:** experimental local portfolio prototype, saved on `codex/experimental-counting-refund-fixes` for further counting work before a merge. Credits have no monetary value. The worker (`counter/`) detects and tracks vehicles against versioned counting geometry; optional calibration can propose new lines, while native local mode preserves operator-approved profiles. The API settles counted rounds and refunds unverifiable ones. This branch reduces false refunds caused by glare and tracking warnings; it does **not** remove refund safeguards or establish counting accuracy. Strong pixelation, low light and lost identities still cause invalid rounds. Public production deployment is not configured. Retained-video capture and its annotation workspace are paused to avoid local video storage.
 
 ## What it does
 
@@ -80,6 +80,8 @@ PostgreSQL and optional retained footage use separate named volumes. Video captu
 
 This mode uses the separately prepared Go/Node/PostgreSQL/video tools on this computer. Those runtimes are not included in Git. Go binds `127.0.0.1:8080`, PostgreSQL binds `127.0.0.1:55433`, and Angular serves `localhost:4200`.
 
+For AI counting alongside this saved database, start Docker Desktop and set `AUTOMATIC_SETTLEMENT_ENABLED=true` in the private `.env`. `start.cmd` then also starts the isolated counter using `docker-compose.counter-local.yml`; `stop.cmd` stops it together with the native services. No database is moved into Docker. This mode uses reviewed, approved counting profiles and disables automatic line replacement to preserve the operator's geometry. Cameras without a readable capture clock remain viewable but their prediction schedules are paused. Model counts are experimental, especially at night or where vehicles are blurred.
+
 The launcher keeps an existing native database as the default. Stop native mode before using Docker on the same frontend port. **Native storage and Docker storage are independent**: switching modes does not migrate accounts. Keep `.env` and `.local-data/postgres` private and backed up together. If video storage is reintroduced, retained files must accompany their database snapshot. See [verified transfer and recovery](docs/23-docker-verification.md).
 
 ## Rounds, video and AI boundaries
@@ -91,6 +93,8 @@ A stream that plays successfully does not prove exact sensor capture time or com
 Unverifiable rounds are cancelled and refunded automatically: by the worker when a quality gate fails, and by the API watchdog when no result arrives in time. Clip-relative annotations support offline evaluation; they are not a completed training dataset or proof of counting accuracy.
 
 ### Automatic counting
+
+Experimental pixelated-traffic support is available with `HYBRID_MOTION_ENABLED=true`. It combines semantic detections, moving block-textured candidates and measured motion continuation. Coarse `vehicle` observations do not assert a subtype and require longer confirmation. Ambiguous or lost tracks invalidate the round and refund stakes; a partial positive count is not accepted as a complete result. This mode has regression and local replay checks, not a certified counting-accuracy measurement.
 
 Automatic settlement is experimental and **opt-in**. Ordinary Compose startup leaves it disabled and does not start the counter. To run a deliberate AI test, set `AUTOMATIC_SETTLEMENT_ENABLED=true` in your private `.env`, then run `docker compose --profile ai up --build -d`. Review calibration and results before using the worker with existing rounds. OCR agreement does not independently establish a trusted sensor capture-time anchor or measured counting accuracy.
 
@@ -105,7 +109,7 @@ The `counter` service runs without an operator:
 
 Counting windows of different cameras are staggered 20 s apart (`ROUND_STAGGER`), which spreads the worker's load. Throughput: on the Apple M4 Docker VM used for development a 30-second round is analysed in 20–35 s, with three rounds in parallel, which covers five cameras on a one-minute cadence. A restart of the worker loses its in-memory footage buffer, so rounds whose window began before the restart are refunded.
 
-Limits: vehicles pixelated by the camera operator cannot be detected (on several Norwegian cameras that covers the lanes nearest the camera, so the line sits where vehicles are small), night and low light reduce recall, and the count is a model estimate rather than a certified measurement. YOLOX-Tiny is the default because RF-DETR runs at 0.2–0.9 s per frame on this CPU-only Docker VM; build the worker with `--build-arg WITH_RFDETR=1` and set `COUNTER_MODEL=rfdetr-small` on a GPU host. Disable everything with `AUTOMATIC_SETTLEMENT_ENABLED=false` and by stopping the `counter` service. See [`counter/README.md`](counter/README.md).
+Limits: privacy blur, merged objects and night lighting still cause missed or ambiguous crossings. Experimental motion assistance can track some pixelated vehicles but does not recover hidden image details or guarantee a complete count. Positive partial results are refunded when quality checks fail. YOLOX-Tiny remains the portable CPU default; optional YOLOX-S/M CUDA acceleration and versioned road regions are available. Native Windows GPU mode uses `COUNTER_DEVICE=cuda` and `COUNTER_MODEL=yolox-s` in the private `.env`; it keeps the saved PostgreSQL database. Independent manual ground truth is still required before treating a camera as accurate. Disable automatic settlement with `AUTOMATIC_SETTLEMENT_ENABLED=false` and stop the `counter` service. See [`counter/README.md`](counter/README.md).
 
 On 25 October, local retained-video storage was released and immutable retirement records were added. Historical capture/annotation metadata remains, while retired media is excluded from playback, annotation, settlement evidence, storage budgets and new transfer bundles. Reintroducing evidence must cover the entire counting interval (currently 30 seconds), with continuity and timing checks; clip length alone is insufficient. Disabling capture does not relax versioned settlement requirements.
 

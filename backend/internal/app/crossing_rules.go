@@ -21,6 +21,11 @@ func crossingCandidate(rule CountingDefinition, before, after CountingPoint, bef
 			included = true
 		}
 	}
+	// A coarse vehicle has no asserted subtype. It is valid only for a rule
+	// including every supported motor-vehicle class, never a car-only rule.
+	if vehicleClass == "vehicle" && len(rule.Classes) == 5 {
+		included = true
+	}
 	if !included {
 		return CrossingCandidate{}, false
 	}
@@ -55,7 +60,7 @@ func crossingCandidate(rule CountingDefinition, before, after CountingPoint, bef
 	y := before.Y + (after.Y-before.Y)*ratio
 	dx, dy := rule.LineEnd.X-rule.LineStart.X, rule.LineEnd.Y-rule.LineStart.Y
 	along := ((x-rule.LineStart.X)*dx + (y-rule.LineStart.Y)*dy) / (dx*dx + dy*dy)
-	if along < 0 || along > 1 {
+	if along < 0 || along > 1 || !inRoadRegions(rule.RoadRegions, CountingPoint{X: x, Y: y}) {
 		return CrossingCandidate{}, false
 	}
 	at := beforeAt.Add(time.Duration(ratio * float64(afterAt.Sub(beforeAt))))

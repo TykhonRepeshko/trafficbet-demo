@@ -19,6 +19,17 @@ export class PreparationComponent implements OnInit, OnDestroy {
   cancelReason = ''; confirmCancel = false;
   readonly classes = ['car', 'van', 'bus', 'truck', 'motorcycle'];
   definition: CountingDefinition = this.emptyDefinition();
+  drawingRoad = false; draftRoad: { x: number; y: number }[] = [];
+  roadPoints(points: { x: number; y: number }[]): string { return points.map((p) => `${p.x * 100},${p.y * 100}`).join(' '); }
+  beginRoad(): void { if (this.busy || (this.definition.roadRegions?.length ?? 0) >= 8) return; this.drawingRoad = true; this.draftRoad = []; }
+  addRoadPoint(event: MouseEvent): void {
+    if (!this.drawingRoad || this.busy || this.draftRoad.length >= 12) return;
+    const rect = (event.currentTarget as SVGSVGElement).getBoundingClientRect();
+    this.draftRoad = [...this.draftRoad, { x: Math.round(Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width)) * 1e6) / 1e6, y: Math.round(Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height)) * 1e6) / 1e6 }];
+  }
+  finishRoad(): void { if (this.draftRoad.length < 3) return; this.definition.roadRegions = [...(this.definition.roadRegions ?? []), this.draftRoad]; this.cancelRoad(); }
+  cancelRoad(): void { this.drawingRoad = false; this.draftRoad = []; }
+  removeRoad(index: number): void { if (!this.busy) this.definition.roadRegions = this.definition.roadRegions?.filter((_, i) => i !== index); }
   private reads = new Map<string, Subscription>(); private generations = new Map<string, number>(); private timer?: number; private alive = true;
   ngOnInit(): void { this.refresh(); this.timer = window.setInterval(() => { if (!document.hidden && !this.busy) this.loadHealth(); }, 15_000); }
   ngOnDestroy(): void { this.alive = false; this.reads.forEach((request) => request.unsubscribe()); if (this.timer) window.clearInterval(this.timer); }
@@ -30,6 +41,7 @@ export class PreparationComponent implements OnInit, OnDestroy {
   loadHealth(): void { this.read('health', this.api.sourceHealth(), (data) => this.health = data); }
   stale(camera: SourceHealth['cameras'][number]): boolean { return !camera.observation || camera.observation.sourceFingerprint !== camera.sourceFingerprint || Date.now() - Date.parse(camera.observation.observedAt) > 120_000; }
   selectCamera(id: number): void {
+    this.cancelRoad();
     if (this.busy) return; this.selected = id; this.preparation = undefined; this.referenceId = 0; this.definition = this.emptyDefinition(); this.approvalNote = ''; this.error = ''; this.loading = true;
     this.read('preparation', this.api.preparation(id), (data) => { this.preparation = data; this.loading = false; this.referenceId = data.references.find((ref) => ref.sourceFingerprint === data.sourceFingerprint)?.id ?? 0; });
   }
@@ -41,9 +53,9 @@ export class PreparationComponent implements OnInit, OnDestroy {
   }
   toggleClass(value: string, checked: boolean): void { this.definition.classes = checked ? [...new Set([...this.definition.classes, value])] : this.definition.classes.filter((item) => item !== value); }
   toggleDirection(value: string, checked: boolean): void { this.definition.directions = checked ? [...new Set([...this.definition.directions, value])] : this.definition.directions.filter((item) => item !== value); }
-  copyProfile(profile: CountingProfile): void { this.definition = structuredClone(profile.definition); this.referenceId = profile.referenceId; this.message = 'Copied into a new draft. The saved version is unchanged.'; }
+  copyProfile(profile: CountingProfile): void { this.cancelRoad(); this.definition = structuredClone(profile.definition); this.referenceId = profile.referenceId; this.message = 'Copied into a new draft. The saved version is unchanged.'; }
   saveProfile(): void {
-    if (!this.referenceId || this.busy) return;
+    if (!this.referenceId || this.busy || this.drawingRoad) return;
     const id = this.selected; this.mutate(this.api.saveCountingProfile(id, this.referenceId, this.definition), 'New immutable rule version saved. Review it before approval.', () => this.selectCamera(id));
   }
   approve(profile: CountingProfile): void { if (this.busy || !profile.sourceMatches || this.approvalNote.trim().length < 20) return; const id = this.selected; this.mutate(this.api.approveCountingProfile(id, profile.id, this.approvalNote), 'Approved for newly published rounds. Existing rounds keep their original rules.', () => { this.selectCamera(id); this.loadHealth(); }); }

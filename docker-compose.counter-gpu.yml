@@ -1,0 +1,11 @@
+# Optional NVIDIA override for either Compose stack; never creates a database.
+services:
+  counter:
+    build:
+      args:
+        WITH_CUDA: "1"
+    environment:
+      DEVICE: cuda
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    gpus: all
+    mem_limit: 4g

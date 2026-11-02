@@ -13,7 +13,8 @@ class FakeFrame:
     def __init__(self, n):
         self.n = n
 
-    def to_ndarray(self, format="bgr24"):
+    def to_ndarray(self, format="bgr24", threads=None):
+        assert threads == 1, "Concurrent cameras must not start CPU-count-sized scaler pools"
         return np.full((90, 160, 3), self.n % 255, dtype=np.uint8)
 
 

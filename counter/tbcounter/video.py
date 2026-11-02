@@ -42,7 +42,7 @@ def first_frames_gray(data: bytes, seconds: float, rows: int | None = None) -> l
             start = pts
         if pts - start > seconds:
             break
-        gray = frame.to_ndarray(format="gray")
+        gray = frame.to_ndarray(format="gray", threads=1)
         out.append((pts, gray))
     return out
 

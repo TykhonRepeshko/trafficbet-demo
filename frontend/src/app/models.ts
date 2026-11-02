@@ -235,6 +235,7 @@ export interface RoundScheduleSnapshot { asOf: string; schedules: RoundSchedule[
 export interface CountingDefinition {
   label: string; lineStart: { x: number; y: number }; lineEnd: { x: number; y: number };
   directions: string[]; classes: string[]; anchor: string; timeBasis: string; notes: string;
+  roadRegions?: { x: number; y: number }[][];
 }
 export interface PublicCountingGuide { profileId: number; version: number; approved: boolean; sourceFingerprint: string; width: number; height: number; definition: CountingDefinition; }
 export interface CountingReference { id: number; streamId: number; sourceFingerprint: string; imageSha256: string; width: number; height: number; createdAt: string; }

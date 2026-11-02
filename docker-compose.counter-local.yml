@@ -1,0 +1,30 @@
+# AI alongside the saved native PostgreSQL/Go/Angular stack on Docker Desktop.
+# No database service or volume: accounts remain in .local-data/postgres.
+name: trafficbet-local-ai
+services:
+  counter:
+    image: trafficbet-counter:local
+    build:
+      context: ./counter
+    environment:
+      API_BASE: http://host.docker.internal:8080
+      WORKER_TOKEN: ${WORKER_TOKEN:?Run scripts/setup.ps1}
+      MODEL: ${COUNTER_MODEL:-yolox-tiny}
+      SAMPLE_FPS: "8"
+      PROCESSORS: ${COUNTER_PROCESSORS:-4}
+      DETECTOR_THREADS: ${COUNTER_DETECTOR_THREADS:-2}
+      OMP_THREAD_LIMIT: "1"
+      AUTO_CALIBRATION_ENABLED: "false"
+      HYBRID_MOTION_ENABLED: ${HYBRID_MOTION_ENABLED:-false}
+      LOG_LEVEL: INFO
+    read_only: true
+    tmpfs: ["/tmp:size=256m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 256
+    mem_limit: 2g
+    cpus: ${COUNTER_CPUS:-9}
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}

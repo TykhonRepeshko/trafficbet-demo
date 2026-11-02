@@ -1,4 +1,5 @@
 """Frame sampling, round counting and calibration on buffered, clock-anchored footage."""
+
 from __future__ import annotations
 
 import time
@@ -10,12 +11,17 @@ import numpy as np
 from . import framing, video
 from .detector import TiledDetector, grid_tiles, line_tiles, wide_tiles
 from .calibration import CalibrationResult, TrajectoryCollector, compute_line
-from .rules import CrossingCounter, Definition
+from .rules import CrossingCounter, Definition, Point, in_road_regions
 from .segments import Segment
 from .tracking import Tracker
+from .motion import MotionBridge
 
 PRE_ROLL = 2.0  # seconds of tracking before the window so vehicles already have a track at its start
-COVERAGES = ("line", "wide")  # detection around the line only, or additionally over the whole frame
+COVERAGES = ("line", "wide", "grid")
+
+
+def pre_roll_for(hybrid_motion: bool) -> float:
+    return 10.0 if hybrid_motion else PRE_ROLL
 
 
 def choose_coverage(line_count: int, wide_count: int) -> str:
@@ -23,7 +29,9 @@ def choose_coverage(line_count: int, wide_count: int) -> str:
     return "wide" if wide_count >= max(1.25 * line_count, line_count + 2) else "line"
 
 
-def sample_frames(segments: list[Segment], start: float, end: float, fps: float) -> Iterator[tuple[float, np.ndarray]]:
+def sample_frames(
+    segments: list[Segment], start: float, end: float, fps: float
+) -> Iterator[tuple[float, np.ndarray]]:
     """Yield (capture_utc, bgr) for the first frame at or after each 1/fps tick in [start, end)."""
     tick, step = start, 1.0 / fps
     for seg in segments:
@@ -36,7 +44,7 @@ def sample_frames(segments: list[Segment], start: float, end: float, fps: float)
                 return
             if t + 1e-6 < tick:
                 continue
-            yield t, frame.to_ndarray(format="bgr24")
+            yield t, frame.to_ndarray(format="bgr24", threads=1)
             while tick <= t + 1e-6:
                 tick += step
 
@@ -59,20 +67,41 @@ class RoundAnalysis:
     stitches: int = 0
     duplicates: int = 0
     coverage: str = "line"
+    motion: dict = field(default_factory=dict)
+    quality_issues: list[str] = field(default_factory=list)
 
 
 class RoundSession:
     """Counts one round incrementally as clock-anchored segments arrive.
 
     Feeding the window's segments one by one gives exactly the result of counting them in one pass, so the live
-    count shown to viewers and the final settled count come from the same tracker and rule."""
+    count shown to viewers and the final settled count come from the same tracker and rule.
+    """
 
-    def __init__(self, detector, rule: Definition, start: float, end: float, fps: float, activation: float,
-                 coverage: str = "line") -> None:
+    def __init__(
+        self,
+        detector,
+        rule: Definition,
+        start: float,
+        end: float,
+        fps: float,
+        activation: float,
+        coverage: str = "line",
+        hybrid_motion: bool = False,
+    ) -> None:
         if coverage not in COVERAGES:
             raise ValueError(f"unknown coverage {coverage!r}")
-        self.detector, self.rule, self.start, self.end, self.fps = detector, rule, start, end, fps
+        self.detector, self.rule, self.start, self.end, self.fps = (
+            detector,
+            rule,
+            start,
+            end,
+            fps,
+        )
         self.coverage = coverage
+        self.hybrid_motion = hybrid_motion
+        self.pre_roll = pre_roll_for(hybrid_motion)
+        self.motion: MotionBridge | None = None
         self.tracker = Tracker(fps, activation)
         self.counter: CrossingCounter | None = None
         self.tiled: TiledDetector | None = None
@@ -80,13 +109,15 @@ class RoundSession:
         self.first_sig: framing.Signature | None = None
         self.width = self.height = 0
         self.detect_time = self.busy_time = 0.0
-        self.tick, self.step = start - PRE_ROLL, 1.0 / fps
-        self.processed_until = start - PRE_ROLL
+        self.tick, self.step = start - self.pre_roll, 1.0 / fps
+        self.processed_until = start - self.pre_roll
         self.segments: list[Segment] = []
         self.complete = False
         self._last_frame: np.ndarray | None = None
 
-    def feed(self, seg: Segment, on_frame=None, on_progress=None, progress_every: float = 2.0) -> None:
+    def feed(
+        self, seg: Segment, on_frame=None, on_progress=None, progress_every: float = 2.0
+    ) -> None:
         """Process one segment. `on_progress` is called each `progress_every` seconds of footage, so viewers see
         the count rise within the segment rather than once per 8–12 s segment."""
         began = time.perf_counter()
@@ -101,7 +132,7 @@ class RoundSession:
                     break
                 if t + 1e-6 < self.tick:
                     continue
-                self._frame(t, frame.to_ndarray(format="bgr24"), on_frame)
+                self._frame(t, frame.to_ndarray(format="bgr24", threads=1), on_frame)
                 while self.tick <= t + 1e-6:
                     self.tick += self.step
                 if on_progress is not None and t >= next_report:
@@ -117,19 +148,67 @@ class RoundSession:
     def _frame(self, t: float, bgr: np.ndarray, on_frame) -> None:
         if self.counter is None:
             self.height, self.width = bgr.shape[:2]
-            self.counter = CrossingCounter(self.rule, self.start, self.end, self.width, self.height)
+            self.counter = CrossingCounter(
+                self.rule, self.start, self.end, self.width, self.height
+            )
+            if self.hybrid_motion:
+                self.motion = MotionBridge(
+                    self.rule, self.width, self.height, self.start, self.fps, self.end
+                )
             self.first_sig = framing.signature(bgr)
             r = self.rule
-            tiles = line_tiles(r.line_start.x, r.line_start.y, r.line_end.x, r.line_end.y, self.width, self.height)
-            extra = wide_tiles(self.width, self.height) if self.coverage == "wide" else []
+            tiles = line_tiles(
+                r.line_start.x,
+                r.line_start.y,
+                r.line_end.x,
+                r.line_end.y,
+                self.width,
+                self.height,
+            )
+            extra = (
+                wide_tiles(self.width, self.height) if self.coverage == "wide" else []
+            )
+            if self.coverage == "grid":
+                tiles = grid_tiles(self.width, self.height)
             self.tiled = TiledDetector(self.detector, tiles, secondary=extra)
         d0 = time.perf_counter()
         dets = self.tiled.detect(bgr)
+        if self.rule.road_regions:
+            keep = np.array(
+                [
+                    i
+                    for i, b in enumerate(dets.xyxy)
+                    if in_road_regions(
+                        self.rule.road_regions,
+                        Point(
+                            (float(b[0]) + float(b[2])) / 2 / self.width,
+                            float(b[3]) / self.height,
+                        ),
+                    )
+                ],
+                dtype=int,
+            )
+            dets = type(dets)(
+                dets.xyxy[keep], dets.confidence[keep], [dets.labels[i] for i in keep]
+            )
         self.detect_time += time.perf_counter() - d0
         self.detections += len(dets)
+        if self.motion is not None:
+            dets = self.motion.augment(bgr, dets, t)
         boxes = self.tracker.update(dets, t)
+        if self.motion is not None:
+            boxes = self.motion.update(bgr, boxes, t)
         for box in boxes:
             self.counter.observe(box.track_id, box.label, box.confidence, box.xyxy, t)
+        if self.motion is not None:
+            self.motion.completed.update(
+                crossing["trackId"] for crossing in self.counter.crossings
+            )
+            self.motion.completed.update(
+                tid
+                for tid, canonical in self.counter.alias.items()
+                if canonical in self.motion.completed
+            )
         if on_frame is not None:
             on_frame(t, bgr, boxes, self.counter)
         self.frames += 1
@@ -145,29 +224,78 @@ class RoundSession:
         crossings = self.counter.crossings if self.counter else []
         return {
             "vehicleCount": len(crossings),
-            "crossings": [{"at": round(c["at"], 3), "direction": c["direction"], "class": c["class"]} for c in crossings],
-            "segments": [{"seq": s.seq, "startUtc": round(s.start, 3), "duration": round(s.duration, 3)}
-                         for s in self.segments if s.anchor is not None][-40:],
+            "crossings": [
+                {
+                    "at": round(c["at"], 3),
+                    "direction": c["direction"],
+                    "class": c["class"],
+                }
+                for c in crossings
+            ],
+            "segments": [
+                {
+                    "seq": s.seq,
+                    "startUtc": round(s.start, 3),
+                    "duration": round(s.duration, 3),
+                }
+                for s in self.segments
+                if s.anchor is not None
+            ][-40:],
             "processedUntil": round(self.processed_until, 3),
         }
 
     def analysis(self) -> RoundAnalysis:
         c = self.counter
+        if self.motion is not None and c is not None:
+            self.motion.reconcile(c)
         return RoundAnalysis(
-            count=c.count if c else 0, crossings=c.crossings if c else [],
-            frames=self.frames, expected_frames=int(round((self.end - self.start + PRE_ROLL) * self.fps)),
-            detections=self.detections, tracks=len(c.tracks) if c else 0, first_sig=self.first_sig,
-            last_sig=framing.signature(self._last_frame) if self._last_frame is not None else None,
-            rejected=c.rejected if c else 0, width=self.width, height=self.height, seconds=self.busy_time,
-            stitches=c.stitches if c else 0, duplicates=c.duplicates if c else 0, coverage=self.coverage,
-            timings={"totalSeconds": round(self.busy_time, 3), "detectSeconds": round(self.detect_time, 3),
-                     "msPerFrame": round(1000 * self.busy_time / max(self.frames, 1), 1),
-                     "tiles": len(self.tiled.tiles) if self.tiled else 0})
+            count=c.count if c else 0,
+            crossings=c.crossings if c else [],
+            frames=self.frames,
+            expected_frames=int(
+                round((self.end - self.start + self.pre_roll) * self.fps)
+            ),
+            detections=self.detections,
+            tracks=len(c.tracks) if c else 0,
+            first_sig=self.first_sig,
+            last_sig=(
+                framing.signature(self._last_frame)
+                if self._last_frame is not None
+                else None
+            ),
+            rejected=c.rejected if c else 0,
+            width=self.width,
+            height=self.height,
+            seconds=self.busy_time,
+            stitches=c.stitches if c else 0,
+            duplicates=c.duplicates if c else 0,
+            coverage=self.coverage,
+            motion=self.motion.evidence() if self.motion else {},
+            quality_issues=sorted(self.motion.issues) if self.motion else [],
+            timings={
+                "totalSeconds": round(self.busy_time, 3),
+                "detectSeconds": round(self.detect_time, 3),
+                "msPerFrame": round(1000 * self.busy_time / max(self.frames, 1), 1),
+                "tiles": len(self.tiled.tiles) if self.tiled else 0,
+            },
+        )
 
 
-def count_round(detector, segments: list[Segment], rule: Definition, start: float, end: float, fps: float,
-                activation: float, on_frame=None, coverage: str = "line") -> RoundAnalysis:
-    session = RoundSession(detector, rule, start, end, fps, activation, coverage)
+def count_round(
+    detector,
+    segments: list[Segment],
+    rule: Definition,
+    start: float,
+    end: float,
+    fps: float,
+    activation: float,
+    on_frame=None,
+    coverage: str = "line",
+    hybrid_motion: bool = False,
+) -> RoundAnalysis:
+    session = RoundSession(
+        detector, rule, start, end, fps, activation, coverage, hybrid_motion
+    )
     for seg in segments:
         session.feed(seg, on_frame)
         if session.complete:
@@ -184,10 +312,17 @@ class CalibrationRun:
     error: str = ""
 
 
-def calibrate(detector, segments: list[Segment], fps: float, activation: float, min_tracks: int,
-              camera: str) -> CalibrationRun:
+def calibrate(
+    detector,
+    segments: list[Segment],
+    fps: float,
+    activation: float,
+    min_tracks: int,
+    camera: str,
+) -> CalibrationRun:
     """Track vehicles over continuous footage and derive a counting line."""
     from .calibration import NotEnoughTracks
+
     began = time.perf_counter()
     anchored = [s for s in segments if s.anchor is not None]
     if not anchored:
@@ -207,4 +342,6 @@ def calibrate(detector, segments: list[Segment], fps: float, activation: float, 
         result = compute_line(collector.tracks, width, height, min_tracks, camera)
         return CalibrationRun(result, reference, frames, time.perf_counter() - began)
     except NotEnoughTracks as exc:
-        return CalibrationRun(None, reference, frames, time.perf_counter() - began, str(exc))
+        return CalibrationRun(
+            None, reference, frames, time.perf_counter() - began, str(exc)
+        )

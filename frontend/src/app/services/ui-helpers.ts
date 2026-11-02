@@ -11,6 +11,7 @@ export function apiError(error: unknown, fallback = 'The request could not be co
 }
 export function voidReasonLabel(reason: string | undefined): string {
   const text = reason ?? '';
+  if (/unreliable_tracking|unverified_zero|detection_unavailable|Pixelated-traffic/.test(text)) return 'Refunded: vehicles could not be counted reliably.';
   if (/camera_moved/.test(text)) return 'Refunded: the camera view changed during the round.';
   if (/incomplete_coverage|decode_failed|no_frames/.test(text)) return 'Refunded: the video had gaps during the round.';
   if (/no_capture_clock|camera_unavailable|clock/.test(text)) return 'Refunded: the camera’s clock couldn’t be verified.';

@@ -20,7 +20,10 @@ function Start-LocalApplication {
         if ($runningApi -and $runningApi.Path -eq (Join-Path $localRoot 'bin/trafficbet-api.exe')) {
             try {
                 $currentHealth = Invoke-RestMethod 'http://localhost:4200/api/health' -TimeoutSec 2
-                if ($currentHealth.ok) { Write-Host 'Already running: http://localhost:4200'; return }
+                if ($currentHealth.ok) {
+                    if ($currentHealth.automaticSettlement) { & (Join-Path $PSScriptRoot 'start-counter-local.ps1') }
+                    Write-Host 'Already running: http://localhost:4200'; return
+                }
             } catch { }
         }
     }
@@ -89,7 +92,9 @@ try {
     # -q validates interpolation without exposing secrets in rendered config.
     & $dockerPath compose config -q
     if ($LASTEXITCODE -ne 0) { throw 'Docker Compose configuration is invalid.' }
-    & $dockerPath compose up --build --wait --wait-timeout 180
+    $composeOptions = @('compose')
+    if (Select-String -LiteralPath (Join-Path $projectRoot '.env') -Pattern '^AUTOMATIC_SETTLEMENT_ENABLED=(true|1)$' -Quiet) { $composeOptions += @('--profile','ai') }
+    & $dockerPath @composeOptions up --build --wait --wait-timeout 180
     if ($LASTEXITCODE -ne 0) { throw 'Services did not become healthy. Inspect docker compose logs; do not post .env.' }
     Write-Host 'TrafficBet: http://localhost:4200 . Stop: docker compose down (retains PostgreSQL data).'
 } finally { Pop-Location }

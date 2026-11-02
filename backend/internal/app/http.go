@@ -160,7 +160,7 @@ func (api *API) handleHealth(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "database_unavailable", "Database health check failed.")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "automaticSettlement": api.cfg.AutomaticSettlement})
 }
 
 func (api *API) handleLogin(w http.ResponseWriter, r *http.Request) {
