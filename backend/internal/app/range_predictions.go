@@ -51,6 +51,52 @@ func (s *Store) QuoteRange(ctx context.Context, marketID int64, minimum, maximum
 	if !validCountRange(minimum, maximum) {
 		return RangeQuote{}, fmt.Errorf("%w: invalid vehicle-count range", ErrInvalid)
 	}
+	market, err := s.quotableMarket(ctx, marketID)
+	if err != nil {
+		return RangeQuote{}, err
+	}
+	return quoteCountRange(market, minimum, maximum)
+}
+
+// rangeOptions offers four ready-made choices that split the pricing model into
+// buckets of roughly equal probability (its quartiles), so each pays similar odds.
+func rangeOptions(market Market) ([]RangeQuote, error) {
+	mean := float64(market.Threshold) + 0.5
+	logQ := math.Log1p(-1 / (mean + 1))
+	uppers := make([]int, 0, 4)
+	previous := -1
+	for _, p := range []float64{0.25, 0.5, 0.75} {
+		upper := int(math.Ceil(math.Log1p(-p)/logQ)) - 1
+		if upper <= previous {
+			upper = previous + 1
+		}
+		uppers = append(uppers, upper)
+		previous = upper
+	}
+	uppers = append(uppers, maxVehicleCount)
+	options := make([]RangeQuote, 0, len(uppers))
+	lower := 0
+	for _, upper := range uppers {
+		quote, err := quoteCountRange(market, lower, upper)
+		if err != nil {
+			return nil, err
+		}
+		options = append(options, quote)
+		lower = upper + 1
+	}
+	return options, nil
+}
+
+func (s *Store) RangeOptions(ctx context.Context, marketID int64) ([]RangeQuote, error) {
+	market, err := s.quotableMarket(ctx, marketID)
+	if err != nil {
+		return nil, err
+	}
+	return rangeOptions(market)
+}
+
+// quotableMarket loads a round that is still accepting predictions on an active live camera.
+func (s *Store) quotableMarket(ctx context.Context, marketID int64) (Market, error) {
 	var market Market
 	var active bool
 	var streamType string
@@ -58,18 +104,18 @@ func (s *Store) QuoteRange(ctx context.Context, marketID int64, minimum, maximum
  FROM bet_markets m JOIN streams s ON s.id=m.stream_id WHERE m.id=$1 AND s.retired_at IS NULL`, marketID).Scan(
 		&market.ID, &market.Threshold, &market.Status, &market.BettingClosesAt, &market.WindowStart, &market.WindowEnd, &active, &streamType)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return RangeQuote{}, ErrNotFound
+		return Market{}, ErrNotFound
 	}
 	if err != nil {
-		return RangeQuote{}, err
+		return Market{}, err
 	}
 	if err := checkBettingOpen(market, time.Now()); err != nil {
-		return RangeQuote{}, err
+		return Market{}, err
 	}
 	if !active || !supportsLivePredictions(streamType) {
-		return RangeQuote{}, fmt.Errorf("%w: this camera is unavailable for predictions", ErrConflict)
+		return Market{}, fmt.Errorf("%w: this camera is unavailable for predictions", ErrConflict)
 	}
-	return quoteCountRange(market, minimum, maximum)
+	return market, nil
 }
 
 func (api *API) handleRangeQuote(w http.ResponseWriter, r *http.Request) {
@@ -104,4 +150,28 @@ func (api *API) handleRangeQuote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, quote)
+}
+
+func (api *API) handleRangeOptions(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		methodNotAllowed(w)
+		return
+	}
+	values := r.URL.Query()
+	raw := values["marketId"]
+	if len(values) != 1 || len(raw) != 1 || len(raw[0]) == 0 || len(raw[0]) > 18 {
+		writeError(w, 400, "invalid_round", "Supply one round id.")
+		return
+	}
+	id, err := parseID(raw[0])
+	if err != nil || strconv.FormatInt(id, 10) != raw[0] {
+		writeError(w, 400, "invalid_round", "Round id is invalid.")
+		return
+	}
+	options, err := api.store.RangeOptions(r.Context(), id)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"options": options})
 }

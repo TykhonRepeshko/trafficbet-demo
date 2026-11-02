@@ -4,24 +4,28 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../services/auth.service';
+import { IconComponent } from '../components/icon.component';
 import { apiError } from '../services/ui-helpers';
 
-@Component({ selector: 'app-register', standalone: true, imports: [FormsModule, NgIf, RouterLink], template: `
-  <section class="login-layout">
-    <div class="login-story"><span class="eyebrow">CAMERAS. PREDICTIONS. YOUR RESULTS.</span><h1>Your perspective<br>on a moving city<span class="heading-dot">.</span></h1><p>Create an account to test your predictions on real city traffic. Your history and virtual balance stay with you between visits.</p><div class="login-orbit"><span>↗</span><i></i><b>TRAFFIC / LAB</b></div></div>
-    <div class="panel login-panel"><span class="eyebrow">NEW ACCOUNT</span><h2>Create account</h2><p class="muted">One account for cameras, predictions and balance history. Start with 10,000 virtual credits when you join.</p>
-      <p *ngIf="preview" class="notice">This is a standalone design preview. Open the main application to create a persistent account.</p>
-      <form *ngIf="!preview" class="form-grid" (ngSubmit)="form.valid && submit()" #form="ngForm">
-        <label>Display name<input name="displayName" autocomplete="nickname" [(ngModel)]="displayName" placeholder="What should we call you?" minlength="2" maxlength="80" required></label>
-        <label>Email address<input name="email" type="email" autocomplete="username" [(ngModel)]="email" placeholder="you@example.com" maxlength="254" required email></label>
-        <label>Password<input name="password" type="password" autocomplete="new-password" [(ngModel)]="password" placeholder="At least 12 characters" minlength="12" maxlength="72" required aria-describedby="password-requirements"><small id="password-requirements" class="field-hint">At least 12 characters, up to 72 UTF-8 bytes. Use a unique password.</small></label>
-        <label>Confirm password<input name="confirmation" type="password" autocomplete="new-password" [(ngModel)]="confirmation" placeholder="Enter your password again" maxlength="72" required></label>
-        <p class="error message" *ngIf="error" role="alert">{{ error }}</p>
-        <button class="button primary" type="submit" [disabled]="loading || form.invalid">{{ loading ? 'Creating account…' : 'Create an account' }} <span>→</span></button>
+@Component({ selector: 'app-register', standalone: true, imports: [FormsModule, NgIf, RouterLink, IconComponent], template: `
+  <section class="auth">
+    <div class="tb-card auth-card">
+      <a routerLink="/" class="auth-brand" aria-label="TrafficBet home"><span class="tb-brand-mark" aria-hidden="true"><svg viewBox="0 0 64 64" focusable="false"><path d="m16 53 8-42m24 42-8-42M32 12v7m0 7v7m0 7v11" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><rect x="21" y="31" width="8" height="15" rx="2.5" fill="currentColor"/><rect x="35" y="18" width="8" height="15" rx="2.5" fill="currentColor"/></svg></span><span>traffic<b>bet</b></span></a>
+      <h1>Create your account</h1>
+      <p class="auth-sub">Start with <strong>10,000 virtual credits</strong> and test your predictions on real traffic.</p>
+      <p *ngIf="preview" class="tb-alert is-warn">This is a standalone design preview. Open the main application to create a persistent account.</p>
+      <form *ngIf="!preview" class="auth-form" (ngSubmit)="form.valid && submit()" #form="ngForm">
+        <label class="tb-field">Display name<input class="tb-input" name="displayName" autocomplete="nickname" [(ngModel)]="displayName" placeholder="What should we call you?" minlength="2" maxlength="80" required></label>
+        <label class="tb-field">Email<input class="tb-input" name="email" type="email" autocomplete="username" [(ngModel)]="email" placeholder="you@example.com" maxlength="254" required email></label>
+        <label class="tb-field">Password<input class="tb-input" name="password" type="password" autocomplete="new-password" [(ngModel)]="password" placeholder="At least 12 characters" minlength="12" maxlength="72" required aria-describedby="password-requirements"><small id="password-requirements">At least 12 characters. Use a password you don’t use elsewhere.</small></label>
+        <label class="tb-field">Confirm password<input class="tb-input" name="confirmation" type="password" autocomplete="new-password" [(ngModel)]="confirmation" placeholder="Repeat your password" maxlength="72" required></label>
+        <p class="tb-alert is-error" *ngIf="error" role="alert">{{ error }}</p>
+        <button class="tb-btn tb-btn-primary tb-btn-lg tb-btn-block" type="submit" [disabled]="loading || form.invalid"><span class="tb-spinner" *ngIf="loading"></span>{{ loading ? 'Creating account…' : 'Create account' }}</button>
       </form>
       <p class="auth-switch">Already have an account? <a routerLink="/login" [queryParams]="returnParams">Sign in</a></p>
-      <p class="login-note">Virtual credits only. Credits cannot be purchased, withdrawn or exchanged for money.</p><a routerLink="/" class="text-link">← Back to cameras</a>
+      <p class="auth-note">Virtual credits only — they can’t be bought, withdrawn or exchanged for money.</p>
     </div>
+    <a routerLink="/" class="auth-back"><app-icon name="back" [size]="16"></app-icon>Back to cameras</a>
   </section>
 ` })
 export class RegisterComponent {

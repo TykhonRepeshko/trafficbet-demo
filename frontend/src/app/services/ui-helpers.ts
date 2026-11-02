@@ -9,5 +9,14 @@ export function apiError(error: unknown, fallback = 'The request could not be co
   if (error.status === 429) return 'Too many requests. Please wait a moment.';
   return error.error?.error?.message || fallback;
 }
+export function voidReasonLabel(reason: string | undefined): string {
+  const text = reason ?? '';
+  if (/camera_moved/.test(text)) return 'Refunded: the camera view changed during the round.';
+  if (/incomplete_coverage|decode_failed|no_frames/.test(text)) return 'Refunded: the video had gaps during the round.';
+  if (/no_capture_clock|camera_unavailable|clock/.test(text)) return 'Refunded: the camera’s clock couldn’t be verified.';
+  if (/legacy_round/.test(text)) return 'Refunded: the round was published before automatic counting was set up.';
+  if (/expired/.test(text)) return 'Refunded: the automatic count wasn’t ready in time.';
+  return text ? `Refunded: ${text}` : 'Refunded: the round was cancelled.';
+}
 export const betLabels: Record<string, string> = { pending: 'Awaiting count', won: 'Won', lost: 'Lost', void: 'Refunded' };
 export const marketLabels: Record<string, string> = { draft: 'Draft', open: 'Open', settled: 'Settled', void: 'Voided' };

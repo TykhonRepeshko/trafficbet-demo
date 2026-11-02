@@ -40,6 +40,19 @@ func (s *Store) VoidMarket(ctx context.Context, marketID int64, reason string) (
 	if market.Status != MarketOpen && market.Status != MarketDraft {
 		return Market{}, fmt.Errorf("%w: a settled market cannot be cancelled", ErrConflict)
 	}
+	updated, err := voidLockedMarket(ctx, tx, market, reason)
+	if err != nil {
+		return Market{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Market{}, err
+	}
+	return updated, nil
+}
+
+// voidLockedMarket refunds every pending stake and cancels the market. The
+// caller holds the market row lock, validated the reason and commits.
+func voidLockedMarket(ctx context.Context, tx pgx.Tx, market Market, reason string) (Market, error) {
 	rows, err := tx.Query(ctx, `SELECT id,user_id,stake_credits FROM bets WHERE market_id=$1 AND status='pending' ORDER BY user_id,id FOR UPDATE`, market.ID)
 	if err != nil {
 		return Market{}, err
@@ -81,9 +94,6 @@ func (s *Store) VoidMarket(ctx context.Context, marketID int64, reason string) (
 		return Market{}, err
 	}
 	if err := auditTx(ctx, tx, "market.voided", "market", market.ID, map[string]any{"reason": reason, "refundedBets": len(refunds), "refundedCredits": refundedCredits}); err != nil {
-		return Market{}, err
-	}
-	if err := tx.Commit(ctx); err != nil {
 		return Market{}, err
 	}
 	return updated, nil

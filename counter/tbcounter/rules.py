@@ -1,0 +1,285 @@
+"""Counting definition and crossing rule.
+
+`crossing_candidate` is a line-by-line port of the Go `crossingCandidate`
+(backend/internal/app/crossing_rules.go) and `valid_definition` mirrors
+`validCountingDefinition` (backend/internal/app/counting_profiles.go), so the
+worker never counts or publishes anything the backend would interpret differently.
+Times are UTC epoch seconds (float); points are normalised image coordinates.
+"""
+from __future__ import annotations
+
+import math
+import unicodedata
+from dataclasses import dataclass, field
+from typing import Any
+
+DIRECTIONS = ("A_to_B", "B_to_A")
+CLASSES = ("car", "van", "bus", "truck", "motorcycle")
+
+
+@dataclass(frozen=True)
+class Point:
+    x: float
+    y: float
+
+    def to_json(self) -> dict[str, float]:
+        return {"x": round(self.x, 6), "y": round(self.y, 6)}
+
+
+@dataclass(frozen=True)
+class Definition:
+    label: str
+    line_start: Point
+    line_end: Point
+    directions: tuple[str, ...]
+    classes: tuple[str, ...]
+    anchor: str = "bottom_center"
+    time_basis: str = "capture_utc"
+    notes: str = ""
+
+    @staticmethod
+    def from_json(data: dict[str, Any]) -> "Definition":
+        return Definition(
+            label=str(data.get("label", "")),
+            line_start=Point(float(data["lineStart"]["x"]), float(data["lineStart"]["y"])),
+            line_end=Point(float(data["lineEnd"]["x"]), float(data["lineEnd"]["y"])),
+            directions=tuple(data.get("directions") or ()),
+            classes=tuple(data.get("classes") or ()),
+            anchor=str(data.get("anchor", "")),
+            time_basis=str(data.get("timeBasis", "")),
+            notes=str(data.get("notes", "")),
+        )
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "label": self.label,
+            "lineStart": self.line_start.to_json(),
+            "lineEnd": self.line_end.to_json(),
+            "directions": list(self.directions),
+            "classes": list(self.classes),
+            "anchor": self.anchor,
+            "timeBasis": self.time_basis,
+            "notes": self.notes,
+        }
+
+
+@dataclass(frozen=True)
+class Crossing:
+    direction: str
+    at: float
+    vehicle_class: str
+
+
+def _valid_text(value: str, minimum: int, maximum: int) -> bool:
+    # Mirrors Go validEvidenceText: trimmed rune count >= min, raw rune count <= max, no control characters.
+    if any(unicodedata.category(ch) == "Cc" for ch in value):
+        return False
+    return len(value.strip()) >= minimum and len(value) <= maximum
+
+
+def _finite_unit(p: Point) -> bool:
+    return all(not math.isnan(v) and not math.isinf(v) and 0 <= v <= 1 for v in (p.x, p.y))
+
+
+def valid_definition(d: Definition) -> bool:
+    if not _valid_text(d.label, 1, 160) or not _valid_text(d.notes, 20, 1000):
+        return False
+    if not _finite_unit(d.line_start) or not _finite_unit(d.line_end):
+        return False
+    if math.hypot(d.line_start.x - d.line_end.x, d.line_start.y - d.line_end.y) < 0.05:
+        return False
+    if d.anchor != "bottom_center" or d.time_basis != "capture_utc":
+        return False
+
+    def valid_list(values: tuple[str, ...], allowed: tuple[str, ...]) -> bool:
+        return 0 < len(values) <= len(allowed) and len(set(values)) == len(values) and all(v in allowed for v in values)
+
+    return valid_list(d.directions, DIRECTIONS) and valid_list(d.classes, CLASSES)
+
+
+def crossing_candidate(rule: Definition, before: Point, after: Point, before_at: float, after_at: float,
+                       start: float, end: float, vehicle_class: str) -> Crossing | None:
+    """Return the crossing between two consecutive observations of one track, if it counts."""
+    if not valid_definition(rule) or not after_at > before_at or not end > start:
+        return None
+    if vehicle_class not in rule.classes:
+        return None
+    for p in (before, after):
+        if p.x < 0 or p.x > 1 or p.y < 0 or p.y > 1 or p.x != p.x or p.y != p.y:
+            return None
+    ls, le = rule.line_start, rule.line_end
+
+    def side(p: Point) -> float:
+        return (le.x - ls.x) * (p.y - ls.y) - (le.y - ls.y) * (p.x - ls.x)
+
+    a, b = side(before), side(after)
+    if a < 0 and b > 0:
+        direction = "A_to_B"
+    elif a > 0 and b < 0:
+        direction = "B_to_A"
+    else:
+        return None
+    if direction not in rule.directions:
+        return None
+    ratio = a / (a - b)
+    x = before.x + (after.x - before.x) * ratio
+    y = before.y + (after.y - before.y) * ratio
+    dx, dy = le.x - ls.x, le.y - ls.y
+    along = ((x - ls.x) * dx + (y - ls.y) * dy) / (dx * dx + dy * dy)
+    if along < 0 or along > 1:
+        return None
+    at = before_at + ratio * (after_at - before_at)
+    if at < start or not at < end:
+        return None
+    return Crossing(direction=direction, at=at, vehicle_class=vehicle_class)
+
+
+def _line_side(rule: Definition, p: Point) -> float:
+    ls, le = rule.line_start, rule.line_end
+    return (le.x - ls.x) * (p.y - ls.y) - (le.y - ls.y) * (p.x - ls.x)
+
+
+@dataclass
+class _TrackState:
+    last: Point | None = None
+    last_at: float = 0.0
+    votes: dict[str, float] = field(default_factory=dict)
+    areas: list[float] = field(default_factory=list)
+    strong: int = 0
+    crossing: dict[str, Any] | None = None
+    size: float = 0.0          # last accepted box diagonal, normalised by the frame diagonal
+    velocity: tuple[float, float] = (0.0, 0.0)  # anchor motion, normalised frame units per second
+    moves: int = 0                               # velocity samples so far
+    stitched: bool = False     # already continued by a newer track id
+
+
+class CrossingCounter:
+    """Applies the frozen rule to tracked observations; first allowed crossing per track only.
+
+    Detector-quality gates (the geometric rule itself is identical to the backend's):
+    * weak (< min_conf) or implausibly resized boxes never move the track's anchor point;
+    * a crossing counts only for tracks seen confidently (>= strong_conf) at least `min_strong` times.
+
+    Track stitching: at night, motion blur and headlight glare often make the tracker drop a vehicle and start a
+    new id a few frames later — frequently right at the line, so neither fragment alone crosses it. A new id that
+    appears within `stitch_gap` seconds next to where an uncrossed track was lost continues that track.
+    """
+
+    def __init__(self, rule: Definition, start: float, end: float, width: int, height: int,
+                 min_conf: float = 0.2, strong_conf: float = 0.35, min_strong: int = 2, max_area_jump: float = 3.5,
+                 stitch_gap: float = 0.8, stitch_reach: float = 1.2, duplicate_gap: float = 0.35,
+                 duplicate_overlap: float = 0.6) -> None:
+        self.rule, self.start, self.end, self.width, self.height = rule, start, end, width, height
+        self.min_conf, self.strong_conf, self.min_strong, self.max_area_jump = min_conf, strong_conf, min_strong, max_area_jump
+        self.stitch_gap, self.stitch_reach = stitch_gap, stitch_reach
+        self.duplicate_gap, self.duplicate_overlap = duplicate_gap, duplicate_overlap
+        self.tracks: dict[int, _TrackState] = {}
+        self.alias: dict[int, int] = {}
+        self.stitches = 0
+
+    def _stitch(self, track_id: int, point: Point, size: float, at: float) -> int:
+        """Id whose state a brand-new track continues (itself when nothing fits)."""
+        if self.stitch_gap <= 0:
+            return track_id
+        best, best_distance = None, None
+        for tid, state in self.tracks.items():
+            if state.stitched or state.crossing is not None or state.last is None or not 0 < at - state.last_at <= self.stitch_gap:
+                continue
+            # Where the lost vehicle would be now: a stopped car cannot reappear beyond the line.
+            dt = at - state.last_at
+            px, py = state.last.x + state.velocity[0] * dt, state.last.y + state.velocity[1] * dt
+            distance = self._diag_fraction((point.x - px) * self.width, (point.y - py) * self.height)
+            if _line_side(self.rule, state.last) * _line_side(self.rule, point) < 0 and \
+                    _line_side(self.rule, Point(px, py)) * _line_side(self.rule, point) <= 0:
+                continue  # the join would credit a crossing the lost vehicle could not have made by now
+            reach = self.stitch_reach * max(state.size, size, 0.02)
+            if distance <= reach and (best_distance is None or distance < best_distance):
+                best, best_distance = tid, distance
+        if best is None:
+            return track_id
+        self.tracks[best].stitched = True
+        self.stitches += 1
+        return best
+
+    def _diag_fraction(self, dx: float, dy: float) -> float:
+        return math.hypot(dx, dy) / math.hypot(self.width, self.height)
+
+    def observe(self, track_id: int, vehicle_class: str, confidence: float,
+                xyxy: tuple[float, float, float, float], at: float) -> None:
+        x1, y1, x2, y2 = xyxy
+        if track_id in self.alias:
+            track_id = self.alias[track_id]
+        elif track_id not in self.tracks and confidence >= self.min_conf:
+            point = Point(min(max((x1 + x2) / 2 / self.width, 0.0), 1.0), min(max(y2 / self.height, 0.0), 1.0))
+            target = self._stitch(track_id, point, self._diag_fraction(x2 - x1, y2 - y1), at)
+            if target != track_id:
+                self.alias[track_id] = target
+                self.tracks[target].areas.clear()  # the new id's box size starts a fresh footprint baseline
+                track_id = target
+        state = self.tracks.setdefault(track_id, _TrackState())
+        if confidence < self.min_conf:
+            return
+        area = max(x2 - x1, 1.0) * max(y2 - y1, 1.0)
+        if state.areas:
+            recent = sorted(state.areas[-5:])[len(state.areas[-5:]) // 2]
+            if area > recent * self.max_area_jump or area * self.max_area_jump < recent:
+                return  # a box that suddenly balloons or collapses is not the same vehicle's footprint
+        state.areas.append(area)
+        state.size = self._diag_fraction(x2 - x1, y2 - y1)
+        if confidence >= self.strong_conf:
+            state.strong += 1
+        state.votes[vehicle_class] = state.votes.get(vehicle_class, 0.0) + confidence
+        cls = max(state.votes.items(), key=lambda kv: kv[1])[0]
+        point = Point(min(max((x1 + x2) / 2 / self.width, 0.0), 1.0), min(max(y2 / self.height, 0.0), 1.0))
+        if state.last is not None and state.crossing is None:
+            crossing = crossing_candidate(self.rule, state.last, point, state.last_at, at, self.start, self.end, cls)
+            if crossing is not None:
+                state.crossing = {"trackId": int(track_id), "class": crossing.vehicle_class,
+                                  "direction": crossing.direction, "at": crossing.at, "box": (x1, y1, x2, y2)}
+        if state.last is not None and at > state.last_at:
+            vx, vy = (point.x - state.last.x) / (at - state.last_at), (point.y - state.last.y) / (at - state.last_at)
+            state.velocity = (0.5 * state.velocity[0] + 0.5 * vx, 0.5 * state.velocity[1] + 0.5 * vy) if state.moves else (vx, vy)
+            state.moves += 1
+        state.last, state.last_at, state.stitched = point, at, False
+
+    def _counted(self, state: _TrackState) -> bool:
+        return state.crossing is not None and state.strong >= self.min_strong
+
+    @staticmethod
+    def _overlap(a: tuple[float, ...], b: tuple[float, ...]) -> float:
+        """Intersection over the smaller box: 1 when one box lies inside the other."""
+        w = min(a[2], b[2]) - max(a[0], b[0])
+        h = min(a[3], b[3]) - max(a[1], b[1])
+        if w <= 0 or h <= 0:
+            return 0.0
+        smaller = min((a[2] - a[0]) * (a[3] - a[1]), (b[2] - b[0]) * (b[3] - b[1]))
+        return w * h / smaller if smaller > 0 else 0.0
+
+    def _distinct(self) -> tuple[list[dict[str, Any]], int]:
+        """Counted crossings, merging duplicate tracks of one vehicle (e.g. a body box and a headlight-glare box
+        crossing together): same direction, within `duplicate_gap` seconds, one box mostly inside the other."""
+        kept: list[dict[str, Any]] = []
+        duplicates = 0
+        for c in sorted((s.crossing for s in self.tracks.values() if self._counted(s)), key=lambda c: c["at"]):
+            if any(k["direction"] == c["direction"] and abs(k["at"] - c["at"]) <= self.duplicate_gap
+                   and self._overlap(k["box"], c["box"]) >= self.duplicate_overlap for k in kept):
+                duplicates += 1
+                continue
+            kept.append(c)
+        return kept, duplicates
+
+    @property
+    def crossings(self) -> list[dict[str, Any]]:
+        return [{k: v for k, v in c.items() if k != "box"} for c in self._distinct()[0]]
+
+    @property
+    def duplicates(self) -> int:
+        return self._distinct()[1]
+
+    @property
+    def rejected(self) -> int:
+        return sum(1 for s in self.tracks.values() if s.crossing is not None and not self._counted(s))
+
+    @property
+    def count(self) -> int:
+        return len(self._distinct()[0])

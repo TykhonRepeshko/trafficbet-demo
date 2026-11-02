@@ -53,6 +53,8 @@ services:
       WORKER_TOKEN: ${WORKER_TOKEN:?Run scripts/setup.ps1}
       SOURCE_OBSERVER_ENABLED: ${SOURCE_OBSERVER_ENABLED:-true}
       VIDEO_EVIDENCE_ENABLED: ${VIDEO_EVIDENCE_ENABLED:-false}
+      AUTOMATIC_SETTLEMENT_ENABLED: ${AUTOMATIC_SETTLEMENT_ENABLED:-false}
+      ROUND_STAGGER: ${ROUND_STAGGER:-true}
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:4200}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       SEED_DEMO_DATA: ${SEED_DEMO_DATA:-false}
@@ -101,6 +103,37 @@ services:
     pids_limit: 64
     mem_limit: 128m
     cpus: 1
+    restart: unless-stopped
+
+  # AI worker: detects and tracks vehicles, auto-calibrates the counting line,
+  # reads the burned-in capture clock and reports each round's count (or why it
+  # cannot be verified) to the backend, which settles or refunds automatically.
+  counter:
+    profiles: [ai]
+    build:
+      context: ./counter
+    environment:
+      API_BASE: http://backend:8080
+      WORKER_TOKEN: ${WORKER_TOKEN:?Run scripts/setup.ps1}
+      MODEL: ${COUNTER_MODEL:-yolox-tiny}
+      SAMPLE_FPS: "8"
+      PROCESSORS: "4"
+      DETECTOR_THREADS: "2"
+      OMP_THREAD_LIMIT: "1"
+      CALIBRATION_SECONDS: "120"
+      LOG_LEVEL: INFO
+    networks: [web]
+    depends_on:
+      backend:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 256
+    mem_limit: 2g
+    cpus: 9
     restart: unless-stopped
 
 networks:

@@ -247,7 +247,7 @@ func (s *Store) SaveCountingReference(ctx context.Context, id int64, body []byte
 		}
 		return CountingReference{}, err
 	}
-	actor, _ := currentUser(ctx)
+	actor := nullableActor(ctx)
 	hash := sha256.Sum256(data)
 	var referenceCount int
 	if err = tx.QueryRow(ctx, `SELECT count(*) FROM counting_references WHERE stream_id=$1`, id).Scan(&referenceCount); err != nil {
@@ -257,7 +257,7 @@ func (s *Store) SaveCountingReference(ctx context.Context, id int64, body []byte
 		return CountingReference{}, fmt.Errorf("%w: this camera reached its 100-reference storage limit; preserve historical evidence and review retention before adding more", ErrConflict)
 	}
 	r := CountingReference{StreamID: id, SourceFingerprint: sourceFingerprint(stream), ImageSHA256: hex.EncodeToString(hash[:]), Width: w, Height: h}
-	err = tx.QueryRow(ctx, `INSERT INTO counting_references(stream_id,source_fingerprint,image_sha256,image_png,width,height,created_by) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,created_at`, id, r.SourceFingerprint, r.ImageSHA256, data, w, h, actor.ID).Scan(&r.ID, &r.CreatedAt)
+	err = tx.QueryRow(ctx, `INSERT INTO counting_references(stream_id,source_fingerprint,image_sha256,image_png,width,height,created_by) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,created_at`, id, r.SourceFingerprint, r.ImageSHA256, data, w, h, actor).Scan(&r.ID, &r.CreatedAt)
 	if err != nil {
 		return r, err
 	}
@@ -297,11 +297,11 @@ func (s *Store) SaveCountingProfile(ctx context.Context, id, referenceID int64, 
 	if !referenceMatches {
 		return CountingProfile{}, fmt.Errorf("%w: upload a reference for the current camera source first", ErrConflict)
 	}
-	actor, _ := currentUser(ctx)
+	actor := nullableActor(ctx)
 	raw, _ := json.Marshal(d)
 	p := CountingProfile{StreamID: id, ReferenceID: referenceID, SourceFingerprint: fingerprint, Definition: d, SourceMatches: true}
 	err = tx.QueryRow(ctx, `INSERT INTO counting_profiles(stream_id,version,reference_id,source_fingerprint,definition,created_by)
- SELECT $1,COALESCE(max(version),0)+1,$2,$3,$4,$5 FROM counting_profiles WHERE stream_id=$1 RETURNING id,version,created_at`, id, referenceID, fingerprint, raw, actor.ID).Scan(&p.ID, &p.Version, &p.CreatedAt)
+ SELECT $1,COALESCE(max(version),0)+1,$2,$3,$4,$5 FROM counting_profiles WHERE stream_id=$1 RETURNING id,version,created_at`, id, referenceID, fingerprint, raw, actor).Scan(&p.ID, &p.Version, &p.CreatedAt)
 	if err != nil {
 		return p, err
 	}
@@ -333,8 +333,8 @@ func (s *Store) ApproveCountingProfile(ctx context.Context, id, profileID int64,
 	if !matches {
 		return fmt.Errorf("%w: profile is missing or belongs to an older source", ErrConflict)
 	}
-	actor, _ := currentUser(ctx)
-	_, err = tx.Exec(ctx, `INSERT INTO counting_selections(stream_id,profile_id,approved_by,approval_note) VALUES($1,$2,$3,$4) ON CONFLICT(stream_id) DO UPDATE SET profile_id=EXCLUDED.profile_id,approved_by=EXCLUDED.approved_by,approval_note=EXCLUDED.approval_note,approved_at=now()`, id, profileID, actor.ID, note)
+	actor := nullableActor(ctx)
+	_, err = tx.Exec(ctx, `INSERT INTO counting_selections(stream_id,profile_id,approved_by,approval_note) VALUES($1,$2,$3,$4) ON CONFLICT(stream_id) DO UPDATE SET profile_id=EXCLUDED.profile_id,approved_by=EXCLUDED.approved_by,approval_note=EXCLUDED.approval_note,approved_at=now()`, id, profileID, actor, note)
 	if err != nil {
 		return err
 	}

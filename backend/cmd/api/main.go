@@ -44,6 +44,7 @@ func main() {
 	}
 
 	store := app.NewStore(pool)
+	store.SetRoundStagger(cfg.RoundStagger)
 	if cfg.SeedDemoData {
 		if err := app.SeedDemoData(ctx, store, cfg); err != nil {
 			log.Fatalf("seed demo data: %v", err)
@@ -58,6 +59,8 @@ func main() {
 	go func() { defer close(observerDone); api.ServeSourceObserver(schedulerCtx) }()
 	evidenceDone := make(chan struct{})
 	go func() { defer close(evidenceDone); api.ServeEvidenceCapture(schedulerCtx) }()
+	automationDone := make(chan struct{})
+	go func() { defer close(automationDone); api.ServeAutomaticSettlement(schedulerCtx) }()
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,
 		Handler:           api.Routes(),
@@ -82,6 +85,7 @@ func main() {
 	<-schedulerDone
 	<-observerDone
 	<-evidenceDone
+	<-automationDone
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

@@ -4,9 +4,9 @@
 
 **A full-stack traffic prediction app with virtual credits, live road cameras and an auditable balance ledger.**
 
-Built with **Go, Angular 21 and PostgreSQL 16**, packaged as separate Docker Compose services. Users enter an inclusive vehicle-count range for a scheduled round, or choose Over / Under against its reference threshold. The project demonstrates transactional account operations, authorization, safe media delivery and a preparation workflow for future computer vision.
+Built with **Go, Angular 21 and PostgreSQL 16**, packaged as separate Docker Compose services. Users enter an inclusive vehicle-count range for a scheduled round, or choose Over / Under against its reference threshold. The project demonstrates transactional account operations, authorization, safe media delivery and **fully automatic, human-free counting and settlement** by a computer-vision worker.
 
-**Current stage:** working local portfolio prototype. Credits have no monetary value. AI detection, tracking and automatic settlement are not connected; public production deployment is not configured. Retained-video capture and its annotation workspace are paused to avoid local video storage.
+**Current stage:** working local portfolio prototype. Credits have no monetary value. An AI worker (`counter/`) detects and tracks vehicles, calibrates each camera's counting line by itself and reports every round; the API settles counted rounds and refunds unverifiable ones with no operator involved. Public production deployment is not configured. Retained-video capture and its annotation workspace are paused to avoid local video storage.
 
 ## What it does
 
@@ -14,8 +14,9 @@ Built with **Go, Angular 21 and PostgreSQL 16**, packaged as separate Docker Com
 - **Predictions:** scheduled rounds, custom From / To count ranges, server-quoted demo odds, explicit stake confirmation, server-enforced deadlines, reviewed settlement and cancellation with a one-time refund. Accepted bounds and payouts are immutable; per-user idempotency protects against duplicate submissions. Published fixed Over / Under odds remain available.
 - **Cameras:** six curated HLS views across Norway and the United States, reconnection handling, source resolution reporting and counting-line overlays in previews and fullscreen. Geometry appears after an operator configures a camera; drafts are labelled.
 - **Administration:** user search and pagination, camera archive/restore, schedule configuration, live stake totals and participant/outcome drill-down. API authorization protects administration independently of navigation visibility.
-- **Counting preparation:** versioned rules, reference frames, source observations, round review and an audit trail. Retained-video capture/playback and the annotation workspace are disabled at this stage; historical metadata remains preserved.
-- **Interface:** one camera lobby with entry-state filters, light/dark themes, labelled mobile navigation and a visible How it works guide. When entries close, the form carries its draft to the nearest published accepting round and shows the new counting time and current odds. Spending credits always requires confirmation. Stakes and results are calculated on the server.
+- **Automatic counting:** YOLOX-Tiny detection (RF-DETR optional on GPU hosts), ByteTrack tracking and the frozen line-crossing rule; the capture clock is read from the camera's burned-in timestamp; coverage, clock and framing gates turn doubtful rounds into refunds. A watchdog refunds any round that receives no result in time. See [automatic counting](#automatic-counting).
+- **Counting audit:** versioned rules, reference frames, source observations, immutable automatic results and an audit trail. Retained-video capture/playback and the annotation workspace are disabled at this stage; historical metadata remains preserved.
+- **Interface:** a single play screen that fits one viewport without scrolling. *Make a prediction* shows a random live camera that is taking predictions; the player picks one of four ready-made ranges or types an exact number for higher odds, chooses a stake and confirms. The AI count then runs live on the video — synchronised with the frame on screen — and the result and payout appear when the window ends. Camera statistics are not shown. Light/dark themes, mobile navigation and a How it works guide remain. Stakes and results are calculated on the server.
 
 For example, a winning **100 cr** prediction at **1.90** returns **190 cr including the stake**. A losing prediction returns zero; cancellation refunds the original 100 cr. Over means strictly greater than the threshold; Under or equal includes equality.
 
@@ -30,7 +31,8 @@ flowchart LR
     API --> DB[(PostgreSQL)]
     API -->|restricted HTTPS gateway| Cameras[Public HLS sources]
     API -. disabled at this stage .-> Evidence[Optional retained video]
-    Worker[Future AI worker] -. authenticated measurements .-> API
+    Worker[AI counter worker] -->|X-Worker-Token: calibration, results| API
+    Worker -->|internal media gateway| API
 ```
 
 Go owns account permissions, credits, scheduling and source access. PostgreSQL transactions and row locks serialize competing credit operations; unique ledger records and idempotency keys prevent repeated payouts/refunds/debits. Published rules and accepted round terms remain fixed.
@@ -44,7 +46,8 @@ Angular provides the interface and calls relative `/api` paths. It receives scop
 | Node.js | 24 for frontend builds and regression tests |
 | PostgreSQL | 16; persistent data, constraints and SQL migrations |
 | Nginx / Docker Compose | Frontend delivery and isolated service deployment |
-| FFmpeg / ffprobe | Optional bounded retained-video processing, currently disabled; no AI inference |
+| FFmpeg / ffprobe | Optional bounded retained-video processing, currently disabled |
+| Python 3.12 worker | YOLOX-Tiny (ONNX Runtime, Apache-2.0), ByteTrack (`trackers`), Tesseract OCR for the capture clock |
 
 ## Run locally
 
@@ -81,13 +84,28 @@ The launcher keeps an existing native database as the default. Stop native mode 
 
 ## Rounds, video and AI boundaries
 
-Automatic schedules keep **two future published rounds accepting entries**, so a member can predict the next interval while the earlier round is locked or counting. The default cadence is **a new 30-second count every 60 seconds**, with a 30-second pause between counting windows. Entries close **30 seconds before each count**; this safety gap does not add to the cadence. The nearest accepting round usually starts counting in **30–90 seconds**. New deadlines provide at least 30 seconds of entry notice, so startup, downtime or already published windows can temporarily increase that wait. Successors are published early and can accept predictions for longer. Counting windows do not overlap. Administrators can change settings for newly published rounds; existing times, odds and accepted predictions stay fixed. Go must remain running to replenish the queue; the scheduler does not invent counts or settle results. A cutoff gap alone does not establish source timing or prevent independent access to public footage.
+Automatic schedules keep **two future published rounds accepting entries**, so a member can predict the next interval while the earlier round is locked or counting. The default cadence is **a new 30-second count every 60 seconds**, with a 30-second pause between counting windows. Entries close **30 seconds before each count**; this safety gap does not add to the cadence. The nearest accepting round usually starts counting in **30–90 seconds**. New deadlines provide at least 30 seconds of entry notice, so startup, downtime or already published windows can temporarily increase that wait. Successors are published early and can accept predictions for longer. Counting windows do not overlap. Administrators can change settings for newly published rounds; existing times, odds and accepted predictions stay fixed. Go must remain running to replenish the queue; the scheduler itself never invents counts — results come only from the AI worker. A cutoff gap alone does not establish source timing or prevent independent access to public footage.
 
 A stream that plays successfully does not prove exact sensor capture time or complete footage. Source operators can interrupt, reposition or blur a camera. There is no intentionally added delay buffer, and public camera access cannot prevent somebody watching the operator's source independently.
 
-Versioned capture-UTC settlement requires matching retained evidence, complete verified coverage and a trusted capture-time anchor. **The current public sources do not establish that trusted anchor.** Unverifiable rounds must be cancelled and refunded. Clip-relative annotations support offline evaluation; they are not a completed training dataset or proof of counting accuracy.
+Unverifiable rounds are cancelled and refunded automatically: by the worker when a quality gate fails, and by the API watchdog when no result arrives in time. Clip-relative annotations support offline evaluation; they are not a completed training dataset or proof of counting accuracy.
 
-The intended AI extension is a separate detector/tracker worker that applies the frozen crossing rule and submits authenticated interval measurements. Its output will still need quality and settlement checks. See [current AI prerequisites](docs/20-local-preparation.md).
+### Automatic counting
+
+Automatic settlement is experimental and **opt-in**. Ordinary Compose startup leaves it disabled and does not start the counter. To run a deliberate AI test, set `AUTOMATIC_SETTLEMENT_ENABLED=true` in your private `.env`, then run `docker compose --profile ai up --build -d`. Review calibration and results before using the worker with existing rounds. OCR agreement does not independently establish a trusted sensor capture-time anchor or measured counting accuracy.
+
+The `counter` service runs without an operator:
+
+1. **Media and clock.** It reads each HLS camera through the API's internal media gateway. The public sources carry no `EXT-X-PROGRAM-DATE-TIME`, so each segment is anchored to the camera's burned-in timestamp (Tesseract OCR, refined to the second tick, about ±20 ms). A camera without a readable clock (currently the Caltrans view) or without a calibrated line yet is reported unavailable: the API pauses its schedule, refunds its open rounds and shows the reason on the camera card, and resumes it automatically once both are in place.
+2. **Calibration.** A camera without an approved profile is observed for about two minutes. The counting line is placed perpendicular to the dominant traffic flow where most trajectories pass, and is uploaded with a reference frame. Calibration runs at low CPU priority so it never delays round counting; without enough traffic (night, privacy blur) it retries with an increasing pause of up to 30 minutes. The API stores and approves it as a new profile version; rounds published afterwards freeze it.
+3. **Counting (live).** Detection runs around the line, or over the whole frame on cameras where a periodic probe shows that it finds clearly more vehicles. Segments are fed to the round's tracker as soon as they arrive, and the running count with per-crossing capture times is published for viewers. Each round is analysed at 5 fps: detection on tiles around the line, ByteTrack, bottom-centre anchor, the first allowed crossing per track — the same rule as the Go `crossingCandidate`.
+4. **Quality gates.** Complete footage for the window, at least 90% of sample frames, an OCR clock anchor and an unchanged view versus the reference. Any failure becomes `invalid` with a reason and a full refund. Repeated camera movement triggers recalibration.
+5. **Threshold.** After five AI counts, new rounds use the median recent count (rescaled to the counting length) as the Over/Under line, so the odds follow real traffic.
+6. **Settlement.** `POST /api/internal/automation/rounds/{id}/result` records an immutable result and settles or refunds in the same transaction. Results are idempotent. Versioned rounds without a result 10 minutes after the window are refunded; legacy rounds without a frozen line are refunded immediately.
+
+Counting windows of different cameras are staggered 20 s apart (`ROUND_STAGGER`), which spreads the worker's load. Throughput: on the Apple M4 Docker VM used for development a 30-second round is analysed in 20–35 s, with three rounds in parallel, which covers five cameras on a one-minute cadence. A restart of the worker loses its in-memory footage buffer, so rounds whose window began before the restart are refunded.
+
+Limits: vehicles pixelated by the camera operator cannot be detected (on several Norwegian cameras that covers the lanes nearest the camera, so the line sits where vehicles are small), night and low light reduce recall, and the count is a model estimate rather than a certified measurement. YOLOX-Tiny is the default because RF-DETR runs at 0.2–0.9 s per frame on this CPU-only Docker VM; build the worker with `--build-arg WITH_RFDETR=1` and set `COUNTER_MODEL=rfdetr-small` on a GPU host. Disable everything with `AUTOMATIC_SETTLEMENT_ENABLED=false` and by stopping the `counter` service. See [`counter/README.md`](counter/README.md).
 
 On 25 October, local retained-video storage was released and immutable retirement records were added. Historical capture/annotation metadata remains, while retired media is excluded from playback, annotation, settlement evidence, storage budgets and new transfer bundles. Reintroducing evidence must cover the entire counting interval (currently 30 seconds), with continuity and timing checks; clip length alone is insufficient. Disabling capture does not relax versioned settlement requirements.
 
@@ -129,6 +147,7 @@ The **24 October 2026 checkpoint** passes 206 Go unit tests/subtests, 73 separat
 | `backend/internal/app/` | HTTP handlers, transactional store, security, media and tests |
 | `backend/internal/app/migrations/` | Ordered immutable PostgreSQL schema migrations |
 | `frontend/src/app/` | Angular pages, services, components and regression tests |
+| `counter/` | Python AI worker: detection, tracking, OCR clock, calibration and quality gates |
 | `postgres/` | PostgreSQL image maintenance |
 | `scripts/` | Launch, verification, camera observation and recovery tools |
 | `.github/workflows/` | CI definition |

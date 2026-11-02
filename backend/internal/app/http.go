@@ -49,6 +49,8 @@ func (api *API) Routes() http.Handler {
 	mux.HandleFunc("/api/bets", api.withCORS(api.requireAuth(api.handleBets)))
 	mux.HandleFunc("/api/bets/my", api.withCORS(api.requireAuth(api.handleMyBets)))
 	mux.HandleFunc("/api/bets/range-quote", api.withCORS(api.requireAuth(api.handleRangeQuote)))
+	mux.HandleFunc("/api/bets/range-options", api.withCORS(api.requireAuth(api.handleRangeOptions)))
+	mux.HandleFunc("/api/markets/", api.withCORS(api.handleMarketByID))
 	mux.HandleFunc("/api/admin/streams", api.withCORS(api.requireAdmin(api.handleAdminStreams)))
 	mux.HandleFunc("/api/admin/streams/", api.withCORS(api.requireAdmin(api.handleAdminStreamByID)))
 	mux.HandleFunc("/api/admin/markets", api.withCORS(api.requireAdmin(api.handleAdminMarkets)))
@@ -70,6 +72,7 @@ func (api *API) Routes() http.Handler {
 	mux.HandleFunc("/api/admin/video-evidence", api.withCORS(api.requireAdmin(api.handleVideoEvidence)))
 	mux.HandleFunc("/api/admin/video-evidence/", api.withCORS(api.requireAdmin(api.handleVideoEvidence)))
 	mux.HandleFunc("/api/internal/streams/", api.withCORS(api.requireWorker(api.handleInternalStreamByID)))
+	mux.HandleFunc("/api/internal/automation/", api.withCORS(api.requireWorker(api.handleAutomation)))
 	return api.observeHTTP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Cache-Control", "no-store")
@@ -245,6 +248,9 @@ func (api *API) handleStreams(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		err = api.store.attachPublicCountingGuides(r.Context(), streams)
 	}
+	if err == nil {
+		err = api.store.attachAutomationPauses(r.Context(), streams)
+	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "streams_error", err.Error())
 		return
@@ -284,6 +290,10 @@ func (api *API) handleStreamByID(w http.ResponseWriter, r *http.Request) {
 		}
 		items := []Stream{stream}
 		if err = api.store.attachPublicCountingGuides(r.Context(), items); err != nil {
+			writeStoreError(w, err)
+			return
+		}
+		if err = api.store.attachAutomationPauses(r.Context(), items); err != nil {
 			writeStoreError(w, err)
 			return
 		}
@@ -697,13 +707,17 @@ func (api *API) readStreamInput(w http.ResponseWriter, r *http.Request, id int64
 }
 
 func decodeJSON(w http.ResponseWriter, r *http.Request, target any) bool {
+	return decodeJSONLimit(w, r, target, 64<<10)
+}
+
+func decodeJSONLimit(w http.ResponseWriter, r *http.Request, target any, limit int64) bool {
 	defer r.Body.Close()
 	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || mediaType != "application/json" {
 		writeError(w, http.StatusUnsupportedMediaType, "json_required", "Content-Type must be application/json.")
 		return false
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
+	r.Body = http.MaxBytesReader(w, r.Body, limit)
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		writeError(w, http.StatusRequestEntityTooLarge, "body_too_large", "Request body is too large.")

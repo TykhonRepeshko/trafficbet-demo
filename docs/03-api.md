@@ -183,7 +183,29 @@ X-Worker-Token: <WORKER_TOKEN from the worker's secret environment>
 
 Body: `{ "vehicleCount": 47, "intervalStart": "2026-10-17T12:00:00Z", "intervalEnd": "2026-10-17T12:10:00Z" }`. A valid worker token is required, browser Origin is rejected, and the interval must have ended. In Docker a worker calls `http://backend:8080`; Nginx blocks the public internal route.
 
-The same camera/exact AI interval/count returns one measurement; a different count conflicts. The server assigns source `ai`. Saving a metric does not settle predictions or prove quality. The worker/model/quality pipeline is not implemented.
+The same camera/exact AI interval/count returns one measurement; a different count conflicts. The server assigns source `ai`. Saving a metric does not settle predictions; automatic settlement uses the automation routes below.
+
+### Automatic counting and settlement
+
+Enabled by `AUTOMATIC_SETTLEMENT_ENABLED=true` (Docker default). All routes require `X-Worker-Token`, reject browser Origins and are blocked by Nginx; the `counter` service calls `http://backend:8080`. When disabled they return `404 automation_disabled`.
+
+| Method | Route | Operation |
+| --- | --- | --- |
+| GET | `/api/internal/automation/streams` | Active HLS cameras: gateway `mediaPath`, `sourceFingerprint`, `roundsEnabled`, `automationNote` and the selected counting `profile` (or `null`). |
+| GET | `/api/internal/automation/streams/{id}/reference` | PNG reference frame of the selected profile. |
+| POST | `/api/internal/automation/streams/{id}/calibration` | `{ referencePng (base64, ≤1 MiB), definition, note }` → stores a reference and a new profile version created by the system (NULL actor) and selects it for **future** publications. Body limit 2 MiB. |
+| POST | `/api/internal/automation/streams/{id}/availability` | `{ available, reason }`. `false` pauses the camera's round schedule (only if enabled or already paused by automation) and voids its open rounds with refunds; `true` resumes only a schedule that automation paused. An administrator saving the schedule clears the automation note. |
+| GET | `/api/internal/automation/rounds[?streamId=N]` | Open rounds with a frozen versioned rule and no automatic result whose window starts within 30 seconds (so they can be counted live) and ended no more than 15 minutes ago. |
+| POST | `/api/internal/automation/rounds/{id}/progress` | Live display data while a round is counted: `{ vehicleCount, crossings: [{at, direction, class}], segments: [{seq, startUtc, duration}], processedUntil }` (capture UTC as Unix seconds; `vehicleCount` must equal the crossings). Accepted for open versioned rounds from 30 s before the window until the result deadline; older posts never overwrite newer progress. Never used for settlement. |
+| POST | `/api/internal/automation/rounds/{id}/result` | `{ outcome: "counted"|"invalid", vehicleCount?, reason (3–500), worker (1–120), evidence (JSON object ≤64 KiB) }`. `counted` settles the round with payouts (metric source `ai`, audit policy `automatic-ai-v1`); `invalid` voids it with refunds. One immutable result per round (`automatic_round_results`); an identical retry is idempotent, a different one returns 409. Counted results require a versioned rule. |
+
+The API watchdog (every 15 s) voids, with refunds, open rounds that will never be counted: rounds published without a calibrated line 30 s after their window ends (`invalid`, `legacy_round`) and versioned rounds with no result 10 minutes after the window ends (`expired`). Manual settlement routes remain available for administrators before a round is resolved.
+
+Public `GET /api/markets/{id}/live` (no sign-in, `no-store`) returns the round's status, window, final `actualCount`/`voidReason` once resolved, and the latest live progress. The play screen maps the frame on screen to capture time through `segments` (HLS media sequence numbers shared by the player and the worker), so the count rises when a vehicle crosses the line in the video the viewer is watching. Signed-in `GET /api/bets/range-options?marketId=N` returns four ready-made ranges that split the `demo_geometric_v1` model into quartiles (similar odds); an exact number is a one-value range quote.
+
+With `ROUND_STAGGER=true` (Docker default) each camera's counting windows are shifted to one of three phase slots (camera id mod 3, i.e. 20 s apart at the 60 s cadence) so the AI worker never counts every camera at once; windows only ever move later, so entry notice is never shortened.
+
+Calibration also retitles the camera's schedule (`Vehicles crossing the AI-calibrated line · …`) so new round titles describe the frozen line. Once a camera has at least five AI counts in the last two hours, newly published rounds use their median, rescaled to the schedule's counting length, as the Over/Under threshold (and the centre of the range odds); otherwise the configured threshold applies. The worker pauses cameras without a readable clock or without a calibrated line; public `GET /api/streams` and `GET /api/streams/{id}` expose that reason as `automationPause`.
 
 ## Retained video and annotation
 

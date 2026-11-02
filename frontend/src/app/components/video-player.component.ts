@@ -8,35 +8,59 @@ import { CountingSnapshot, TrafficStream } from '../models';
 import { cameraGatewayUrl, cameraSnapshotUrl, youtubeVideoId } from '../services/media-urls';
 import { CountingOverlayComponent } from './counting-overlay.component';
 import { CameraSceneComponent } from './camera-scene.component';
+import { IconComponent } from './icon.component';
 
-@Component({ selector: 'app-video-player', standalone: true, imports: [DatePipe, NgIf, CameraSceneComponent, CountingOverlayComponent], template: `
-  <div class="camera-player">
-    <div class="video-shell" #playerShell>
+@Component({ selector: 'app-video-player', standalone: true, imports: [DatePipe, NgIf, CameraSceneComponent, CountingOverlayComponent, IconComponent], styleUrl: './video-player.component.css', template: `
+  <div class="vp">
+    <div class="vp-stage" #playerShell>
       <app-camera-scene *ngIf="preview" [variant]="stream.id"></app-camera-scene>
-      <img *ngIf="!preview && !playing && poster && !posterFailed" class="video-poster" [src]="poster" alt="Latest available camera preview" referrerpolicy="no-referrer" (load)="posterLoaded($event)" (error)="posterFailed = true">
-      <div *ngIf="!playing || preview" class="player-overlay" [class.plain-player]="!preview && (!poster || posterFailed)"><span class="player-symbol">{{ preview ? '▣' : '▷' }}</span><strong>{{ preview ? 'Sample location' : stream.streamType === 'image' ? 'Camera snapshots' : stream.streamType === 'mp4' ? 'Periodic camera clips' : 'Camera stream' }}</strong><p>{{ preview ? 'Illustrated road scene. This design preview does not contain live video.' : playable ? stream.streamType === 'youtube' ? 'Load the source operator’s YouTube player to watch the feed.' : stream.streamType === 'mp4' ? 'A short camera recording updated periodically by its operator. This is not a continuous live feed.' : stream.streamType === 'image' ? 'The image refreshes every 15 seconds.' : 'Open the camera feed. Playback timing depends on the source.' : 'A supported camera feed has not been connected yet.' }}</p><button *ngIf="!preview && playable" class="button primary" (click)="start()" type="button">{{ stream.streamType === 'image' ? 'View snapshots' : 'Watch camera' }}</button></div>
-      <video #video *ngIf="playing && !preview && (stream.streamType === 'hls' || stream.streamType === 'mp4')" class="video-frame" controls controlsList="nofullscreen nodownload" [disablePictureInPicture]="true" muted playsinline [loop]="stream.streamType === 'mp4'" preload="metadata" (loadedmetadata)="updateResolution()" (resize)="updateResolution()" (loadeddata)="loaded()" (play)="playbackResumed()" (pause)="playbackPaused()" (error)="mediaError()"></video>
-      <img *ngIf="playing && !preview && (stream.streamType === 'image' || stream.streamType === 'mjpeg') && imageUrl" class="video-frame" [src]="imageUrl" [alt]="stream.streamType === 'image' ? 'Refreshing camera snapshot' : 'MJPEG camera feed'" referrerpolicy="no-referrer" (load)="loaded()" (error)="mediaError()">
-      <iframe *ngIf="playing && !preview && stream.streamType === 'youtube' && youtubeUrl" class="video-frame" [src]="youtubeUrl" title="Source operator camera player on YouTube" referrerpolicy="strict-origin-when-cross-origin" sandbox="allow-scripts allow-same-origin allow-presentation" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen (load)="loaded()"></iframe>
+      <img *ngIf="!preview && (!playing || loading || !!error) && poster && !posterFailed" class="vp-media vp-poster" [class.is-dimmed]="playing" [src]="poster" alt="Latest available camera preview" referrerpolicy="no-referrer" (load)="posterLoaded($event)" (error)="posterFailed = true">
+      <video #video *ngIf="playing && !preview && (stream.streamType === 'hls' || stream.streamType === 'mp4')" class="vp-media" [class.is-hidden]="loading" controls controlsList="nofullscreen nodownload" [disablePictureInPicture]="true" autoplay muted playsinline [loop]="stream.streamType === 'mp4'" preload="metadata" (loadedmetadata)="updateResolution()" (resize)="updateResolution()" (loadeddata)="loaded()" (play)="playbackResumed()" (pause)="playbackPaused()" (error)="mediaError()"></video>
+      <img *ngIf="playing && !preview && (stream.streamType === 'image' || stream.streamType === 'mjpeg') && imageUrl" class="vp-media" [src]="imageUrl" [alt]="stream.streamType === 'image' ? 'Refreshing camera snapshot' : 'MJPEG camera feed'" referrerpolicy="no-referrer" (load)="loaded()" (error)="mediaError()">
+      <iframe *ngIf="playing && !preview && stream.streamType === 'youtube' && youtubeUrl" class="vp-media" [src]="youtubeUrl" title="Source operator camera player on YouTube" referrerpolicy="strict-origin-when-cross-origin" sandbox="allow-scripts allow-same-origin allow-presentation" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen (load)="loaded()"></iframe>
       <app-counting-overlay *ngIf="!preview && !error && (playing ? !loading : !!poster && !posterFailed && posterWidth > 0)" [guide]="stream.countingGuide" [snapshot]="countingSnapshot" [mediaWidth]="playing ? mediaWidth : posterWidth" [mediaHeight]="playing ? mediaHeight : posterHeight"></app-counting-overlay>
-      <button *ngIf="playing && !error" class="camera-fullscreen" type="button" (click)="toggleFullscreen(playerShell)" aria-label="Toggle fullscreen with counting line">⛶</button>
-      <div class="media-loading" *ngIf="playing && loading && !error" role="status"><span class="spinner"></span> {{ recovering ? 'Reconnecting to camera…' : 'Connecting to camera…' }}</div>
-      <div class="media-error" *ngIf="error" role="alert"><strong>Source temporarily unavailable</strong><span>{{ error }}</span><button class="button primary" type="button" (click)="retry()">Reconnect</button></div>
-      <span class="video-label">CAM / {{ stream.id.toString().padStart(3, '0') }} <span>{{ preview ? 'SIMULATION' : playing ? stream.streamType === 'mp4' ? 'PERIODIC CLIP' : stream.streamType === 'image' ? 'SNAPSHOT' : stream.streamType === 'youtube' ? 'YOUTUBE' : stream.streamType === 'hls' && liveSourceState === 'live' && !error ? 'LIVE' : 'STREAM' : 'CAMERA' }}</span></span>
+      <div *ngIf="preview || (!playing && !(autoplay && playable))" class="vp-idle" [class.is-plain]="!preview && (!poster || posterFailed)">
+        <strong>{{ preview ? 'Sample location' : playable ? 'Camera stream' : 'Feed not connected' }}</strong>
+        <p>{{ preview ? 'Illustrated road scene. This design preview has no live video.' : playable ? 'Start the camera feed. Timing depends on the source.' : 'A supported camera feed has not been connected yet.' }}</p>
+        <button *ngIf="!preview && playable" class="vp-play" (click)="start()" type="button" aria-label="Watch camera"><app-icon name="play" [size]="26"></app-icon></button>
+      </div>
+      <div class="vp-loading" *ngIf="playing && loading && !error" role="status"><span class="tb-spinner"></span>{{ recovering ? 'Reconnecting…' : 'Connecting to camera…' }}</div>
+      <div class="vp-error" *ngIf="error" role="alert"><app-icon name="alert" [size]="26"></app-icon><strong>Camera temporarily unavailable</strong><span>{{ error }}</span><button class="tb-btn tb-btn-primary tb-btn-sm" type="button" (click)="retry()"><app-icon name="refresh" [size]="16"></app-icon>Reconnect</button></div>
+      <ng-content select="[vp-overlay]"></ng-content>
+      <div class="vp-top">
+        <span class="vp-badge" [class.is-live]="isLive" [class.is-muted]="!isLive"><span class="vp-badge-dot" *ngIf="isLive"></span>{{ badgeLabel }}</span>
+        <span class="vp-cam">CAM {{ stream.id.toString().padStart(3, '0') }}</span>
+      </div>
     </div>
-    <div class="player-status" *ngIf="!preview && playable"><div><span class="dot" [class.orange]="!playing || !!error || loading || recovering || (stream.streamType === 'hls' && liveSourceState !== 'live')"></span><span>{{ stream.streamType === 'mp4' ? 'Periodic camera clips' : stream.streamType === 'image' ? 'Snapshots every 15 seconds' : stream.streamType === 'youtube' ? 'Source operator player' : stream.streamType === 'hls' ? liveSourceLabel : 'Camera video feed' }}<small *ngIf="lastLoaded && playing"> · loaded {{ lastLoaded | date:'HH:mm:ss' }}</small></span></div><button class="text-button" type="button" (click)="goLive()" *ngIf="playing && stream.streamType === 'hls' && liveSourceState === 'live' && !error" [disabled]="loading">Go to live</button><button class="text-button" type="button" (click)="retry()" *ngIf="playing && stream.streamType !== 'youtube'" [disabled]="loading">↻ Refresh</button></div>
-    <p class="small-note player-note" *ngIf="!preview && playing && sourceResolution"><strong>Source resolution: {{ sourceResolution }}</strong>. Detail depends on the camera and the operator’s compression.</p>
-    <p class="small-note player-note" *ngIf="!preview && stream.countingGuide">The turquoise line marks the configured road crossing. Draft and preview lines are labelled separately from published round rules. Camera movement can invalidate the line.</p>
-    <p class="notice player-note" *ngIf="!preview && playing && mediaWidth && mediaHeight && stream.countingGuide && (mediaWidth / mediaHeight / (stream.countingGuide.width / stream.countingGuide.height) < 0.99 || mediaWidth / mediaHeight / (stream.countingGuide.width / stream.countingGuide.height) > 1.01)">The video shape differs from the calibrated reference. The counting line is hidden until the camera is checked.</p>
-    <p class="small-note player-note" *ngIf="!preview && playing && stream.streamType === 'hls' && liveSourceState !== 'recording'">A live feed includes a playback buffer. Go to live returns to the latest available video; the source operator controls the camera and its timestamp.</p>
-    <p class="notice player-note" *ngIf="!preview && playing && stream.streamType === 'hls' && liveSourceState === 'recording'">The source is marked as a recording rather than a live feed.</p>
-    <p class="small-note player-note" *ngIf="!preview && stream.streamType === 'mp4'">This short recording repeats. We check for updates every 2 minutes. Check the timestamp in the video; this is not a continuous live feed.</p>
-    <p class="small-note player-note" *ngIf="!preview && stream.streamType === 'youtube'">The source operator controls this feed and may pause it or change the view. Follow the live indicator in the YouTube player; a loaded player does not confirm a live broadcast.</p>
+    <div class="vp-bar" *ngIf="!preview && playable">
+      <span class="vp-status"><span class="vp-status-dot" [class.is-ok]="playing && !error && !loading && !recovering && (stream.streamType !== 'hls' || liveSourceState === 'live')"></span>{{ stream.streamType === 'mp4' ? 'Periodic camera clips' : stream.streamType === 'image' ? 'Snapshots every 15 seconds' : stream.streamType === 'youtube' ? 'Source operator player' : stream.streamType === 'hls' ? liveSourceLabel : 'Camera video feed' }}<small *ngIf="sourceResolution"> · {{ sourceResolution }}</small></span>
+      <span class="vp-actions">
+        <button class="tb-btn tb-btn-ghost tb-btn-sm" type="button" (click)="goLive()" *ngIf="playing && stream.streamType === 'hls' && liveSourceState === 'live' && !error" [disabled]="loading">Go to live</button>
+        <button class="tb-btn tb-btn-ghost tb-btn-sm" type="button" (click)="retry()" *ngIf="playing && stream.streamType !== 'youtube'" [disabled]="loading" title="Reload the camera feed"><app-icon name="refresh" [size]="15"></app-icon>Refresh</button>
+        <button *ngIf="playing && !error" class="tb-btn tb-btn-ghost tb-btn-sm" type="button" (click)="toggleFullscreen(playerShell)" aria-label="Toggle fullscreen with counting line" title="Fullscreen (Esc to exit)"><app-icon name="expand" [size]="15"></app-icon>Fullscreen</button>
+      </span>
+    </div>
+    <p class="tb-alert is-warn vp-note" *ngIf="!preview && playing && mediaWidth && mediaHeight && stream.countingGuide && (mediaWidth / mediaHeight / (stream.countingGuide.width / stream.countingGuide.height) < 0.99 || mediaWidth / mediaHeight / (stream.countingGuide.width / stream.countingGuide.height) > 1.01)">The video shape differs from the calibrated reference, so the counting line is hidden until the camera is checked.</p>
+    <p class="tb-alert is-warn vp-note" *ngIf="!preview && playing && stream.streamType === 'hls' && liveSourceState === 'recording'">The source is marked as a recording rather than a live feed.</p>
+    <ng-content></ng-content>
+    <details class="tb-details vp-about" *ngIf="!preview">
+      <summary>About this video feed</summary>
+      <div class="tb-details-body">
+        <p *ngIf="stream.countingGuide">The turquoise line marks the road crossing that is counted. Draft and preview lines are labelled; camera movement can invalidate the line.</p>
+        <p *ngIf="stream.streamType === 'hls'">Live video includes a short playback buffer. “Go to live” jumps to the latest video; the source operator controls the camera and its timestamp.</p>
+        <p *ngIf="stream.streamType === 'mp4'">This short recording repeats and is checked for updates every 2 minutes. It is not a continuous live feed.</p>
+        <p *ngIf="stream.streamType === 'youtube'">The source operator controls this feed and may pause it or change the view.</p>
+        <p *ngIf="sourceResolution">Source resolution: {{ sourceResolution }}. Detail depends on the camera and the operator’s compression.</p>
+        <p *ngIf="lastLoaded && playing">Last loaded at {{ lastLoaded | date:'HH:mm:ss' }}.</p>
+      </div>
+    </details>
   </div>
 ` })
 export class VideoPlayerComponent implements OnChanges, OnDestroy {
   @Input({ required: true }) stream!: TrafficStream;
   @Input() countingSnapshot?: CountingSnapshot;
+  /** Start playback as soon as the source is known. Muted video satisfies browser autoplay rules. */
+  @Input() autoplay = false;
   mediaWidth = 0; mediaHeight = 0;
   posterWidth = 0; posterHeight = 0;
   posterLoaded(event: Event): void {
@@ -99,6 +123,19 @@ export class VideoPlayerComponent implements OnChanges, OnDestroy {
       // This resource URL is constructed only from a strict video ID on a fixed trusted host.
       if (id) this.youtubeUrl = this.sanitizer.bypassSecurityTrustResourceUrl(`https://www.youtube-nocookie.com/embed/${id}?autoplay=1&mute=1&rel=0`);
     }
+    if (this.autoplay && this.playable && !this.preview) this.start();
+  }
+  get isLive(): boolean { return !this.preview && this.playing && !this.error && this.stream.streamType === 'hls' && this.liveSourceState === 'live'; }
+  get badgeLabel(): string {
+    if (this.preview) return 'Simulation';
+    if (!this.playing) return 'Camera';
+    switch (this.stream.streamType) {
+      case 'mp4': return 'Periodic clip';
+      case 'image': return 'Snapshot';
+      case 'youtube': return 'YouTube';
+      case 'hls': return this.isLive ? 'Live' : this.error ? 'Offline' : this.loading ? 'Connecting' : 'Stream';
+      default: return 'Stream';
+    }
   }
 
   start(): void {
@@ -158,6 +195,30 @@ export class VideoPlayerComponent implements OnChanges, OnDestroy {
   }
   ngOnDestroy(): void { this.destroyed = true; this.dispose(); }
 
+  /**
+   * Capture time (Unix seconds) of the frame on screen, from capture anchors keyed by HLS media sequence
+   * number (the AI worker reads the same playlist). Uses the fragments actually appended to the buffer: their
+   * timeline positions come from the media timestamps, unlike playlist estimates, and they stay known after
+   * the short live playlist has slid past them. Null when no anchored fragment has been buffered.
+   */
+  displayedCaptureTime(segments: readonly { seq: number; startUtc: number }[]): number | null {
+    const video = this.video?.nativeElement;
+    if (!video || !this.hls || !segments.length || video.readyState < 2) return null;
+    const anchors = new Map(segments.map((segment) => [segment.seq, segment.startUtc]));
+    const position = video.currentTime;
+    let nearest: { capture: number; distance: number } | null = null;
+    for (const fragment of this.bufferedFragments) {
+      const startUtc = anchors.get(fragment.sn);
+      if (startUtc === undefined) continue;
+      const capture = startUtc + (position - fragment.start);
+      if (position >= fragment.start && position < fragment.start + fragment.duration) return capture;
+      const distance = Math.min(Math.abs(position - fragment.start), Math.abs(position - fragment.start - fragment.duration));
+      if (!nearest || distance < nearest.distance) nearest = { capture, distance };
+    }
+    return nearest?.capture ?? null;
+  }
+  private bufferedFragments: { sn: number; start: number; duration: number }[] = [];
+
   goLive(): void {
     const video = this.video?.nativeElement, hls = this.hls;
     if (!video || !hls || this.error || this.liveSourceState !== 'live' || !video.seekable.length) return;
@@ -192,7 +253,7 @@ export class VideoPlayerComponent implements OnChanges, OnDestroy {
         }
         this.fail('This browser does not support HLS playback. Please use a current browser.'); return;
       }
-      this.hls = new Hls({ lowLatencyMode: true, liveDurationInfinity: true, enableWorker: false, xhrSetup: (xhr, rawUrl) => {
+      this.hls = new Hls({ lowLatencyMode: true, liveDurationInfinity: true, enableWorker: false, maxLiveSyncPlaybackRate: 1.2, xhrSetup: (xhr, rawUrl) => {
         let url: URL;
         try { url = new URL(rawUrl, window.location.origin); }
         catch { this.fail('The camera returned an invalid media address. Choose another camera.'); throw new Error('Invalid media resource address'); }
@@ -215,6 +276,11 @@ export class VideoPlayerComponent implements OnChanges, OnDestroy {
         if (resume && !this.error) void video.play().catch(() => {});
       });
       this.hls.on(Hls.Events.LEVEL_UPDATED, (_, data) => { if (generation === this.generation) this.sourceUpdated(data); });
+      this.bufferedFragments = [];
+      this.hls.on(Hls.Events.FRAG_BUFFERED, (_, { frag }) => {
+        if (generation !== this.generation || typeof frag.sn !== 'number' || !Number.isFinite(frag.start) || !(frag.duration > 0)) return;
+        this.bufferedFragments = [...this.bufferedFragments.filter((item) => item.sn !== frag.sn), { sn: frag.sn, start: frag.start, duration: frag.duration }].slice(-60);
+      });
       this.hls.loadSource(this.safeUrl); this.hls.attachMedia(video);
     } catch { if (generation === this.generation) this.fail('The video player could not start. Reconnect to try again.'); }
   }
