@@ -27,12 +27,14 @@ class Client:
         delay = 1.0
         for attempt in range(attempts):
             try:
-                response = self.session.request(method, self.base + path, json=json, timeout=(5, 30))
+                response = self.session.request(method, self.base + path, json=json, timeout=(5, 30), allow_redirects=False)
             except requests.RequestException as exc:
                 if attempt == attempts - 1:
                     raise
                 LOG.warning("api unreachable, retrying", path=path, error=str(exc)[:200])
             else:
+                if 300 <= response.status_code < 400:
+                    raise requests.HTTPError("Backend redirects are forbidden for worker-token requests.", response=response)
                 if response.status_code == 409:
                     raise Conflict(response.text[:300])
                 if response.status_code == 404 and raw:

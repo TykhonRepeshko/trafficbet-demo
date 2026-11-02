@@ -8,6 +8,17 @@ concurrency:
   group: checks-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  counter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Build counter with verified detector weights
+        run: docker build -t trafficbet-counter-check ./counter
+      - name: Counter tests including real-frame detection
+        run: docker run --rm --network none -e OMP_THREAD_LIMIT=1 trafficbet-counter-check python -m pytest -q -rs
   checks:
     runs-on: ubuntu-latest
     timeout-minutes: 20

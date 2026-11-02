@@ -39,6 +39,8 @@ the backend (`/api/internal/automation/*`, `X-Worker-Token`), which pays out or 
    without a calibrated line is reported unavailable (schedule paused, open rounds refunded) and resumed automatically.
 
 ## Run
+The worker is an opt-in Compose profile. Set `AUTOMATIC_SETTLEMENT_ENABLED=true` in the private `.env` and run `docker compose --profile ai up --build -d` only for an intentional AI test. Default startup keeps automatic settlement disabled. Its quality gates and OCR clock estimates require validation; they do not certify counting accuracy or independently trusted capture UTC.
+
 ```
 docker build -t trafficbet-counter counter
 docker run --rm --read-only --tmpfs /tmp trafficbet-counter python -m pytest -q -p no:cacheprovider tests

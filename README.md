@@ -92,6 +92,8 @@ Unverifiable rounds are cancelled and refunded automatically: by the worker when
 
 ### Automatic counting
 
+Automatic settlement is experimental and **opt-in**. Ordinary Compose startup leaves it disabled and does not start the counter. To run a deliberate AI test, set `AUTOMATIC_SETTLEMENT_ENABLED=true` in your private `.env`, then run `docker compose --profile ai up --build -d`. Review calibration and results before using the worker with existing rounds. OCR agreement does not independently establish a trusted sensor capture-time anchor or measured counting accuracy.
+
 The `counter` service runs without an operator:
 
 1. **Media and clock.** It reads each HLS camera through the API's internal media gateway. The public sources carry no `EXT-X-PROGRAM-DATE-TIME`, so each segment is anchored to the camera's burned-in timestamp (Tesseract OCR, refined to the second tick, about ±20 ms). A camera without a readable clock (currently the Caltrans view) or without a calibrated line yet is reported unavailable: the API pauses its schedule, refunds its open rounds and shows the reason on the camera card, and resumes it automatically once both are in place.
