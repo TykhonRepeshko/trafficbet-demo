@@ -6,74 +6,140 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Subscription, distinctUntilChanged, forkJoin, map, timeout } from 'rxjs';
 import { CountingRulesComponent } from '../components/counting-rules.component';
 import { VideoPlayerComponent } from '../components/video-player.component';
+import { IconComponent } from '../components/icon.component';
 import { BetSide, Market, RangeQuote, StreamMetric, TrafficStream } from '../models';
 import { ApiService } from '../services/api.service';
 import { AuthService } from '../services/auth.service';
 import { apiError } from '../services/ui-helpers';
 import { acceptsPredictions, roundPhase, roundPhaseLabels } from '../services/round-state';
 
-@Component({ selector: 'app-stream-detail', standalone: true, imports: [DatePipe, DecimalPipe, FormsModule, NgFor, NgIf, RouterLink, VideoPlayerComponent, CountingRulesComponent], template: `
-  <div class="camera-detail-links"><a class="back-link" routerLink="/">← All cameras</a><a class="text-button" routerLink="/how-it-works">How it works ↗</a></div>
-  <div class="loading-state" *ngIf="loading" role="status"><span class="spinner"></span> Loading camera…</div>
-  <div *ngIf="error" class="state-panel error-state" role="alert"><h3>Camera unavailable</h3><p>{{ error }}</p><button class="button" type="button" (click)="load()">Try again</button></div>
-  <section class="camera-detail-page" *ngIf="stream && !loading && !error">
-    <p class="notice" *ngIf="refreshError" role="status">{{ refreshError }} <button class="text-button" type="button" (click)="load(true)" [disabled]="refreshing">Retry update</button></p>
-    <div class="page-heading"><div><span class="eyebrow">{{ stream.city }} / {{ stream.country }}</span><h1>{{ stream.title }}<span class="heading-dot">.</span></h1><p>{{ stream.locationLabel }}</p></div><span class="status-pill"><span class="dot"></span> Camera source</span></div>
-    <div class="camera-quick-actions"><a class="button primary" href="#camera-prediction">Make a prediction ↓</a><a class="text-button" routerLink="/bets" *ngIf="auth.user">My predictions →</a><span>Virtual credits · confirm before spending</span></div>
-    <div class="detail-layout">
-      <div class="watch-column"><app-video-player [stream]="stream" [countingSnapshot]="displayedRound?.countingRules"></app-video-player>
-        <p class="video-rule-context" *ngIf="stream.countingGuide || displayedRound?.countingRules?.definition"><strong>{{ displayedRound?.countingRules?.definition ? 'Counting rules · round #' + displayedRound?.id : 'Camera guide · preview only' }}</strong><span *ngIf="displayedRound?.countingRules?.definition && selectedMarket">Check the published counting zone and lanes in the round rules below.</span></p>
-          <div class="round-context-strip" *ngIf="observingRound as current"><div><span class="round-context-label">CURRENT ROUND · #{{ current.id }}</span><strong>{{ phase(current) === 'counting' ? 'Counting window in progress' : 'Entries finished · counting soon' }}</strong></div><div class="current-round-timer"><span>{{ phase(current) === 'counting' ? 'Counting ends in' : 'Counting starts in' }}</span><strong role="timer" aria-live="off">{{ countdownTo(phase(current) === 'counting' ? current.windowEnd : current.windowStart) }}</strong></div><div><span>Counting time · local</span><strong>{{ current.windowStart | date:'HH:mm:ss' }} — {{ current.windowEnd | date:'HH:mm:ss' }}</strong></div><p>You can place your prediction on the next round below.</p></div></div>
-      <section class="prediction-column" id="camera-prediction" tabindex="-1" aria-labelledby="camera-rounds-heading">
-        <div class="panel prediction-panel">
-          <div class="prediction-intro"><div><div class="eyebrow"><span class="dot orange"></span> PREDICT WITH VIRTUAL CREDITS</div><h2 id="camera-rounds-heading">Make your prediction</h2><p class="small-note">Enter your range and stake. We show the nearest round still accepting predictions.</p></div><div class="prediction-balance" *ngIf="auth.user"><span>Your available balance</span><strong>{{ auth.user.balanceCredits | number:'1.0-0' }} <small>cr</small></strong></div><span class="tag neutral" *ngIf="!auth.user">Virtual credits only</span></div>
-          <div class="round-update-row"><p class="small-note" *ngIf="lastUpdated">Updated {{ lastUpdated | date:'HH:mm:ss' }} · updates automatically.</p><button class="text-button" type="button" (click)="load(true)" [disabled]="refreshing">{{ refreshing ? 'Updating…' : 'Refresh' }}</button></div>
-          <div class="notice" *ngIf="!selectedMarket && entryMarkets.length && !message && !uncertainSubmission"><p>That round cannot accept your prediction. Use the next available round to continue.</p><button class="button" type="button" (click)="chooseRound(entryMarkets[0])" [disabled]="submitting">Use next round →</button></div>
-          <article class="prediction-composer" *ngIf="composerMarket as market" [attr.id]="'round-' + market.id" tabindex="-1">
-            <p class="notice" *ngIf="uncertainSubmission" role="alert">The last prediction request has not been confirmed. It may already have spent credits. <a class="text-button" routerLink="/bets">Check My predictions →</a></p>
-            <header class="composer-heading"><div class="composer-identity"><span class="round-identity-mark" aria-hidden="true">#</span><div><span class="round-kind">{{ hasAcceptedPrediction(market) ? 'Your prediction' : isSelectedMarket(market) ? (targetingNextRound ? 'Next round' : 'Upcoming round') : 'Prediction draft' }}</span><h3>Round <span>#{{ market.id }}</span></h3></div></div><span class="tag round-entry-status" [class.closed-tag]="!isSelectedMarket(market) && !hasAcceptedPrediction(market)">{{ hasAcceptedPrediction(market) ? 'Prediction accepted' : isSelectedMarket(market) ? 'Entries open' : 'Draft · not submitted' }}</span></header>
-            <div class="target-change" role="status" aria-live="polite"><p *ngIf="rolloverNotice && rolloverNotice.marketId === market.id && !message"><span class="round-update-mark" aria-hidden="true">↻</span><span>Switched to <strong>round #{{ market.id }}</strong> · starts <strong>{{ rolloverNotice.startsAt | date:'HH:mm:ss' }}</strong>. Range and stake kept; review the new odds.</span></p></div>
-            <div class="round-overview" *ngIf="isSelectedMarket(market)" [class.accepted-round]="hasAcceptedPrediction(market)">
-              <div class="round-timers" *ngIf="!hasAcceptedPrediction(market)">
-                <div class="entry-timer" [class.closing-soon]="entryClosesSoon(market)"><span>Time left to predict</span><strong role="timer" aria-live="off" [attr.aria-label]="'Time left to predict: ' + closesIn(market)">{{ closesIn(market) }}</strong><small>{{ entryClosesSoon(market) ? 'Closing soon · ' : 'Closes ' }}{{ market.bettingClosesAt | date:'HH:mm:ss' }}</small></div>
-                <div class="count-start-timer"><span>Counting starts in</span><strong role="timer" aria-live="off" [attr.aria-label]="'Counting starts in: ' + countdownTo(market.windowStart)">{{ countdownTo(market.windowStart) }}</strong><small>{{ durationSeconds(market) }}-second count</small></div>
-              </div>
-              <div class="prediction-target-time"><span>{{ targetingNextRound ? 'Next counting window' : 'Counting window' }}</span><div class="target-clock"><time [attr.datetime]="market.windowStart">{{ market.windowStart | date:'HH:mm:ss' }}</time><span aria-hidden="true">–</span><time [attr.datetime]="market.windowEnd">{{ market.windowEnd | date:'HH:mm:ss' }}</time></div><small>{{ market.windowStart | date:'MMM d' }} · {{ durationSeconds(market) }} seconds · local time</small></div>
+@Component({ selector: 'app-stream-detail', standalone: true, imports: [DatePipe, DecimalPipe, FormsModule, NgFor, NgIf, RouterLink, VideoPlayerComponent, CountingRulesComponent, IconComponent], template: `
+  <a class="cd-back" routerLink="/"><app-icon name="back" [size]="16"></app-icon>All cameras</a>
+  <div class="tb-loading" *ngIf="loading" role="status"><span class="tb-spinner"></span>Loading camera…</div>
+  <div *ngIf="error" class="tb-card tb-empty" role="alert"><span class="tb-empty-icon"><app-icon name="alert" [size]="24"></app-icon></span><h3>Camera unavailable</h3><p>{{ error }}</p><button class="tb-btn" type="button" (click)="load()">Try again</button></div>
+  <section class="cd" *ngIf="stream && !loading && !error">
+    <div class="tb-alert is-warn" *ngIf="refreshError" role="status"><app-icon name="alert"></app-icon><p>{{ refreshError }} <button class="tb-link" type="button" (click)="load(true)" [disabled]="refreshing">Retry</button></p></div>
+    <header class="cd-head">
+      <div class="cd-title">
+        <p class="cd-loc"><app-icon name="pin" [size]="15"></app-icon>{{ stream.city }}, {{ stream.country }}</p>
+        <h1>{{ stream.title }}</h1>
+        <p class="cd-sub">{{ stream.locationLabel }}</p>
+      </div>
+      <div class="cd-head-actions">
+        <a class="tb-btn tb-btn-sm" routerLink="/bets" *ngIf="auth.user"><app-icon name="ticket" [size]="16"></app-icon>My predictions</a>
+        <a class="tb-btn tb-btn-primary tb-btn-sm cd-jump" href="#camera-prediction">Predict<app-icon name="arrow" [size]="16"></app-icon></a>
+      </div>
+    </header>
+
+    <div class="cd-grid">
+      <div class="cd-video">
+        <app-video-player [stream]="stream" [countingSnapshot]="displayedRound?.countingRules" [autoplay]="true">
+          <div class="cd-live" *ngIf="observingRound as current">
+            <span class="tb-chip" [class.is-live]="phase(current) === 'counting'" [class.is-warn]="phase(current) !== 'counting'"><span class="tb-dot is-pulse"></span>{{ phase(current) === 'counting' ? 'Counting now' : 'Counting soon' }}</span>
+            <span class="cd-live-text">Round #{{ current.id }} · {{ phase(current) === 'counting' ? 'ends in' : 'starts in' }} <strong class="tb-num" role="timer" aria-live="off">{{ countdownTo(phase(current) === 'counting' ? current.windowEnd : current.windowStart) }}</strong></span>
+            <span class="cd-live-window tb-num">{{ current.windowStart | date:'HH:mm:ss' }}–{{ current.windowEnd | date:'HH:mm:ss' }}</span>
+          </div>
+        </app-video-player>
+      </div>
+
+      <aside class="cd-side">
+        <section class="tb-card slip" id="camera-prediction" tabindex="-1" aria-labelledby="camera-rounds-heading">
+          <header class="slip-head">
+            <h2 id="camera-rounds-heading">Make a prediction</h2>
+            <button class="tb-icon-btn slip-refresh" type="button" (click)="load(true)" [disabled]="refreshing" [attr.aria-label]="refreshing ? 'Updating rounds' : 'Refresh rounds'" [attr.title]="lastUpdated ? 'Updated ' + (lastUpdated | date:'HH:mm:ss') + ' · updates automatically' : 'Refresh'"><app-icon name="refresh" [size]="16" [class.is-spinning]="refreshing"></app-icon></button>
+          </header>
+
+          <div class="tb-alert is-warn" *ngIf="!selectedMarket && entryMarkets.length && !message && !uncertainSubmission"><p>That round no longer accepts predictions. <button class="tb-link" type="button" (click)="chooseRound(entryMarkets[0])" [disabled]="submitting">Use the next round →</button></p></div>
+
+          <article class="slip-round" *ngIf="composerMarket as market" [attr.id]="'round-' + market.id" tabindex="-1">
+            <div class="tb-alert is-error" *ngIf="uncertainSubmission" role="alert"><p>The last request wasn’t confirmed and may already have spent credits. <a routerLink="/bets">Check My predictions →</a></p></div>
+
+            <div class="slip-timer" *ngIf="isSelectedMarket(market) && !hasAcceptedPrediction(market)" [class.is-soon]="entryClosesSoon(market)">
+              <div class="slip-timer-main"><span>Entries close in</span><strong class="tb-num" role="timer" aria-live="off" [attr.aria-label]="'Time left to predict: ' + closesIn(market)">{{ closesIn(market) }}</strong></div>
+              <div class="slip-timer-meta"><span class="tb-chip is-open">{{ targetingNextRound ? 'Next round' : 'Round' }} #{{ market.id }}</span><small class="tb-num">Count {{ market.windowStart | date:'HH:mm:ss' }}–{{ market.windowEnd | date:'HH:mm:ss' }} · {{ durationSeconds(market) }} s</small></div>
             </div>
-            <p class="composer-context" *ngIf="!isSelectedMarket(market)">The next published round is being checked. You can prepare your range and stake here; credits cannot be spent until its time and current odds are available.</p>
-                <form *ngIf="auth.user; else signInToPrepare" class="round-stake-area prediction-form" (ngSubmit)="confirmPrediction(market)" [attr.aria-label]="'Prediction for round ' + market.id">
-                  <ng-container *ngIf="!hasAcceptedPrediction(market); else acceptedPrediction"><div class="composer-fields"><fieldset class="range-picker" [disabled]="submitting"><legend><span class="field-step" aria-hidden="true">1</span> Expected vehicles</legend>
-                    <div class="prediction-modes" aria-label="Prediction type"><button type="button" class="button" [attr.aria-pressed]="editingSide === 'range'" (click)="chooseSide(market, 'range')">From / To range</button><button type="button" class="button" [attr.aria-pressed]="editingSide === 'under' || editingSide === 'over'" (click)="chooseSide(market, 'under')">Over / under</button></div>
-                    <ng-container *ngIf="editingSide === 'range'"><div class="range-bounds"><label>From <small>minimum vehicles</small><input type="number" inputmode="numeric" min="0" max="100000000" step="1" required [id]="'range-from-' + market.id" [name]="'from-' + market.id" [attr.aria-invalid]="!!rangeError(market)" [(ngModel)]="rangeMinimums[market.id]" (ngModelChange)="rangeChanged(market)" [attr.aria-describedby]="'range-help-' + market.id"></label><span aria-hidden="true">—</span><label>To <small>maximum vehicles</small><input type="number" inputmode="numeric" min="0" max="100000000" step="1" required [id]="'range-to-' + market.id" [name]="'to-' + market.id" [attr.aria-invalid]="!!rangeError(market)" [(ngModel)]="rangeMaximums[market.id]" (ngModelChange)="rangeChanged(market)" [attr.aria-describedby]="'range-help-' + market.id"></label></div>
-                    <p class="small-note" [class.error]="!!rangeError(market)" [id]="'range-help-' + market.id">{{ rangeError(market) || ('You win if the verified count is from ' + rangeMinimums[market.id] + ' to ' + rangeMaximums[market.id] + ' vehicles, including both bounds.') }}</p>
-                    <p class="range-quote-status" role="status">{{ quoteLoading ? 'Calculating demo odds…' : currentRangeQuote(market) ? 'Demo odds: ' + (currentRangeQuote(market)?.odds | number:'1.2-2') + '×' : !isSelectedMarket(market) ? 'Waiting for the next published round and its odds.' : auth.user ? quoteError || 'Enter valid bounds to see your demo odds.' : 'Sign in to calculate demo odds.' }}</p><button *ngIf="quoteError && auth.user" type="button" class="text-button" (click)="requestRangeQuote(market)">Retry odds</button>
-                    <details class="range-pricing-note"><summary>How are these demo odds calculated?</summary><p>Custom-range odds use a fixed simulation model based on this round’s reference threshold ({{ market.threshold }}), a 5% model margin and a 100× cap. They are not measured traffic probabilities. Wider ranges generally give a smaller return; very broad ranges can return only the original stake.</p></details></ng-container>
-                    <div class="choice-row" *ngIf="editingSide === 'under' || editingSide === 'over'"><button class="outcome-button under range-choice" type="button" [class.selected-outcome]="editingSide === 'under'" [attr.aria-pressed]="editingSide === 'under'" (click)="chooseSide(market, 'under')"><span>{{ rangeLabel(market, 'under') }} vehicles</span><strong>{{ market.oddsUnder | number:'1.2-2' }}× return</strong><small>{{ editingSide === 'under' ? '✓ Selected' : 'Select range' }}</small></button><button class="outcome-button range-choice" type="button" [class.selected-outcome]="editingSide === 'over'" [attr.aria-pressed]="editingSide === 'over'" (click)="chooseSide(market, 'over')"><span>{{ rangeLabel(market, 'over') }} vehicles</span><strong>{{ market.oddsOver | number:'1.2-2' }}× return</strong><small>{{ editingSide === 'over' ? '✓ Selected' : 'Select range' }}</small></button></div>
-                  </fieldset>
-                  <label class="stake-field" [attr.for]="'stake-' + market.id"><span><span class="field-step" aria-hidden="true">2</span> Virtual stake <small>· cr</small></span></label>
-                  <input [id]="'stake-' + market.id" class="prediction-stake-input" type="number" inputmode="numeric" required min="1" [max]="stakeLimit" step="1" [name]="'stake-' + market.id" [(ngModel)]="stakes[market.id]" (ngModelChange)="rememberDraft(market)" [attr.aria-describedby]="'stake-help-' + market.id" [attr.aria-invalid]="auth.user && !!stakeError(market)" [disabled]="!auth.user || submitting">
-                  <div class="stake-presets" aria-label="Quick stake amounts"><button class="button compact" type="button" *ngFor="let amount of stakePresets" (click)="setStake(market, amount)" [attr.aria-pressed]="stakes[market.id] === amount" [class.is-active]="stakes[market.id] === amount" [disabled]="!auth.user || amount > stakeLimit || submitting">{{ amount }} cr</button></div>
-                  <p class="small-note" [class.error]="auth.user && !!stakeError(market)" [id]="'stake-help-' + market.id">{{ auth.user ? (stakeError(market) || 'Whole credits only. You can change the amount before confirming.') : 'Sign in to use your virtual balance.' }}</p>
-                  </div><div class="composer-summary"><h4 class="review-heading"><span class="field-step" aria-hidden="true">3</span> Review &amp; confirm</h4><div class="stake-review" aria-label="Prediction summary"><div *ngIf="isSelectedMarket(market)"><span>Counting round</span><strong>#{{ market.id }} · {{ market.windowStart | date:'HH:mm:ss' }}</strong></div><div><span>Your prediction</span><strong>{{ editingSide ? rangeLabel(market, editingSide) + ' vehicles' : 'Choose a range above' }}</strong></div><div><span>Stake on confirmation</span><strong>{{ validStake(market) ? (stakes[market.id] | number:'1.0-0') + ' cr' : '—' }}</strong></div><div class="return-preview"><span>Return if you win <small>Includes your stake</small></span><strong>{{ potentialReturn(market) !== undefined ? (potentialReturn(market) | number:'1.0-0') + ' cr' : '—' }}</strong></div><div *ngIf="auth.user"><span>Balance if accepted</span><strong>{{ validStake(market) ? ((auth.user.balanceCredits - stakes[market.id]) | number:'1.0-0') + ' cr' : '—' }}</strong></div></div>
-                  <button *ngIf="auth.user" class="button primary confirm-prediction" type="submit" [disabled]="!canConfirm(market)" [attr.aria-describedby]="'confirmation-help-' + market.id">{{ confirmationLabel(market) }}<small *ngIf="canConfirm(market)">{{ stakes[market.id] | number:'1.0-0' }} cr · round #{{ market.id }}</small></button>
-                                    <p class="confirmation-help" [id]="'confirmation-help-' + market.id">{{ confirmationHelp(market) }}</p>
-                  <p class="error message" *ngIf="betError" role="alert">{{ betError }}</p>
-                  <p class="small-note place-action-note">Selecting a range does not spend credits. A losing prediction returns 0 cr; a cancelled round refunds your stake.</p></div></ng-container>
-                </form>
-            <ng-template #acceptedPrediction><div class="prediction-success" role="status"><span aria-hidden="true">✓</span><div><h4>Prediction accepted</h4><p>{{ message }}</p><div class="prediction-success-actions"><a class="button primary" routerLink="/bets">Follow the result →</a><button class="button" type="button" (click)="startAnotherPrediction(market)">Prepare another prediction</button></div></div></div></ng-template>
-            <ng-template #signInToPrepare><div class="composer-sign-in"><strong>Sign in to prepare your prediction</strong><p>Enter a vehicle-count range, review the demo odds and choose your virtual stake. Your balance is charged only after you confirm.</p><a class="button primary" routerLink="/login" [queryParams]="{ returnUrl: '/streams/' + stream.id }">Sign in →</a><a class="text-button" routerLink="/register" [queryParams]="{ returnUrl: '/streams/' + stream.id }">Create an account</a></div></ng-template>
-            <details class="composer-rules"><summary>Counting zone &amp; round rules</summary><app-counting-rules [snapshot]="isSelectedMarket(market) ? market.countingRules : undefined"></app-counting-rules><p class="small-note" *ngIf="!isSelectedMarket(market)">The next published round will supply its counting rules. Check its line and directions before confirming.</p></details>
+            <div class="slip-draft" *ngIf="!isSelectedMarket(market)"><span class="tb-chip">Draft · round #{{ market.id }}</span><p>The next round is being checked. You can prepare your pick now; nothing is spent until its odds are available and you confirm.</p></div>
+            <div class="target-change" role="status" aria-live="polite"><p class="tb-alert slip-rollover" *ngIf="rolloverNotice && rolloverNotice.marketId === market.id && !message"><app-icon name="refresh" [size]="16"></app-icon><span>Switched to <strong>round #{{ market.id }}</strong> (count starts {{ rolloverNotice.startsAt | date:'HH:mm:ss' }}). Your pick and stake were kept — check the new odds.</span></p></div>
+
+            <form *ngIf="auth.user; else signInToPrepare" class="slip-form" (ngSubmit)="confirmPrediction(market)" [attr.aria-label]="'Prediction for round ' + market.id">
+              <ng-container *ngIf="!hasAcceptedPrediction(market); else acceptedPrediction">
+                <fieldset class="slip-step" [disabled]="submitting">
+                  <legend><span class="slip-step-n">1</span>How many vehicles will cross the line?</legend>
+                  <div class="tb-seg is-block" role="group" aria-label="Prediction type"><button type="button" [attr.aria-pressed]="editingSide === 'range'" (click)="chooseSide(market, 'range')">Exact range</button><button type="button" [attr.aria-pressed]="editingSide === 'under' || editingSide === 'over'" (click)="chooseSide(market, 'under')">Over / Under</button></div>
+
+                  <ng-container *ngIf="editingSide === 'range'">
+                    <div class="slip-range">
+                      <div class="tb-field"><label [attr.for]="'range-from-' + market.id">From</label>
+                        <span class="slip-stepper"><button type="button" (click)="nudgeRange(market, 'min', -1)" aria-label="Decrease minimum"><app-icon name="minus" [size]="16"></app-icon></button><input class="tb-no-spin tb-num" type="number" inputmode="numeric" min="0" max="100000000" step="1" required [id]="'range-from-' + market.id" [name]="'from-' + market.id" [attr.aria-invalid]="!!rangeError(market)" [(ngModel)]="rangeMinimums[market.id]" (ngModelChange)="rangeChanged(market)" [attr.aria-describedby]="'range-help-' + market.id"><button type="button" (click)="nudgeRange(market, 'min', 1)" aria-label="Increase minimum"><app-icon name="plus" [size]="16"></app-icon></button></span>
+                      </div>
+                      <div class="tb-field"><label [attr.for]="'range-to-' + market.id">To</label>
+                        <span class="slip-stepper"><button type="button" (click)="nudgeRange(market, 'max', -1)" aria-label="Decrease maximum"><app-icon name="minus" [size]="16"></app-icon></button><input class="tb-no-spin tb-num" type="number" inputmode="numeric" min="0" max="100000000" step="1" required [id]="'range-to-' + market.id" [name]="'to-' + market.id" [attr.aria-invalid]="!!rangeError(market)" [(ngModel)]="rangeMaximums[market.id]" (ngModelChange)="rangeChanged(market)" [attr.aria-describedby]="'range-help-' + market.id"><button type="button" (click)="nudgeRange(market, 'max', 1)" aria-label="Increase maximum"><app-icon name="plus" [size]="16"></app-icon></button></span>
+                      </div>
+                    </div>
+                    <p class="tb-help" [class.is-error]="!!rangeError(market)" [id]="'range-help-' + market.id">{{ rangeError(market) || ('You win if the count is ' + rangeMinimums[market.id] + '–' + rangeMaximums[market.id] + ' vehicles (both included).') }}</p>
+                    <div class="slip-odds" role="status"><span>{{ quoteLoading ? 'Calculating odds…' : currentRangeQuote(market) ? 'Odds for this range' : !isSelectedMarket(market) ? 'Waiting for the next round’s odds' : quoteError || 'Enter a valid range to see odds' }}</span><strong *ngIf="currentRangeQuote(market) as quote" class="tb-num">{{ quote.odds | number:'1.2-2' }}×</strong><span class="tb-spinner" *ngIf="quoteLoading"></span><button *ngIf="quoteError" type="button" class="tb-link" (click)="requestRangeQuote(market)">Retry</button></div>
+                    <details class="slip-pricing"><summary>How are range odds calculated?</summary><p>Range odds come from a fixed demo model around this round’s reference threshold ({{ market.threshold }}), with a 5% margin and a 100× cap. Narrow ranges pay more; very wide ranges may only return your stake. They are not real traffic probabilities.</p></details>
+                  </ng-container>
+
+                  <div class="slip-outcomes" *ngIf="editingSide === 'under' || editingSide === 'over'">
+                    <button class="slip-outcome" type="button" [class.is-selected]="editingSide === 'under'" [attr.aria-pressed]="editingSide === 'under'" (click)="chooseSide(market, 'under')"><span>Under or equal</span><strong class="tb-num">{{ rangeLabel(market, 'under') }}</strong><em class="tb-num">{{ market.oddsUnder | number:'1.2-2' }}×</em></button>
+                    <button class="slip-outcome" type="button" [class.is-selected]="editingSide === 'over'" [attr.aria-pressed]="editingSide === 'over'" (click)="chooseSide(market, 'over')"><span>Over</span><strong class="tb-num">{{ rangeLabel(market, 'over') }}</strong><em class="tb-num">{{ market.oddsOver | number:'1.2-2' }}×</em></button>
+                  </div>
+                </fieldset>
+
+                <div class="slip-step">
+                  <label class="slip-legend" [attr.for]="'stake-' + market.id"><span class="slip-step-n">2</span>Your stake</label>
+                  <div class="slip-stake"><input [id]="'stake-' + market.id" class="tb-input tb-no-spin tb-num" type="number" inputmode="numeric" required min="1" [max]="stakeLimit" step="1" [name]="'stake-' + market.id" [(ngModel)]="stakes[market.id]" (ngModelChange)="rememberDraft(market)" [attr.aria-describedby]="'stake-help-' + market.id" [attr.aria-invalid]="auth.user && !!stakeError(market)" [disabled]="!auth.user || submitting"><span aria-hidden="true">cr</span></div>
+                  <div class="slip-presets" aria-label="Quick stake amounts"><button type="button" *ngFor="let amount of stakePresets" (click)="setStake(market, amount)" [attr.aria-pressed]="stakes[market.id] === amount" [disabled]="!auth.user || amount > stakeLimit || submitting">{{ amount }}</button></div>
+                  <p class="tb-help" [class.is-error]="auth.user && !!stakeError(market)" [id]="'stake-help-' + market.id">{{ auth.user ? (stakeError(market) || 'Available: ' + (auth.user.balanceCredits | number:'1.0-0') + ' cr') : 'Sign in to use your virtual balance.' }}</p>
+                </div>
+
+                <dl class="slip-summary" aria-label="Prediction summary">
+                  <div><dt>Your pick</dt><dd class="tb-num">{{ editingSide ? rangeLabel(market, editingSide) + ' vehicles' : '—' }}</dd></div>
+                  <div><dt>Odds</dt><dd class="tb-num">{{ displayOdds(market) !== undefined ? (displayOdds(market) | number:'1.2-2') + '×' : '—' }}</dd></div>
+                  <div><dt>Stake</dt><dd class="tb-num">{{ validStake(market) ? (stakes[market.id] | number:'1.0-0') + ' cr' : '—' }}</dd></div>
+                  <div class="is-return"><dt>Potential return</dt><dd class="tb-num">{{ potentialReturn(market) !== undefined ? (potentialReturn(market) | number:'1.0-0') + ' cr' : '—' }}</dd></div>
+                </dl>
+
+                <button class="tb-btn tb-btn-primary tb-btn-lg tb-btn-block slip-confirm" type="submit" [disabled]="!canConfirm(market)" [attr.aria-describedby]="'confirmation-help-' + market.id"><span class="tb-spinner" *ngIf="submitting"></span>{{ confirmationLabel(market) }}<small *ngIf="canConfirm(market)" class="tb-num">· {{ stakes[market.id] | number:'1.0-0' }} cr</small></button>
+                <p class="tb-help slip-confirm-help" [class.sr-only]="canConfirm(market) && !uncertainSubmission" [id]="'confirmation-help-' + market.id">{{ confirmationHelp(market) }}</p>
+                <p class="tb-alert is-error slip-error" *ngIf="betError" role="alert">{{ betError }}</p>
+                <p class="slip-fineprint">Credits are spent only when you confirm. A loss returns 0 cr; a cancelled round refunds your stake.</p>
+              </ng-container>
+            </form>
+
+            <ng-template #acceptedPrediction><div class="slip-success" role="status"><span class="slip-success-icon"><app-icon name="check" [size]="26"></app-icon></span><h3>Prediction placed!</h3><p>{{ message }}</p><div class="slip-success-actions"><a class="tb-btn tb-btn-primary" routerLink="/bets">Track result<app-icon name="arrow" [size]="16"></app-icon></a><button class="tb-btn" type="button" (click)="startAnotherPrediction(market)">Make another</button></div></div></ng-template>
+            <ng-template #signInToPrepare><div class="slip-signin"><span class="tb-empty-icon"><app-icon name="user" [size]="24"></app-icon></span><strong>Sign in to make a prediction</strong><p>Guess the vehicle count, check the odds and stake virtual credits. New accounts start with 10,000 cr.</p><a class="tb-btn tb-btn-primary tb-btn-block" routerLink="/login" [queryParams]="{ returnUrl: '/streams/' + stream.id }">Sign in</a><a class="tb-btn tb-btn-ghost tb-btn-block" routerLink="/register" [queryParams]="{ returnUrl: '/streams/' + stream.id }">Create a free account</a></div></ng-template>
+
+            <details class="tb-details slip-rules"><summary>Counting zone &amp; round rules</summary><div class="tb-details-body"><app-counting-rules [snapshot]="isSelectedMarket(market) ? market.countingRules : undefined"></app-counting-rules><p *ngIf="!isSelectedMarket(market)">The next published round will supply its counting rules. Check its line and directions before confirming.</p><p *ngIf="isSelectedMarket(market) && !market.countingRules">Only vehicles crossing the published counting zone during the counting window are included.</p></div></details>
           </article>
-          <div class="empty-note" *ngIf="!activeMarkets.length">Waiting for the next round. This page checks automatically every 5 seconds. Your past predictions remain in My predictions.</div>
-          <a *ngIf="!auth.user && !composerMarket" class="button primary sign-in-prediction" routerLink="/login" [queryParams]="{ returnUrl: '/streams/' + stream.id }">Sign in to predict →</a>
-          <details class="prediction-deadlines"><summary>Deadlines, camera movement &amp; refunds</summary><p class="small-note">Predictions close at least 30 seconds before counting starts. Playback delays do not extend the deadline. An operator verifies each result. The source operator may pan, tilt or zoom the camera. If movement changes or hides the counting zone during a round, that round must be voided and its stakes refunded.</p></details>
-          <p class="credits-note">Virtual credits only. No monetary transactions.</p>
-        </div>
-        <div class="ai-note"><span>◉</span><div><strong>Verified results</strong><p>Counts are currently verified by an operator. Any future AI counts will be clearly labelled.</p></div></div>
-      </section>
-      <div class="camera-information-grid">
-        <div class="panel about-camera"><div><span class="eyebrow">ABOUT THIS LOCATION</span><h2>Behind the camera</h2></div><p>{{ stream.description || 'No description has been added for this camera yet.' }}</p><div class="source-row"><span>Source operator</span><strong>{{ stream.sourceOwner || 'Not specified' }}</strong></div><div class="source-row" *ngIf="safeSourceLink(stream.sourcePageUrl)"><span>Source website</span><a [href]="safeSourceLink(stream.sourcePageUrl)" target="_blank" rel="noopener noreferrer" class="text-button">Visit source ↗</a></div><div class="source-row" *ngIf="safeSourceLink(stream.termsUrl)"><span>Licence and terms</span><a [href]="safeSourceLink(stream.termsUrl)" target="_blank" rel="noopener noreferrer" class="text-button">Read source licence ↗</a></div><p *ngIf="stream.sourceOwner === &quot;Transport for London&quot;" class="source-attribution"><a href="https://tfl.gov.uk/info-for/open-data-users/our-open-data" target="_blank" rel="noopener noreferrer">Powered by TfL Open Data ↗</a></p><p class="small-note" *ngIf="stream.usageNotes">{{ stream.usageNotes }}</p></div>
-        <div class="panel metrics-panel"><div class="section-toolbar"><div><span class="eyebrow">COUNT HISTORY</span><h2>Vehicles per interval</h2></div><span class="tag">{{ metrics.length }} records</span></div><p class="muted small-note">Each bar represents one completed counting interval. Interval lengths may differ.</p><div class="metric-chart" *ngIf="metrics.length" aria-label="Vehicle counts for recent intervals"><div class="chart-column" *ngFor="let metric of chartMetrics"><strong>{{ metric.vehicleCount }}</strong><div class="chart-bar" [style.height.%]="barHeight(metric)" [class.ai-bar]="metric.source === 'ai'"></div><small>{{ metric.intervalEnd | date:'HH:mm:ss' }}</small></div></div><div class="metric-list"><div class="metric-row" *ngFor="let metric of metrics.slice(0, 6)"><div><strong>{{ metric.vehicleCount }} vehicles</strong><small>{{ metric.intervalStart | date:'MMM d, HH:mm:ss' }} — {{ metric.intervalEnd | date:'HH:mm:ss' }}</small></div><span [class]="'metric-source ' + metric.source">{{ metric.source === 'ai' ? '✳ AI' : '◉ Operator' }}</span></div></div><p class="empty-note" *ngIf="!metrics.length">No verified counts yet. Completed rounds will appear here after verification.</p></div>
+
+          <div class="slip-waiting" *ngIf="!activeMarkets.length"><span class="tb-spinner" *ngIf="!stream.automationPause"></span><app-icon *ngIf="stream.automationPause" name="info" [size]="20"></app-icon><div><strong>{{ stream.automationPause ? 'Rounds paused for this camera' : 'Waiting for the next round' }}</strong><p>{{ stream.automationPause ? stream.automationPause + ' Rounds resume automatically once this is resolved.' : 'This panel checks automatically every few seconds.' }}</p></div></div>
+          <a *ngIf="!auth.user && !composerMarket" class="tb-btn tb-btn-primary tb-btn-block" routerLink="/login" [queryParams]="{ returnUrl: '/streams/' + stream.id }">Sign in to predict</a>
+          <details class="tb-details slip-rules"><summary>Deadlines, camera movement &amp; refunds</summary><div class="tb-details-body"><p>Entries close at least 30 seconds before counting starts; playback delay doesn’t extend the deadline. An AI counts every round automatically from the camera’s own footage and clock. If footage is incomplete, the capture time can’t be verified or the camera moves during a round, the round is voided and stakes are refunded.</p></div></details>
+          <p class="slip-updated" *ngIf="lastUpdated">Updated {{ lastUpdated | date:'HH:mm:ss' }} · updates automatically</p>
+        </section>
+        <p class="cd-trust"><app-icon name="shield" [size]="16"></app-icon>Counted automatically by AI · unverifiable rounds are refunded</p>
+      </aside>
+
+      <div class="cd-info">
+        <section class="tb-card cd-panel">
+          <header class="cd-panel-head"><div><p class="tb-kicker">Count history</p><h2>Vehicles per round</h2></div><span class="tb-chip">{{ metrics.length }} {{ metrics.length === 1 ? 'record' : 'records' }}</span></header>
+          <div class="cd-chart" *ngIf="metrics.length" aria-label="Vehicle counts for recent intervals"><div class="cd-bar" *ngFor="let metric of chartMetrics"><strong class="tb-num">{{ metric.vehicleCount }}</strong><span class="cd-bar-fill" [style.height.%]="barHeight(metric)" [class.is-ai]="metric.source === 'ai'"></span><small class="tb-num">{{ metric.intervalEnd | date:'HH:mm' }}</small></div></div>
+          <ul class="cd-metrics" *ngIf="metrics.length"><li *ngFor="let metric of metrics.slice(0, 5)"><div><strong class="tb-num">{{ metric.vehicleCount }} vehicles</strong><small class="tb-num">{{ metric.intervalStart | date:'MMM d, HH:mm:ss' }}–{{ metric.intervalEnd | date:'HH:mm:ss' }}</small></div><span class="tb-chip" [class.is-info]="metric.source === 'ai'">{{ metric.source === 'ai' ? 'AI count' : 'Operator' }}</span></li></ul>
+          <div class="tb-empty cd-empty" *ngIf="!metrics.length"><span class="tb-empty-icon"><app-icon name="chart" [size]="22"></app-icon></span><p>No verified counts yet. Finished rounds appear here after verification.</p></div>
+        </section>
+        <section class="tb-card cd-panel">
+          <header class="cd-panel-head"><div><p class="tb-kicker">About this camera</p><h2>Behind the lens</h2></div></header>
+          <p class="cd-desc">{{ stream.description || 'No description has been added for this camera yet.' }}</p>
+          <dl class="cd-facts">
+            <div><dt>Source operator</dt><dd>{{ stream.sourceOwner || 'Not specified' }}</dd></div>
+            <div *ngIf="safeSourceLink(stream.sourcePageUrl)"><dt>Source website</dt><dd><a [href]="safeSourceLink(stream.sourcePageUrl)" target="_blank" rel="noopener noreferrer" class="tb-link">Visit source<app-icon name="external" [size]="14"></app-icon></a></dd></div>
+            <div *ngIf="safeSourceLink(stream.termsUrl)"><dt>Licence</dt><dd><a [href]="safeSourceLink(stream.termsUrl)" target="_blank" rel="noopener noreferrer" class="tb-link">Read licence<app-icon name="external" [size]="14"></app-icon></a></dd></div>
+          </dl>
+          <p *ngIf="stream.sourceOwner === &quot;Transport for London&quot;" class="cd-desc"><a class="tb-link" href="https://tfl.gov.uk/info-for/open-data-users/our-open-data" target="_blank" rel="noopener noreferrer">Powered by TfL Open Data<app-icon name="external" [size]="14"></app-icon></a></p>
+          <p class="tb-help" *ngIf="stream.usageNotes">{{ stream.usageNotes }}</p>
+        </section>
       </div>
     </div>
   </section>
@@ -254,6 +320,18 @@ export class StreamDetailComponent implements OnInit, OnDestroy {
       error: error => { if (generation!==this.quoteGeneration) return; this.quoteLoading=false; if (identity===this.quoteKey(market)) this.quoteError=apiError(error,'Could not calculate demo odds. Please retry.'); }
     });
   }
+  nudgeRange(market: Market, bound: 'min' | 'max', delta: number): void {
+    if (this.submitting || this.composerMarket?.id !== market.id) return;
+    const values = bound === 'min' ? this.rangeMinimums : this.rangeMaximums;
+    const current = Number.isInteger(values[market.id]) ? values[market.id] : market.threshold;
+    values[market.id] = Math.min(100000000, Math.max(0, current + delta));
+    this.rangeChanged(market);
+  }
+  displayOdds(market: Market): number | undefined {
+    const side = this.isSelectedMarket(market) ? this.selectedSide : undefined;
+    if (side === 'range') return this.currentRangeQuote(market)?.odds;
+    return side === 'over' ? market.oddsOver : side === 'under' ? market.oddsUnder : undefined;
+  }
   setStake(market: Market, amount: number): void {
     if (!this.submitting && this.auth.user && this.composerMarket?.id === market.id && Number.isInteger(amount) && amount >= 1 && amount <= this.stakeLimit) { this.stakes[market.id] = amount; this.rememberDraft(market); }
   }
@@ -317,7 +395,7 @@ export class StreamDetailComponent implements OnInit, OnDestroy {
     switch (this.phase(market)) {
       case 'locked': return 'Predictions are locked. Counting has not started yet.';
       case 'counting': return 'Counting is in progress. New predictions are no longer accepted.';
-      case 'verifying': return 'The counting window has ended. An operator must verify the result before credits are settled.';
+      case 'verifying': return 'The counting window has ended. The AI result is being processed; credits settle automatically.';
       default: return 'This round is unavailable for predictions.';
     }
   }

@@ -4,13 +4,29 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../services/auth.service';
+import { IconComponent } from '../components/icon.component';
 import { apiError } from '../services/ui-helpers';
 
-@Component({ selector: 'app-login', standalone: true, imports: [FormsModule, NgIf, RouterLink], template: `
-  <section class="login-layout"><div class="login-story"><span class="eyebrow">WATCH. PREDICT. VERIFY.</span><h1>It starts<br>with a closer look<span class="heading-dot">.</span></h1><p>Explore city cameras and put your traffic predictions to the test.</p><div class="login-orbit"><span>↗</span><i></i><b>TRAFFIC / LAB</b></div></div><div class="panel login-panel"><span class="eyebrow">{{ preview ? 'LOCAL DESIGN PREVIEW' : 'YOUR ACCOUNT' }}</span><h2>{{ preview ? 'Try both roles' : adminRequired ? 'Administrator sign-in' : 'Welcome back' }}</h2><p class="muted">{{ preview ? 'Choose a sample profile. Changes are stored only in this tab.' : adminRequired ? 'Manage cameras, rounds and result verification.' : 'Sign in to make predictions and follow your results.' }}</p><div class="admin-login-note" *ngIf="adminRequired"><strong>Administrator access</strong><p *ngIf="auth.user && !auth.isAdmin">Your current member account does not have administrator access.</p><p>Use an administrator account. Ask the deployment owner for access. New registrations create member accounts.</p></div>
-    <div *ngIf="preview" class="demo-options"><button class="demo-role" type="button" (click)="demo('user')" [disabled]="loading"><span class="role-icon">◉</span><span><strong>Try member view</strong><small>Predictions, balance and history</small></span><span>→</span></button><button class="demo-role" type="button" (click)="demo('admin')" [disabled]="loading"><span class="role-icon admin-icon">⚙</span><span><strong>Try administrator view</strong><small>Cameras, rounds and result verification</small></span><span>→</span></button></div>
-    <form *ngIf="!preview" class="form-grid" (ngSubmit)="form.valid && submit()" #form="ngForm"><label>Email address<input name="email" type="email" autocomplete="username" [(ngModel)]="email" placeholder="you@example.com" maxlength="254" required email></label><label>Password<input name="password" type="password" autocomplete="current-password" [(ngModel)]="password" placeholder="Enter your password" maxlength="256" required></label><button class="button primary" type="submit" [disabled]="loading || form.invalid">{{ loading ? 'Signing in…' : 'Sign in' }} <span>→</span></button></form>
-    <p class="error message" *ngIf="error" role="alert">{{ error }}</p><p *ngIf="!preview && !adminRequired" class="auth-switch">New here? <a routerLink="/register" [queryParams]="returnParams">Create an account</a></p><p class="login-note">{{ preview ? 'Refreshing the page resets this sample session and all preview data.' : 'Your history and balance are saved to your account. You stay signed in until you sign out or your session expires.' }}</p><a routerLink="/" class="text-link">← Back to cameras</a></div></section>
+@Component({ selector: 'app-login', standalone: true, imports: [FormsModule, NgIf, RouterLink, IconComponent], template: `
+  <section class="auth">
+    <div class="tb-card auth-card">
+      <a routerLink="/" class="auth-brand" aria-label="TrafficBet home"><span class="tb-brand-mark" aria-hidden="true"><svg viewBox="0 0 64 64" focusable="false"><path d="m16 53 8-42m24 42-8-42M32 12v7m0 7v7m0 7v11" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><rect x="21" y="31" width="8" height="15" rx="2.5" fill="currentColor"/><rect x="35" y="18" width="8" height="15" rx="2.5" fill="currentColor"/></svg></span><span>traffic<b>bet</b></span></a>
+      <h1>{{ preview ? 'Try both roles' : adminRequired ? 'Administrator sign-in' : 'Welcome back' }}</h1>
+      <p class="auth-sub">{{ preview ? 'Choose a sample profile. Changes are stored only in this tab.' : adminRequired ? 'Manage cameras, rounds and result verification.' : 'Sign in to make predictions and follow your results.' }}</p>
+      <div class="tb-alert is-warn" *ngIf="adminRequired"><app-icon name="shield"></app-icon><div><p><strong>Administrator access required.</strong></p><p *ngIf="auth.user && !auth.isAdmin">Your current account doesn’t have administrator access.</p><p>Ask the deployment owner for access. New registrations create member accounts.</p></div></div>
+      <div *ngIf="preview" class="auth-demo"><button class="auth-demo-role" type="button" (click)="demo('user')" [disabled]="loading"><app-icon name="user" [size]="20"></app-icon><span><strong>Member view</strong><small>Predictions, balance and history</small></span><app-icon name="arrow" [size]="16"></app-icon></button><button class="auth-demo-role" type="button" (click)="demo('admin')" [disabled]="loading"><app-icon name="settings" [size]="20"></app-icon><span><strong>Administrator view</strong><small>Cameras, rounds and verification</small></span><app-icon name="arrow" [size]="16"></app-icon></button></div>
+      <form *ngIf="!preview" class="auth-form" (ngSubmit)="form.valid && submit()" #form="ngForm">
+        <label class="tb-field">Email<input class="tb-input" name="email" type="email" autocomplete="username" [(ngModel)]="email" placeholder="you@example.com" maxlength="254" required email></label>
+        <label class="tb-field">Password<input class="tb-input" name="password" type="password" autocomplete="current-password" [(ngModel)]="password" placeholder="Your password" maxlength="256" required></label>
+        <p class="tb-alert is-error" *ngIf="error" role="alert">{{ error }}</p>
+        <button class="tb-btn tb-btn-primary tb-btn-lg tb-btn-block" type="submit" [disabled]="loading || form.invalid"><span class="tb-spinner" *ngIf="loading"></span>{{ loading ? 'Signing in…' : 'Sign in' }}</button>
+      </form>
+      <p class="tb-alert is-error" *ngIf="error && preview" role="alert">{{ error }}</p>
+      <p *ngIf="!preview && !adminRequired" class="auth-switch">New here? <a routerLink="/register" [queryParams]="returnParams">Create a free account</a></p>
+      <p class="auth-note">{{ preview ? 'Refreshing the page resets this sample session.' : 'You stay signed in until you sign out or your session expires.' }}</p>
+    </div>
+    <a routerLink="/" class="auth-back"><app-icon name="back" [size]="16"></app-icon>Back to cameras</a>
+  </section>
 ` })
 export class LoginComponent {
   readonly auth = inject(AuthService); private readonly router = inject(Router); private readonly route = inject(ActivatedRoute);

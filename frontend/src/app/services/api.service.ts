@@ -2,7 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { RangeQuote, RoundScheduleSettings, RoundScheduleSnapshot } from '../models';
+import { LiveRound, RangeQuote, RoundScheduleSettings, RoundScheduleSnapshot } from '../models';
 import { AuditItem, CountingDefinition, CountingPreparation, CountingProfile, CountingReference, CursorPage, ReviewDetail, ReviewQueueItem, RoundReview, SourceHealth } from '../models';
 import { Bet, BetSide, BetStatus, CreditLedgerEntry, Market, MarketPayload, SettlementVerification, StakeBetPage, StakeVolumeSnapshot, StreamMetric, StreamPayload, TrafficStream, User, UserPage } from '../models';
 
@@ -41,6 +41,10 @@ export class ApiService {
   quoteRange(marketId: number, from: number, to: number): Observable<RangeQuote> {
     return this.http.get<RangeQuote>(`${this.base}/bets/range-quote`, { ...this.credentials, params: new HttpParams().set('marketId', marketId).set('from', from).set('to', to) });
   }
+  rangeOptions(marketId: number): Observable<{ options: RangeQuote[] }> {
+    return this.http.get<{ options: RangeQuote[] }>(`${this.base}/bets/range-options`, { ...this.credentials, params: new HttpParams().set('marketId', marketId) });
+  }
+  liveRound(marketId: number): Observable<LiveRound> { return this.http.get<LiveRound>(`${this.base}/markets/${marketId}/live`, this.credentials); }
   createRangeBet(quote: RangeQuote, stakeCredits: number, idempotencyKey: string): Observable<{ bet: Bet; user: User }> {
     return this.http.post<{ bet: Bet; user: User }>(`${this.base}/bets`, { marketId: quote.marketId, side: 'range', rangeMin: quote.rangeMin, rangeMax: quote.rangeMax, quotedOdds: quote.odds, pricingModel: quote.pricingModel, stakeCredits }, { ...this.credentials, headers: { 'Idempotency-Key': idempotencyKey } });
   }

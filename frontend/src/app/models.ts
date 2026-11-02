@@ -82,6 +82,8 @@ export interface StakeBetPage {
 
 export interface TrafficStream {
   countingGuide?: PublicCountingGuide;
+  /** Why automatic counting paused this camera's rounds, e.g. no readable clock. */
+  automationPause?: string;
   id: number;
   title: string;
   city: string;
@@ -135,6 +137,21 @@ export interface MarketPayload {
   status: Exclude<MarketStatus, 'settled'>;
 }
 
+/** Live AI progress for a round (display only; settlement waits for the final verified result). */
+export interface LiveCrossing { at: number; direction: string; class: string; }
+export interface LiveSegment { seq: number; startUtc: number; duration: number; }
+export interface LiveRound {
+  marketId: number;
+  streamId: number;
+  status: MarketStatus;
+  threshold: number;
+  windowStart: string;
+  windowEnd: string;
+  actualCount?: number;
+  voidReason?: string;
+  live: { vehicleCount: number; crossings: LiveCrossing[]; segments: LiveSegment[]; processedUntil: number; updatedAt: string } | null;
+}
+
 export interface RangeQuote {
   marketId: number;
   rangeMin: number;
@@ -166,6 +183,8 @@ export interface Bet {
   status: BetStatus;
   createdAt: string;
   settledAt?: string;
+  actualCount?: number;
+  voidReason?: string;
 }
 
 export interface StreamMetric {
