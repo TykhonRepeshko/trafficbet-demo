@@ -1,0 +1,38 @@
+# Pinned runtime + test dependencies (python 3.12, linux/arm64 and amd64).
+# `trackers` is installed separately with --no-deps: it declares opencv-python (GUI build);
+# opencv-python-headless below provides the same cv2 module without X11 libraries.
+av==19.0.2
+certifi==2026.10.23
+charset-normalizer==3.5.2
+contourpy==1.4.0
+cycler==0.12.1
+defusedxml==0.7.1
+flatbuffers==25.12.19
+fonttools==4.68.0
+idna==3.20
+iniconfig==2.3.1
+kiwisolver==1.5.1
+markdown-it-py==4.2.0
+matplotlib==3.11.2
+mdurl==0.1.2
+numpy==2.5.4
+onnxruntime==1.31.1
+opencv-python-headless==4.14.0.94
+packaging==26.3
+pillow==13.0.0
+pluggy==1.7.0
+protobuf==7.36.2
+pyDeprecate==0.13.0
+Pygments==2.21.0
+pyparsing==3.3.3
+pytesseract==0.3.13
+pytest==9.2.0
+python-dateutil==4.0.0
+PyYAML==6.0.3
+requests==2.34.2
+rich==15.0.0
+scipy==1.18.1
+supervision==0.31.3
+tqdm==4.70.1
+tzdata==2026.6
+urllib3==2.8.0
