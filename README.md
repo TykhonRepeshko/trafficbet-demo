@@ -73,6 +73,8 @@ PostgreSQL and optional retained footage use separate named volumes. Video captu
 
 ### This prepared Windows workspace: native mode
 
+The prepared local camera refresh (six active views, previous cameras temporarily archived) is documented in [reviewed camera replacement](docs/reviewed-camera-replacement.md).
+
 ```powershell
 .\start.cmd
 .\stop.cmd

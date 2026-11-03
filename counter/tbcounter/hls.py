@@ -90,6 +90,7 @@ class StreamFetcher(threading.Thread):
         self.stop_event = threading.Event()
         self.last_error = ""
         self.segments_seen = 0
+        self.last_segment_at = time.monotonic()
         self.frame_size: tuple[int, int] = (0, 0)
 
     def stop(self) -> None:
@@ -122,7 +123,13 @@ class StreamFetcher(threading.Thread):
         for item in playlist.segments:
             if self.buffer.has(item.seq) or self.stop_event.is_set():
                 continue
-            data = self._get(item.uri, MAX_SEGMENT_BYTES)
+            try:
+                data = self._get(item.uri, MAX_SEGMENT_BYTES)
+            except requests.HTTPError:
+                # Source session URLs can expire on a segment before the child
+                # playlist fails. Reopen the scoped master on the next poll.
+                self.variant_url = None
+                raise
             fetched_at = time.time()
             first_pts, width, height = video.probe(data)
             if first_pts is None:
@@ -133,8 +140,16 @@ class StreamFetcher(threading.Thread):
                                     discontinuity=item.discontinuity, anchor=anchor, first_pts=first_pts,
                                     width=width, height=height))
             self.segments_seen += 1
+            self.last_segment_at = time.monotonic()
             LOG.debug("segment", stream=self.stream_id, seq=item.seq, duration=item.duration,
                       anchored=anchor is not None, latency=round(anchor.latency, 2) if anchor else None)
+        # A session may keep returning HTTP 200 with a frozen media playlist.
+        # Re-resolve the public master after three missed segment intervals.
+        if not self.stop_event.is_set() and time.monotonic()-self.last_segment_at >= max(30.0, playlist.target_duration*3):
+            LOG.warning("playlist stopped advancing; reopening master", stream=self.stream_id)
+            self.variant_url = None
+            self.last_segment_at = time.monotonic()
+            return 1.0
         return max(1.0, min(playlist.target_duration / 2, 4.0))
 
     def run(self) -> None:

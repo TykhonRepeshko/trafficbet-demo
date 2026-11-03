@@ -112,3 +112,36 @@ func TestPostgresLiveRoundProgress(t *testing.T) {
 		t.Fatal("missing round", err)
 	}
 }
+
+func TestLiveHighlightValidation(t *testing.T) {
+	start := time.Unix(1700000000, 0).UTC()
+	end := start.Add(30 * time.Second)
+	from := unixSeconds(start)
+	id := int64(7)
+	valid := func() LiveProgressInput {
+		return LiveProgressInput{VehicleCount: 1, ProcessedUntil: from + 10,
+			Crossings:  []LiveCrossing{{TrackID: &id, At: from + 4, Direction: "A_to_B", Class: "car"}},
+			Segments:   []LiveSegment{{Seq: 1, StartUTC: from, Duration: 10}},
+			Highlights: []LiveHighlightFrame{{At: from + 5, Boxes: []LiveVehicleBox{{TrackID: 7, X: .1, Y: .2, Width: .1, Height: .2}}}},
+		}
+	}
+	if err := validateLiveProgress(valid(), start, end); err != nil {
+		t.Fatal(err)
+	}
+	cases := map[string]func(*LiveProgressInput){
+		"unknown track":       func(p *LiveProgressInput) { p.Highlights[0].Boxes[0].TrackID = 99 },
+		"before count":        func(p *LiveProgressInput) { p.Highlights[0].At = from + 3 },
+		"unprocessed frame":   func(p *LiveProgressInput) { p.Highlights[0].At = from + 11 },
+		"outside image":       func(p *LiveProgressInput) { p.Highlights[0].Boxes[0].Width = 2 },
+		"negative coordinate": func(p *LiveProgressInput) { p.Highlights[0].Boxes[0].X = -.1 },
+	}
+	for name, change := range cases {
+		t.Run(name, func(t *testing.T) {
+			p := valid()
+			change(&p)
+			if err := validateLiveProgress(p, start, end); !errors.Is(err, ErrInvalid) {
+				t.Fatal("invalid highlights accepted", err)
+			}
+		})
+	}
+}

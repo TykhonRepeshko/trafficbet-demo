@@ -13,6 +13,8 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 
+from .evidence import DETECTOR, observation_source
+
 VEHICLE_NAMES = ("car", "motorcycle", "bus", "truck", "vehicle")
 YOLOX_COCO = {
     2: "car",
@@ -27,6 +29,13 @@ class Detections:
     xyxy: np.ndarray  # (N, 4) float32 pixels
     confidence: np.ndarray  # (N,) float32
     labels: list[str]
+    sources: list[str] | None = None
+
+    def source_at(self, index: int) -> str:
+        return observation_source(
+            self.labels[index],
+            self.sources[index] if self.sources is not None else None,
+        )
 
     @staticmethod
     def empty() -> "Detections":
@@ -142,7 +151,10 @@ class YoloxDetector:
         idx = nms(boxes, best, self.nms_iou)
         labels = [self.class_names[int(i)] for i in scores[idx].argmax(1)]
         return Detections(
-            boxes[idx].astype(np.float32), best[idx].astype(np.float32), labels
+            boxes[idx].astype(np.float32),
+            best[idx].astype(np.float32),
+            labels,
+            [DETECTOR] * len(labels),
         )
 
 
@@ -185,6 +197,7 @@ class RfdetrDetector:
             boxes[idx],
             conf[idx],
             [self.names[int(result.class_id[keep][i])] for i in idx],
+            [DETECTOR] * len(idx),
         )
 
 
@@ -275,7 +288,7 @@ class TiledDetector:
         self.name = getattr(base, "name", "detector")
 
     def detect(self, bgr: np.ndarray) -> Detections:
-        boxes, confs, labels = [], [], []
+        boxes, confs, labels, sources = [], [], [], []
         tiles = self.tiles + (
             self.secondary if self.frame % self.secondary_every == 0 else []
         )
@@ -286,8 +299,14 @@ class TiledDetector:
                 boxes.append(out.xyxy + np.array([x0, y0, x0, y0], np.float32))
                 confs.append(out.confidence)
                 labels.extend(out.labels)
+                sources.extend(out.source_at(i) for i in range(len(out)))
         if not boxes:
             return Detections.empty()
         xyxy, conf = np.concatenate(boxes), np.concatenate(confs)
         keep = nms(xyxy, conf, self.nms_iou)
-        return Detections(xyxy[keep], conf[keep], [labels[i] for i in keep])
+        return Detections(
+            xyxy[keep],
+            conf[keep],
+            [labels[i] for i in keep],
+            [sources[i] for i in keep],
+        )

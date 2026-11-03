@@ -158,6 +158,9 @@ class OverlayClock:
                     return True
         return False
 
+    def _read_time(self, gray, region, variants=(0, 1)):
+        return ocr_time(gray, region, variants)
+
     def anchor_segment(self, data: bytes, fetched_at: float, duration: float) -> Anchor | None:
         with self._lock:
             result = self._anchor(data, fetched_at, duration)
@@ -182,7 +185,7 @@ class OverlayClock:
 
         def read(i: int) -> int | None:
             if i not in cache:
-                cache[i] = ocr_time(frames[i][1], region)
+                cache[i] = self._read_time(frames[i][1], region)
             return cache[i]
 
         def classify(i: int, s0: int, s1: int) -> int | None:
@@ -190,7 +193,7 @@ class OverlayClock:
             value = read(i)
             if value in (s0, s1):
                 return value
-            alt = ocr_time(frames[i][1], region, variants=(1,))
+            alt = self._read_time(frames[i][1], region, variants=(1,))
             return alt if alt in (s0, s1) else None
 
         # The initial second is the majority of the first three frames (a tick inside 80 ms is rare).

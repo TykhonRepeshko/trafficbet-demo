@@ -48,7 +48,7 @@ RULE = Definition.from_json({
     "notes": "Synthetic line for the incremental session test."})
 
 
-def run(monkeypatch, feed_one_by_one):
+def run(monkeypatch, feed_one_by_one, duplicate_boxes=False):
     monkeypatch.setattr(pipeline.video, "frames", fake_frames)
     track_x = {}
 
@@ -61,7 +61,8 @@ def run(monkeypatch, feed_one_by_one):
             x = 0.1 + 0.8 * min(max((t - 1003.05) / 6.0, 0.0), 1.0)  # never exactly on the line
             w = 16
             cx = x * 160
-            return [SimpleNamespace(track_id=7, label="car", confidence=0.9, xyxy=(cx - w / 2, 40, cx + w / 2, 70))]
+            box = SimpleNamespace(track_id=7, label="car", confidence=0.9, xyxy=(cx - w / 2, 40, cx + w / 2, 70))
+            return [box, box] if duplicate_boxes else [box]
 
     monkeypatch.setattr(pipeline, "Tracker", Tracker)
     monkeypatch.setattr(pipeline, "TiledDetector", lambda base, tiles, **kw: SimpleNamespace(detect=lambda bgr: [], tiles=tiles, base=base))
@@ -102,3 +103,63 @@ def test_progress_is_reported_within_a_segment(monkeypatch):
     assert [r["processedUntil"] for r in reports] == sorted(r["processedUntil"] for r in reports)
     assert reports[0]["segments"][-1]["seq"] == 11 and reports[-1]["processedUntil"] < 1010.0
     assert session.progress()["processedUntil"] == 1010.0
+
+
+def test_green_boxes_follow_only_counted_tracks_and_stay_bounded(monkeypatch):
+    import json
+    _, snapshots = run(monkeypatch, True)
+    assert snapshots[0]['highlights'] == []
+    crossing = snapshots[-1]['crossings'][0]
+    assert crossing['trackId'] == 7
+    frames = snapshots[-1]['highlights']
+    assert len(frames) <= 80
+    assert any(f['boxes'] for f in frames)
+    for frame in frames:
+        for box in frame['boxes']:
+            assert frame['at'] >= crossing['at']
+            assert box['trackId'] == crossing['trackId']
+            assert 0 <= box['x'] < box['x']+box['width'] <= 1.001
+            assert 0 <= box['y'] < box['y']+box['height'] <= 1.001
+    assert sum(len(f['boxes']) for f in frames) <= 640
+    assert len(json.dumps(snapshots[-1]).encode()) <= 60000
+
+
+def test_progress_removes_highlights_when_duplicate_identity_is_no_longer_counted():
+    session=pipeline.RoundSession(FakeDetector(0),RULE,1000.,1030.,5.,.45)
+    session.counter=SimpleNamespace(crossings=[{'trackId':2,'at':1005.,'direction':'A_to_B','class':'car'}])
+    session.highlight_frames.append({'at':1006.,'boxes':[{'trackId':1,'x':.1,'y':.2,'width':.1,'height':.1}]})
+    assert session.progress()['highlights'][0]['boxes']==[]
+
+
+def test_highlights_send_one_box_for_each_counted_identity(monkeypatch):
+    _, snapshots = run(monkeypatch, True, duplicate_boxes=True)
+    assert any(f['boxes'] for f in snapshots[-1]['highlights'])
+    for f in snapshots[-1]['highlights']:
+        ids = [b['trackId'] for b in f['boxes']]
+        assert len(ids) == len(set(ids))
+
+
+def test_right_only_047_profile_discards_left_road_before_tracking(monkeypatch):
+    import json
+    from pathlib import Path
+    from tbcounter.detector import Detections
+    from tbcounter.rules import in_road_regions, Point
+    definition = json.loads((Path(__file__).parents[1] / 'dev/profiles/caltrans_sr57_sr22_right.json').read_text())['definition']
+    rule = Definition.from_json(definition)
+    assert rule.line_start.x >= .5 and rule.line_end.x >= .5
+    assert len(rule.road_regions) == 1
+    assert not in_road_regions(rule.road_regions, Point(.25,.7))
+    assert in_road_regions(rule.road_regions, Point(.65,.7))
+    dets = Detections(np.array([[30,40,50,63],[96,40,112,63]],np.float32),np.array([.9,.9],np.float32),['car','car'])
+    received=[]
+    class Tracker:
+        def __init__(self,*args): pass
+        def update(self,items,t):
+            received.extend(items.xyxy.tolist())
+            return []
+    monkeypatch.setattr(pipeline,'Tracker',Tracker)
+    monkeypatch.setattr(pipeline,'TiledDetector',lambda *args,**kw:SimpleNamespace(detect=lambda bgr:dets))
+    session=pipeline.RoundSession(FakeDetector(0),rule,1000.,1030.,5.,.45)
+    session._frame(1005.,np.zeros((90,160,3),np.uint8),None)
+    assert received == [[96.,40.,112.,63.]]
+    assert session.count == 0

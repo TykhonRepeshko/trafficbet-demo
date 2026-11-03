@@ -38,3 +38,14 @@ def test_cuda_is_explicit_and_model_selection_is_validated(monkeypatch):
     monkeypatch.setenv("DEVICE", "anything")
     with pytest.raises(ValueError, match="DEVICE"):
         load()
+
+
+def test_native_motion_processing_is_opt_in_and_validated(monkeypatch):
+    monkeypatch.setenv("WORKER_TOKEN", "x" * 32)
+    monkeypatch.delenv("MOTION_RESOLUTION", raising=False)
+    assert load().motion_resolution == "legacy"
+    monkeypatch.setenv("MOTION_RESOLUTION", "native")
+    assert load().motion_resolution == "native"
+    monkeypatch.setenv("MOTION_RESOLUTION", "invalid")
+    with pytest.raises(ValueError, match="MOTION_RESOLUTION"):
+        load()

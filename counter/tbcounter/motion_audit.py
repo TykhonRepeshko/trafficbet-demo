@@ -37,9 +37,10 @@ class ObjectTrack:
 
 
 class MotionAudit:
-    def __init__(self, rule, width, height, start, end, fps, scale):
+    def __init__(self, rule, width, height, start, end, fps, scale, offset=(0, 0)):
         self.rule, self.width, self.height = rule, width, height
         self.start, self.end, self.fps, self.scale = start, end, fps, scale
+        self.offset = np.array(offset, dtype=float)
         self.tracker = Tracker(fps, 0.3)
         self.tracks = {}
         self.last_at = start
@@ -65,13 +66,16 @@ class MotionAudit:
         for (x, y, w, h, area), center in zip(stats[1:], centroids[1:]):
             if (
                 min(w, h) < 3
-                or not 20 <= area <= foreground.size * 0.12
+                or not 20 <= area <= self.width * self.height * self.scale**2 * 0.12
                 or not 0.15 < w / h < 8
                 or area / (w * h) < 0.2
             ):
                 continue
-            boxes.append(np.array([x, y, x + w, y + h], float) / self.scale)
-            centers.append(np.array(center, float) / self.scale)
+            boxes.append(
+                np.array([x, y, x + w, y + h], float) / self.scale
+                + np.tile(self.offset, 2)
+            )
+            centers.append(np.array(center, float) / self.scale + self.offset)
         detected = Detections(
             np.array(boxes, np.float32).reshape(-1, 4),
             np.full(len(boxes), 0.7, np.float32),
@@ -183,9 +187,8 @@ class MotionAudit:
         if (
             state is None
             or state.last is None
-            or state.strong < 3
+            or state.detector_strong < 3
             or not state.votes
-            or max(state.votes, key=state.votes.get) == "vehicle"
             or len(times) < 3
             or max(times) < self.end - 0.5
             or state.last_at < self.end - 0.5

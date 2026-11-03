@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import time
+import json
+from collections import deque
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 
@@ -17,7 +19,7 @@ from .tracking import Tracker
 from .motion import MotionBridge
 
 PRE_ROLL = 2.0  # seconds of tracking before the window so vehicles already have a track at its start
-COVERAGES = ("line", "wide", "grid")
+COVERAGES = ("line", "wide", "grid", "full")
 
 
 def pre_roll_for(hybrid_motion: bool) -> float:
@@ -88,6 +90,7 @@ class RoundSession:
         activation: float,
         coverage: str = "line",
         hybrid_motion: bool = False,
+        motion_resolution: str = "legacy",
     ) -> None:
         if coverage not in COVERAGES:
             raise ValueError(f"unknown coverage {coverage!r}")
@@ -100,6 +103,7 @@ class RoundSession:
         )
         self.coverage = coverage
         self.hybrid_motion = hybrid_motion
+        self.motion_resolution = motion_resolution
         self.pre_roll = pre_roll_for(hybrid_motion)
         self.motion: MotionBridge | None = None
         self.tracker = Tracker(fps, activation)
@@ -114,6 +118,8 @@ class RoundSession:
         self.segments: list[Segment] = []
         self.complete = False
         self._last_frame: np.ndarray | None = None
+        self.highlight_frames = deque(maxlen=80)
+        self.last_highlight_at = float("-inf")
 
     def feed(
         self, seg: Segment, on_frame=None, on_progress=None, progress_every: float = 2.0
@@ -153,7 +159,13 @@ class RoundSession:
             )
             if self.hybrid_motion:
                 self.motion = MotionBridge(
-                    self.rule, self.width, self.height, self.start, self.fps, self.end
+                    self.rule,
+                    self.width,
+                    self.height,
+                    self.start,
+                    self.fps,
+                    self.end,
+                    resolution=self.motion_resolution,
                 )
             self.first_sig = framing.signature(bgr)
             r = self.rule
@@ -170,6 +182,9 @@ class RoundSession:
             )
             if self.coverage == "grid":
                 tiles = grid_tiles(self.width, self.height)
+            elif self.coverage == "full":
+                # Large clear vehicles do not need crop seams or partial-body boxes.
+                tiles = [(0, 0, self.width, self.height)]
             self.tiled = TiledDetector(self.detector, tiles, secondary=extra)
         d0 = time.perf_counter()
         dets = self.tiled.detect(bgr)
@@ -189,7 +204,10 @@ class RoundSession:
                 dtype=int,
             )
             dets = type(dets)(
-                dets.xyxy[keep], dets.confidence[keep], [dets.labels[i] for i in keep]
+                dets.xyxy[keep],
+                dets.confidence[keep],
+                [dets.labels[i] for i in keep],
+                [dets.source_at(i) for i in keep],
             )
         self.detect_time += time.perf_counter() - d0
         self.detections += len(dets)
@@ -199,7 +217,14 @@ class RoundSession:
         if self.motion is not None:
             boxes = self.motion.update(bgr, boxes, t)
         for box in boxes:
-            self.counter.observe(box.track_id, box.label, box.confidence, box.xyxy, t)
+            self.counter.observe(
+                box.track_id,
+                box.label,
+                box.confidence,
+                box.xyxy,
+                t,
+                source=getattr(box, "source", None),
+            )
         if self.motion is not None:
             self.motion.completed.update(
                 crossing["trackId"] for crossing in self.counter.crossings
@@ -209,6 +234,22 @@ class RoundSession:
                 for tid, canonical in self.counter.alias.items()
                 if canonical in self.motion.completed
             )
+        if self.start <= t < self.end and t - self.last_highlight_at >= 0.38:
+            self.last_highlight_at = t
+            counted = {c["trackId"] for c in self.counter.crossings}
+            highlights, highlighted_tracks = [], set()
+            for box in sorted(boxes, key=lambda b: b.confidence, reverse=True):
+                canonical = self.counter.alias.get(box.track_id, box.track_id)
+                if canonical not in counted or canonical in highlighted_tracks:
+                    continue
+                x1, y1, x2, y2 = map(float, box.xyxy)
+                x1, y1 = max(0., min(1., x1 / self.width)), max(0., min(1., y1 / self.height))
+                x2, y2 = max(x1, min(1., x2 / self.width)), max(y1, min(1., y2 / self.height))
+                if x2 > x1 and y2 > y1:
+                    highlighted_tracks.add(canonical)
+                    highlights.append({"trackId": int(canonical), "x": round(x1,4), "y": round(y1,4),
+                                       "width": round(x2-x1,4), "height": round(y2-y1,4)})
+            self.highlight_frames.append({"at": round(t,3), "boxes": highlights[:40]})
         if on_frame is not None:
             on_frame(t, bgr, boxes, self.counter)
         self.frames += 1
@@ -222,11 +263,14 @@ class RoundSession:
         """Live view for the backend: counted crossings so far and the capture clock of each fed segment
         (including the one being processed, so players can map the frame on screen)."""
         crossings = self.counter.crossings if self.counter else []
-        return {
+        counted_at = {int(c["trackId"]): c["at"] for c in crossings}
+        frames = [{"at":f["at"], "boxes":[b for b in f["boxes"] if b["trackId"] in counted_at and counted_at[b["trackId"]] <= f["at"]+0.001]} for f in self.highlight_frames]
+        payload = {
             "vehicleCount": len(crossings),
             "crossings": [
                 {
                     "at": round(c["at"], 3),
+                    "trackId": int(c["trackId"]),
                     "direction": c["direction"],
                     "class": c["class"],
                 }
@@ -242,7 +286,19 @@ class RoundSession:
                 if s.anchor is not None
             ][-40:],
             "processedUntil": round(self.processed_until, 3),
+            "highlights": frames,
         }
+        # Display metadata stays inside the existing 64 KiB progress limit.
+        # Keep the newest frames, including empty frames that clear old boxes.
+        while payload["highlights"] and (sum(len(f["boxes"]) for f in payload["highlights"]) > 640
+                                          or len(json.dumps(payload).encode()) > 60000):
+            latest = payload["highlights"][-1]
+            payload["highlights"] = payload["highlights"][::2]
+            if payload["highlights"][-1] is not latest:
+                payload["highlights"].append(latest)
+            if len(payload["highlights"]) <= 2 and len(json.dumps(payload).encode()) > 60000:
+                payload["highlights"] = []
+        return payload
 
     def analysis(self) -> RoundAnalysis:
         c = self.counter
@@ -292,9 +348,18 @@ def count_round(
     on_frame=None,
     coverage: str = "line",
     hybrid_motion: bool = False,
+    motion_resolution: str = "legacy",
 ) -> RoundAnalysis:
     session = RoundSession(
-        detector, rule, start, end, fps, activation, coverage, hybrid_motion
+        detector,
+        rule,
+        start,
+        end,
+        fps,
+        activation,
+        coverage,
+        hybrid_motion,
+        motion_resolution,
     )
     for seg in segments:
         session.feed(seg, on_frame)

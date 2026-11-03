@@ -4,13 +4,14 @@ import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import type Hls from 'hls.js';
 import type { ErrorData, LevelUpdatedData } from 'hls.js';
 import { environment } from '../../environments/environment';
-import { CountingSnapshot, TrafficStream } from '../models';
+import { CountingSnapshot, LiveHighlightFrame, LiveRound, TrafficStream } from '../models';
 import { cameraGatewayUrl, cameraSnapshotUrl, youtubeVideoId } from '../services/media-urls';
 import { CountingOverlayComponent } from './counting-overlay.component';
 import { CameraSceneComponent } from './camera-scene.component';
 import { IconComponent } from './icon.component';
+import { CountedVehiclesOverlayComponent } from './counted-vehicles-overlay.component';
 
-@Component({ selector: 'app-video-player', standalone: true, imports: [DatePipe, NgIf, CameraSceneComponent, CountingOverlayComponent, IconComponent], styleUrl: './video-player.component.css', template: `
+@Component({ selector: 'app-video-player', standalone: true, imports: [DatePipe, NgIf, CameraSceneComponent, CountingOverlayComponent, CountedVehiclesOverlayComponent, IconComponent], styleUrl: './video-player.component.css', template: `
   <div class="vp">
     <div class="vp-stage" #playerShell>
       <app-camera-scene *ngIf="preview" [variant]="stream.id"></app-camera-scene>
@@ -19,6 +20,7 @@ import { IconComponent } from './icon.component';
       <img *ngIf="playing && !preview && (stream.streamType === 'image' || stream.streamType === 'mjpeg') && imageUrl" class="vp-media" [src]="imageUrl" [alt]="stream.streamType === 'image' ? 'Refreshing camera snapshot' : 'MJPEG camera feed'" referrerpolicy="no-referrer" (load)="loaded()" (error)="mediaError()">
       <iframe *ngIf="playing && !preview && stream.streamType === 'youtube' && youtubeUrl" class="vp-media" [src]="youtubeUrl" title="Source operator camera player on YouTube" referrerpolicy="strict-origin-when-cross-origin" sandbox="allow-scripts allow-same-origin allow-presentation" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen (load)="loaded()"></iframe>
       <app-counting-overlay *ngIf="!preview && !error && (playing ? !loading : !!poster && !posterFailed && posterWidth > 0)" [guide]="stream.countingGuide" [snapshot]="countingSnapshot" [mediaWidth]="playing ? mediaWidth : posterWidth" [mediaHeight]="playing ? mediaHeight : posterHeight"></app-counting-overlay>
+      <app-counted-vehicles-overlay *ngIf="playing && !loading && !error && !preview" [frames]="highlightFrames" [captureTime]="highlightCaptureTime" [mediaWidth]="mediaWidth" [mediaHeight]="mediaHeight"></app-counted-vehicles-overlay>
       <div *ngIf="preview || (!playing && !(autoplay && playable))" class="vp-idle" [class.is-plain]="!preview && (!poster || posterFailed)">
         <strong>{{ preview ? 'Sample location' : playable ? 'Camera stream' : 'Feed not connected' }}</strong>
         <p>{{ preview ? 'Illustrated road scene. This design preview has no live video.' : playable ? 'Start the camera feed. Timing depends on the source.' : 'A supported camera feed has not been connected yet.' }}</p>
@@ -59,6 +61,8 @@ import { IconComponent } from './icon.component';
 export class VideoPlayerComponent implements OnChanges, OnDestroy {
   @Input({ required: true }) stream!: TrafficStream;
   @Input() countingSnapshot?: CountingSnapshot;
+  @Input() highlightFrames?: LiveHighlightFrame[];
+  @Input() highlightCaptureTime: number | null = null;
   /** Start playback as soon as the source is known. Muted video satisfies browser autoplay rules. */
   @Input() autoplay = false;
   mediaWidth = 0; mediaHeight = 0;
@@ -176,7 +180,7 @@ export class VideoPlayerComponent implements OnChanges, OnDestroy {
   }
   playbackPaused(): void {
     // Recreating MediaSource can emit a pause event without a user pausing.
-    if (this.mediaRestarting || this.destroyed) return;
+    if (this.mediaRestarting || this.analysisPaused || this.destroyed) return;
     this.playbackWanted = false; this.watchSuspended = true; this.clearHealthyPlayback();
     if (this.recoveryTimer) window.clearTimeout(this.recoveryTimer); this.recoveryTimer = undefined;
   }
@@ -203,7 +207,7 @@ export class VideoPlayerComponent implements OnChanges, OnDestroy {
    */
   displayedCaptureTime(segments: readonly { seq: number; startUtc: number }[]): number | null {
     const video = this.video?.nativeElement;
-    if (!video || !this.hls || !segments.length || video.readyState < 2) return null;
+    if (!video || !this.hls || !segments.length || video.readyState < 2 || video.seeking) return null;
     const anchors = new Map(segments.map((segment) => [segment.seq, segment.startUtc]));
     const position = video.currentTime;
     let nearest: { capture: number; distance: number } | null = null;
@@ -218,6 +222,52 @@ export class VideoPlayerComponent implements OnChanges, OnDestroy {
     return nearest?.capture ?? null;
   }
   private bufferedFragments: { sn: number; start: number; duration: number }[] = [];
+  private analysisRoundId?: number;
+  private analysisStarted = false;
+  private analysisPaused = false;
+
+  /** Keep the counting window on the analysed video timeline while the worker catches up. */
+  syncToAnalysis(round: LiveRound): void {
+    const video = this.video?.nativeElement;
+    if (!video || !this.hls || !this.playing || this.error || round.streamId !== this.stream.id) return;
+    const resume = () => {
+      if (this.analysisPaused) { this.analysisPaused = false; if (this.playbackWanted) void video.play().catch(() => {}); }
+    };
+    if (round.status === 'void') { resume(); return; }
+    if (!this.playbackWanted && !this.analysisPaused) return;
+    if (this.analysisRoundId !== round.marketId) {
+      resume(); this.analysisRoundId = round.marketId; this.analysisStarted = false;
+    }
+    const progress = round.live;
+    if (!progress?.segments.length) return;
+    const start = Date.parse(round.windowStart)/1000, end = Date.parse(round.windowEnd)/1000;
+    let shown = this.displayedCaptureTime(progress.segments);
+    if (shown === null || shown < start) return;
+    if (!this.analysisStarted) {
+      const anchors = new Map(progress.segments.map(s => [s.seq,s.startUtc]));
+      const fragment = this.bufferedFragments.find(f => {
+        const at=anchors.get(f.sn); return at !== undefined && at <= start && start < at+f.duration;
+      });
+      if (fragment && shown > start+0.35) {
+        const target=fragment.start+start-anchors.get(fragment.sn)!;
+        const available=Array.from({length:video.seekable.length},(_,i)=>i).some(i=>target>=video.seekable.start(i) && target<video.seekable.end(i));
+        if (available) { video.currentTime=target; shown=start; }
+      }
+      this.analysisStarted=true;
+    }
+    if (shown >= end) { resume(); return; }
+    const ceiling = round.status === 'settled' ? end+1 : Math.min(end,progress.processedUntil-0.4);
+    if (shown+0.2 >= ceiling) {
+      if (!this.analysisPaused) { this.analysisPaused=true; video.pause(); }
+    } else if (this.analysisPaused && ceiling > shown+0.6) { resume(); }
+  }
+
+  /** Release a public observer's analysis pause when its camera or observation changes. */
+  releaseAnalysisSync(): void {
+    const wasPaused = this.analysisPaused;
+    this.analysisPaused = false; this.analysisRoundId = undefined; this.analysisStarted = false;
+    if (wasPaused && this.playbackWanted && !this.destroyed && this.playing && !this.error) void this.video?.nativeElement.play().catch(() => {});
+  }
 
   goLive(): void {
     const video = this.video?.nativeElement, hls = this.hls;
@@ -451,6 +501,7 @@ export class VideoPlayerComponent implements OnChanges, OnDestroy {
   }
 
   private dispose(): void {
+    this.analysisPaused = false; this.analysisStarted = false; this.analysisRoundId = undefined;
     this.generation++; this.hls?.destroy(); this.hls = undefined;
     this.sourceResolution = '';
     this.setupGeneration = -1;

@@ -85,3 +85,16 @@ test('the HUD says the AI is catching up instead of showing a confident count', 
   assert.equal(logic.aiBehind(round({ live, status: 'settled', actualCount: 3 }), at(45_000), now, 'checking'), false);
   assert.equal(logic.aiBehind(round({ live: { ...live, processedUntil: at(60_000) } }), at(70_000), now, 'checking'), false, 'whole window analysed');
 });
+
+
+test('counted vehicle highlights match video time, interpolate the same track and clear stale boxes', () => {
+  const box={trackId:7,x:.1,y:.2,width:.1,height:.2};
+  const frames=[{at:10,boxes:[box]},{at:10.4,boxes:[{...box,x:.3}]},{at:10.8,boxes:[]}];
+  assert.equal(logic.countedVehicleBoxes(frames,null).length,0);
+  assert.equal(logic.countedVehicleBoxes(frames,9.9).length,0);
+  const midway=logic.countedVehicleBoxes(frames,10.2)[0];
+  assert.ok(Math.abs(midway.x-.2)<1e-6);
+  assert.equal(logic.countedVehicleBoxes(frames,10.8).length,0);
+  assert.equal(logic.countedVehicleBoxes(frames,20).length,0);
+  assert.equal(logic.countedVehicleBoxes([{at:10,boxes:[{...box,width:2}]}],10).length,0);
+});

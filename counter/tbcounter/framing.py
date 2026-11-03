@@ -23,7 +23,7 @@ class Comparison:
     similarity: float
 
     def to_json(self) -> dict:
-        return {"shiftPx": round(self.shift_px, 2), "shiftFraction": round(self.shift_frac, 4),
+        return {"shiftPx": round(self.shift_px, 2) if np.isfinite(self.shift_px) else None, "shiftFraction": round(self.shift_frac, 4) if np.isfinite(self.shift_frac) else None,
                 "response": round(self.response, 3), "similarity": round(self.similarity, 3)}
 
 
@@ -32,7 +32,10 @@ def signature(bgr_or_gray: np.ndarray) -> Signature:
     h, w = gray.shape
     # Ignore the operator's text bars at the top/bottom: they never move with the camera.
     band = gray[int(h * 0.08):int(h * 0.94)]
-    small = cv2.resize(band, (WIDTH, max(16, int(band.shape[0] * WIDTH / w))), interpolation=cv2.INTER_AREA)
+    # Derive the canonical height from the original aspect ratio. Integer
+    # crop boundaries at 768/1024/1280 widths must not change signature shape.
+    signature_height = max(16, round(h * 0.86 * WIDTH / w))
+    small = cv2.resize(band, (WIDTH, signature_height), interpolation=cv2.INTER_AREA)
     small = cv2.GaussianBlur(small.astype(np.float32), (3, 3), 0)
     gx, gy = cv2.Sobel(small, cv2.CV_32F, 1, 0), cv2.Sobel(small, cv2.CV_32F, 0, 1)
     grad = cv2.magnitude(gx, gy)

@@ -19,6 +19,9 @@ from .detector import Detections
 from .pixelation import pixelated_regions, pixelated_bodies
 from .rules import Point, in_road_regions
 from .motion_audit import MotionAudit
+from .evidence import DETECTOR, PIXEL_MOTION, MEASURED_MOTION, observation_source
+from .motion_view import MotionView
+from .observation_fusion import fuse_observations
 
 
 def overlap(a, b) -> float:
@@ -40,6 +43,8 @@ class VisualTrack:
     seen_at: float
     strong: int = 0
     velocity: np.ndarray | None = None
+    source: str | None = None
+    detector_strong: int = 0
 
 
 class MotionBridge:
@@ -53,6 +58,7 @@ class MotionBridge:
         start: float,
         fps: float,
         end: float | None = None,
+        resolution: str = "legacy",
     ):
         self.rule, self.width, self.height, self.start, self.fps = (
             rule,
@@ -61,8 +67,9 @@ class MotionBridge:
             start,
             fps,
         )
-        self.scale = min(1.0, 640 / width)
-        self.size = (round(width * self.scale), round(height * self.scale))
+        self.view = MotionView.create(rule, width, height, resolution)
+        self.scale = self.view.scale
+        self.size = self.view.size
         self.background = cv2.createBackgroundSubtractorMOG2(
             history=160, varThreshold=24, detectShadows=False
         )
@@ -90,6 +97,8 @@ class MotionBridge:
         self.resolved_regions = 0
         self.risks = []
         self.diagnostics = {}
+        self.fused_observations = 0
+        self.observation_sources = {DETECTOR: 0, PIXEL_MOTION: 0, MEASURED_MOTION: 0}
         self.audit = MotionAudit(
             rule,
             width,
@@ -98,6 +107,7 @@ class MotionBridge:
             end if end is not None else start + 30,
             fps,
             self.scale,
+            self.view.crop[:2],
         )
         self.band = np.zeros(self.size[::-1], np.uint8)
         self.road_mask = np.full(self.size[::-1], 255, np.uint8)
@@ -105,10 +115,7 @@ class MotionBridge:
             self.road_mask.fill(0)
             polygons = [
                 np.array(
-                    [
-                        [round(p.x * self.size[0]), round(p.y * self.size[1])]
-                        for p in polygon
-                    ],
+                    [self.view.point(p.x * width, p.y * height) for p in polygon],
                     np.int32,
                 )
                 for polygon in rule.road_regions
@@ -117,10 +124,10 @@ class MotionBridge:
         a, b = rule.line_start, rule.line_end
         cv2.line(
             self.band,
-            (round(a.x * self.size[0]), round(a.y * self.size[1])),
-            (round(b.x * self.size[0]), round(b.y * self.size[1])),
+            self.view.point(a.x * width, a.y * height),
+            self.view.point(b.x * width, b.y * height),
             255,
-            max(5, round(self.size[1] * 0.025)),
+            max(5, round(self.height * self.scale * 0.025)),
         )
         self.band = cv2.bitwise_and(self.band, self.road_mask)
 
@@ -141,7 +148,7 @@ class MotionBridge:
         )
 
     def features(self, gray, foreground, box):
-        x1, y1, x2, y2 = np.round(np.asarray(box) * self.scale).astype(int)
+        x1, y1, x2, y2 = np.round(self.view.to_work(box)).astype(int)
         h, w = gray.shape
         x1, y1, x2, y2 = max(0, x1), max(0, y1), min(w, x2), min(h, y2)
         mask = np.zeros_like(gray)
@@ -200,10 +207,10 @@ class MotionBridge:
         angle = abs(math.atan2(transform[1, 0], transform[0, 0]))
         if not 0.85 <= scale <= 1.18 or angle > 0.12:
             return None
-        box = track.box * self.scale
+        box = self.view.to_work(track.box)
         corners = np.array([[box[0], box[1]], [box[2], box[3]]], np.float32)
-        corners = cv2.transform(corners[None], transform)[0] / self.scale
-        result = np.asarray(np.r_[corners[0], corners[1]], dtype=np.float64)
+        corners = cv2.transform(corners[None], transform)[0]
+        result = self.view.to_frame(np.r_[corners[0], corners[1]])
         if (
             result[0] < 0
             or result[1] < 0
@@ -253,7 +260,7 @@ class MotionBridge:
     def prepare(self, bgr, at):
         if self.prepared_at == at:
             return self.prepared
-        gray = cv2.resize(cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY), self.size)
+        gray = self.view.gray(bgr)
         if at < self.start and self.frames % 4 == 0:
             self.reference_samples.append(gray.copy())
             self.reference_samples = self.reference_samples[-20:]
@@ -285,14 +292,35 @@ class MotionBridge:
     def augment(self, bgr, detections: Detections, at: float) -> Detections:
         gray, foreground = self.prepare(bgr, at)
         candidates = (
-            pixelated_regions(gray, foreground, self.scale)
+            [
+                self.view.to_frame(box * self.scale)
+                for box in pixelated_regions(
+                    gray,
+                    foreground,
+                    self.scale,
+                    self.width * self.height * self.scale**2 * 0.08,
+                )
+            ]
             if self.frames >= round(self.fps * 2)
             else []
         )
         boxes = list(detections.xyxy)
         confidence = list(detections.confidence)
         labels = list(detections.labels)
-        bodies = pixelated_bodies(gray, foreground, self.scale) if candidates else []
+        sources = [detections.source_at(i) for i in range(len(detections))]
+        bodies = (
+            [
+                self.view.to_frame(box * self.scale)
+                for box in pixelated_bodies(
+                    gray,
+                    foreground,
+                    self.scale,
+                    self.width * self.height * self.scale**2 * 0.08,
+                )
+            ]
+            if candidates
+            else []
+        )
         for candidate in candidates:
             # A bright foreground patch can include several metres of road in
             # front of a car. Refine only an existing classified identity using
@@ -365,26 +393,37 @@ class MotionBridge:
             boxes.append(candidate)
             confidence.append(0.7)
             labels.append("vehicle")
+            sources.append(PIXEL_MOTION)
             self.pixel_candidates += 1
         if not boxes:
             return Detections.empty()
         return Detections(
-            np.asarray(boxes, np.float32), np.asarray(confidence, np.float32), labels
+            np.asarray(boxes, np.float32),
+            np.asarray(confidence, np.float32),
+            labels,
+            sources,
         )
 
     def update(self, bgr, semantic: list[TrackedBox], at: float) -> list[TrackedBox]:
+        semantic, supports = fuse_observations(semantic, self.tracks, self.alias)
+        self.fused_observations += len(supports)
+        # Containment alone cannot distinguish a body fragment from another
+        # newly occluded vehicle. Prefer the established body's geometry, but
+        # never certify a complete count from this geometric guess alone.
+        if at >= self.start and any(
+            reason == "contained_fragment" for _, _, reason in supports
+        ):
+            self.issues.add("unverified_contained_motion")
         gray, foreground = self.prepare(bgr, at)
         count, _, stats, _ = cv2.connectedComponentsWithStats(foreground)
         components = []
         for x, y, w, h, area in stats[1:]:
             if (
                 min(w, h) >= 3
-                and 8 <= area <= gray.size * 0.12
+                and 8 <= area <= self.width * self.height * self.scale**2 * 0.12
                 and area / (w * h) >= 0.2
             ):
-                components.append(
-                    np.array([x, y, x + w, y + h], dtype=float) / self.scale
-                )
+                components.append(self.view.to_frame([x, y, x + w, y + h]))
         predictions = {}
         measured_ids = {self.alias.get(box.track_id) for box in semantic}
         if self.previous is not None and 0 < at - self.previous_at <= 0.5:
@@ -435,7 +474,8 @@ class MotionBridge:
                     self.warn("ambiguous_vehicle_merge", at, (tid,))
                 continue
             self.alias[box.track_id] = tid
-            if box.label != "vehicle" and box.confidence >= 0.35:
+            source = observation_source(box.label, box.source)
+            if source == DETECTOR and box.confidence >= 0.35:
                 self.classified.add(tid)
             used.add(tid)
             old = self.tracks.get(tid)
@@ -457,6 +497,9 @@ class MotionBridge:
                 at,
                 (old.strong if old else 0) + int(box.confidence >= 0.35),
                 velocity,
+                source,
+                (old.detector_strong if old else 0)
+                + int(source == DETECTOR and box.confidence >= 0.35),
             )
             track.points = self.features(gray, foreground, track.box)
             self.tracks[tid] = track
@@ -466,6 +509,7 @@ class MotionBridge:
                     box.label,
                     float(box.confidence),
                     tuple(float(v) for v in track.box),
+                    source,
                 )
             )
         for tid, track in list(self.tracks.items()):
@@ -494,7 +538,11 @@ class MotionBridge:
                 # confident classification. It must not supply strong votes.
                 output.append(
                     TrackedBox(
-                        tid, track.label, 0.25, tuple(float(v) for v in predicted)
+                        tid,
+                        track.label,
+                        0.25,
+                        tuple(float(v) for v in predicted),
+                        MEASURED_MOTION,
                     )
                 )
                 self.assisted += 1
@@ -511,7 +559,9 @@ class MotionBridge:
         if at >= self.start:
             covered = np.zeros_like(gray)
             for box in output:
-                x1, y1, x2, y2 = np.round(np.asarray(box.xyxy) * self.scale).astype(int)
+                x1, y1, x2, y2 = np.round(self.view.to_work(box.xyxy)).astype(int)
+                if x2 < 0 or y2 < 0 or x1 >= gray.shape[1] or y1 >= gray.shape[0]:
+                    continue
                 pad = 3
                 cv2.rectangle(
                     covered,
@@ -540,8 +590,7 @@ class MotionBridge:
                         self.unknown_events.append(
                             (
                                 at,
-                                np.array([x, y, x + w, y + h], dtype=float)
-                                / self.scale,
+                                self.view.to_frame([x, y, x + w, y + h]),
                             )
                         )
             # Overlapping boxes of independently measured, stable IDs do not
@@ -552,6 +601,8 @@ class MotionBridge:
         self.observations.extend(
             (at, box.track_id, np.array(box.xyxy, dtype=float)) for box in output
         )
+        for box in output:
+            self.observation_sources[observation_source(box.label, box.source)] += 1
         self.audit.update(foreground, output, at)
         if any(
             t.crossing is not None and self.audit.coherent(t)
@@ -728,6 +779,10 @@ class MotionBridge:
     def evidence(self):
         return {
             "method": "semantic_pixel_motion_v1",
+            "processingView": self.view.evidence(),
+            "observationPolicy": "explicit_origin_v1",
+            "observationSources": dict(self.observation_sources),
+            "fusedSupportingObservations": self.fused_observations,
             "assistedObservations": self.assisted,
             "reattachedTracks": self.reattached,
             "componentAssociations": self.blob_observations,

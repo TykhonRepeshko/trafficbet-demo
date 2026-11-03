@@ -13,6 +13,7 @@ const administrator: CanActivateFn = () => {
 export const routes: Routes = [
   { path: '', loadComponent: () => import('./pages/play.component').then((module) => module.PlayComponent), title: 'Play · TrafficBet' },
   { path: 'how-it-works', loadComponent: () => import('./pages/how-it-works.component').then((module) => module.HowItWorksComponent), title: 'How it works · TrafficBet' },
+  { path: 'streams', loadComponent: () => import('./pages/stream-list.component').then((module) => module.StreamListComponent), title: 'Cameras · TrafficBet' },
   { path: 'streams/:id', loadComponent: () => import('./pages/stream-detail.component').then((module) => module.StreamDetailComponent), title: 'Camera · TrafficBet' },
   { path: 'bets', loadComponent: () => import('./pages/bets.component').then((module) => module.BetsComponent), canActivate: [signedIn], title: 'My predictions · TrafficBet' },
   { path: 'account', loadComponent: () => import('./pages/account.component').then((module) => module.AccountComponent), canActivate: [signedIn], title: 'My account · TrafficBet' },

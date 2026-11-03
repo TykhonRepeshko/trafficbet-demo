@@ -138,7 +138,9 @@ export interface MarketPayload {
 }
 
 /** Live AI progress for a round (display only; settlement waits for the final verified result). */
-export interface LiveCrossing { at: number; direction: string; class: string; }
+export interface LiveCrossing { trackId?: number; at: number; direction: string; class: string; }
+export interface LiveVehicleBox { trackId: number; x: number; y: number; width: number; height: number; }
+export interface LiveHighlightFrame { at: number; boxes: LiveVehicleBox[]; }
 export interface LiveSegment { seq: number; startUtc: number; duration: number; }
 export interface LiveRound {
   marketId: number;
@@ -149,7 +151,7 @@ export interface LiveRound {
   windowEnd: string;
   actualCount?: number;
   voidReason?: string;
-  live: { vehicleCount: number; crossings: LiveCrossing[]; segments: LiveSegment[]; processedUntil: number; updatedAt: string } | null;
+  live: { highlights?: LiveHighlightFrame[]; vehicleCount: number; crossings: LiveCrossing[]; segments: LiveSegment[]; processedUntil: number; updatedAt: string } | null;
 }
 
 export interface RangeQuote {

@@ -10,7 +10,12 @@ import cv2
 import numpy as np
 
 
-def pixelated_bodies(gray: np.ndarray, foreground: np.ndarray, scale: float):
+def pixelated_bodies(
+    gray: np.ndarray,
+    foreground: np.ndarray,
+    scale: float,
+    max_area: float | None = None,
+):
     """Measured mosaic cells for an already classified vehicle, excluding smooth glare.
 
     These fragments cannot seed a vehicle on their own: road markings can also
@@ -33,18 +38,24 @@ def pixelated_bodies(gray: np.ndarray, foreground: np.ndarray, scale: float):
     return [
         np.array([x, y, x + w, y + h], np.float64) / scale
         for x, y, w, h, area in stats[1:]
-        if min(w, h) >= 5 and 25 <= area <= gray.size * 0.08
+        if min(w, h) >= 5
+        and 25 <= area <= (max_area if max_area is not None else gray.size * 0.08)
     ]
 
 
 def pixelated_regions(
-    gray: np.ndarray, foreground: np.ndarray, scale: float
+    gray: np.ndarray,
+    foreground: np.ndarray,
+    scale: float,
+    max_area: float | None = None,
 ) -> list[np.ndarray]:
     joined = cv2.morphologyEx(foreground, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
     _, _, stats, _ = cv2.connectedComponentsWithStats(joined)
     regions = []
     for x, y, width, height, area in stats[1:]:
-        if min(width, height) < 5 or not 55 <= area <= gray.size * 0.08:
+        if min(width, height) < 5 or not 55 <= area <= (
+            max_area if max_area is not None else gray.size * 0.08
+        ):
             continue
         if not 0.25 < width / height < 4 or area / (width * height) < 0.4:
             continue

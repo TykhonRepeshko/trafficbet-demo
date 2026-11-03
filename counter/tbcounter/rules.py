@@ -9,6 +9,8 @@ Times are UTC epoch seconds (float); points are normalised image coordinates.
 
 from __future__ import annotations
 
+from .evidence import DETECTOR, PIXEL_MOTION, observation_source
+
 import math
 import unicodedata
 from dataclasses import dataclass, field
@@ -241,6 +243,8 @@ class _TrackState:
     votes: dict[str, float] = field(default_factory=dict)
     areas: list[float] = field(default_factory=list)
     strong: int = 0
+    detector_strong: int = 0
+    coarse_strong: int = 0
     crossing: dict[str, Any] | None = None
     passage: dict[str, Any] | None = (
         None  # observed pass, including pre-roll, for motion reconciliation only
@@ -350,11 +354,13 @@ class CrossingCounter:
         confidence: float,
         xyxy: tuple[float, float, float, float],
         at: float,
+        source: str | None = None,
     ) -> None:
         # NumPy float32 coordinates must not promote epoch-second arithmetic to
         # float32 (which would lose whole seconds and break window boundaries).
         x1, y1, x2, y2 = (float(v) for v in xyxy)
         confidence, at = float(confidence), float(at)
+        source = observation_source(vehicle_class, source)
         if track_id in self.alias:
             track_id = self.alias[track_id]
         elif track_id not in self.tracks and confidence >= self.min_conf:
@@ -381,9 +387,14 @@ class CrossingCounter:
                 return  # a box that suddenly balloons or collapses is not the same vehicle's footprint
         state.areas.append(area)
         state.size = self._diag_fraction(x2 - x1, y2 - y1)
-        if confidence >= self.strong_conf:
+        if confidence >= self.strong_conf and source in (DETECTOR, PIXEL_MOTION):
             state.strong += 1
-        state.votes[vehicle_class] = state.votes.get(vehicle_class, 0.0) + confidence
+            state.detector_strong += int(source == DETECTOR)
+            state.coarse_strong += int(source == PIXEL_MOTION)
+        if source in (DETECTOR, PIXEL_MOTION):
+            state.votes[vehicle_class] = state.votes.get(vehicle_class, 0.0) + confidence
+        if not state.votes:
+            return  # Unclassified motion cannot invent a vehicle identity/class.
         cls = max(state.votes.items(), key=lambda kv: kv[1])[0]
         point = Point(
             min(max((x1 + x2) / 2 / self.width, 0.0), 1.0),
@@ -445,12 +456,13 @@ class CrossingCounter:
         state.last, state.last_at, state.stitched = point, at, False
 
     def _counted(self, state: _TrackState) -> bool:
-        required = (
-            max(8, self.min_strong)
-            if state.crossing and state.crossing["class"] == "vehicle"
-            else self.min_strong
+        return state.crossing is not None and self._confirmed(state, state.crossing)
+
+    def _confirmed(self, state: _TrackState, passage: dict) -> bool:
+        return state.detector_strong >= self.min_strong or (
+            passage["class"] == "vehicle"
+            and state.coarse_strong >= max(8, self.min_strong)
         )
-        return state.crossing is not None and state.strong >= required
 
     def confirmed_passage(self, track_id: int) -> dict[str, Any] | None:
         """An observed, class-confirmed pass; this never adds a settled crossing."""
@@ -458,12 +470,7 @@ class CrossingCounter:
         if state is None or state.passage is None:
             return None
         passage = state.crossing or state.passage
-        required = (
-            max(8, self.min_strong)
-            if passage["class"] == "vehicle"
-            else self.min_strong
-        )
-        return passage if state.strong >= required else None
+        return passage if self._confirmed(state, passage) else None
 
     @staticmethod
     def _overlap(a: tuple[float, ...], b: tuple[float, ...]) -> float:

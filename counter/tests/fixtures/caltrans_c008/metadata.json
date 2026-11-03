@@ -1,0 +1,24 @@
+{
+  "publisher": "Caltrans",
+  "source": "https://wzmedia.dot.ca.gov/D11/C008_NB_5_JSO_Rte_8.stream/playlist.m3u8",
+  "terms": "https://dot.ca.gov/conditions-of-use",
+  "captureDateLocal": "2026-11-03",
+  "timeZone": "America/Los_Angeles",
+  "purpose": "Small real-header and 2-second MPEG-TS regression fixtures for the opt-in C008 clock reader. Not a source authorization for public game distribution.",
+  "heldOutHeaders": [
+    "08-06-49",
+    "08-06-58",
+    "08-07-08",
+    "08-07-19",
+    "08-07-29",
+    "08-07-38"
+  ],
+  "trainingHeaderRangePtsSeconds": [
+    0,
+    9
+  ],
+  "validationHeaderRangePtsSeconds": [
+    10,
+    59.5
+  ]
+}

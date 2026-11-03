@@ -1,4 +1,4 @@
-import type { LiveRound, Market, RangeQuote, TrafficStream } from '../models';
+import type { LiveHighlightFrame, LiveVehicleBox, LiveRound, Market, RangeQuote, TrafficStream } from '../models';
 
 /** Largest count the API accepts; the last ready-made option is open-ended up to it. */
 export const OPEN_ENDED_MAX = 100000000;
@@ -74,4 +74,33 @@ export function payoutFor(stake: number, odds: number): number {
 export function mmss(seconds: number): string {
   const value = Math.max(0, Math.ceil(seconds));
   return `${Math.floor(value / 60)}:${(value % 60).toString().padStart(2, '0')}`;
+}
+
+/** Align measured boxes to the displayed frame, interpolating only bracketed observations of the same counted track. */
+export function countedVehicleBoxes(frames: readonly LiveHighlightFrame[] | undefined, displayed: number | null): LiveVehicleBox[] {
+  if (!frames?.length || displayed === null || !Number.isFinite(displayed)) return [];
+  const before = [...frames].reverse().find(f => Number.isFinite(f.at) && f.at <= displayed);
+  if (!before) return [];
+  const valid = (b: LiveVehicleBox) => Number.isSafeInteger(b.trackId) && b.trackId >= 0 &&
+    [b.x,b.y,b.width,b.height].every(Number.isFinite) && b.x >= 0 && b.y >= 0 && b.width > 0 && b.height > 0 && b.x+b.width <= 1.001 && b.y+b.height <= 1.001;
+  const after = frames.find(f => Number.isFinite(f.at) && f.at > displayed);
+  return before.boxes.filter(valid).flatMap(box => {
+    const next = after?.boxes.find(b => b.trackId === box.trackId && valid(b));
+    if (next && after && after.at-before.at <= 1.01) {
+      const r = (displayed-before.at)/(after.at-before.at);
+      return [{ trackId:box.trackId, x:box.x+(next.x-box.x)*r, y:box.y+(next.y-box.y)*r,
+        width:box.width+(next.width-box.width)*r, height:box.height+(next.height-box.height)*r }];
+    }
+    return displayed-before.at <= 0.45 ? [box] : [];
+  });
+}
+
+/** Observe the current AI window, independently of which future round accepts bets. */
+export function pickObservedMarket(markets: readonly Market[], streamId: number, now: number, sourceFingerprint?: string): Market | undefined {
+  const eligible = markets.filter(m => m.streamId === streamId && m.status === 'open' && m.countingRules?.mode === 'versioned' &&
+    (!sourceFingerprint || m.countingRules.sourceFingerprint === sourceFingerprint) &&
+    Number.isFinite(Date.parse(m.windowStart)) && Number.isFinite(Date.parse(m.windowEnd)) && Date.parse(m.windowEnd)>Date.parse(m.windowStart));
+  return eligible.filter(m => Date.parse(m.windowStart)<=now && Date.parse(m.windowEnd)>=now-90_000)
+    .sort((a,b)=>Date.parse(b.windowStart)-Date.parse(a.windowStart))[0]
+    ?? eligible.filter(m=>Date.parse(m.windowStart)>now).sort((a,b)=>Date.parse(a.windowStart)-Date.parse(b.windowStart))[0];
 }

@@ -18,6 +18,7 @@ from . import config as config_mod
 from . import detector as detector_mod
 from . import framing, log, pipeline
 from .clock import OverlayClock
+from .source_clocks import source_clock
 from .hls import StreamFetcher
 from .rules import Definition, valid_definition
 from .segments import SegmentBuffer
@@ -159,8 +160,13 @@ class Counter:
             sid = int(info["id"])
             seen.add(sid)
             cam = self.cameras.get(sid)
+            if cam is not None and cam.info.get("sourceFingerprint") != info.get("sourceFingerprint"):
+                cam.fetcher.stop()
+                if cam.calibration is not None:
+                    cam.calibration.cancel()
+                cam = None
             if cam is None:
-                buffer, clock = SegmentBuffer(self.cfg.buffer_seconds), OverlayClock()
+                buffer, clock = SegmentBuffer(self.cfg.buffer_seconds), source_clock(info)
                 fetcher = StreamFetcher(
                     sid,
                     self.cfg.api_base + info["mediaPath"],
@@ -464,6 +470,7 @@ class Counter:
                             self.cfg.conf_threshold,
                             mode,
                             self.cfg.hybrid_motion,
+                            motion_resolution=getattr(self.cfg,"motion_resolution","legacy"),
                         ),
                     )
                 fed = [seg.seq for seg in job.session.segments]
@@ -482,6 +489,7 @@ class Counter:
                         self.cfg.conf_threshold,
                         job.session.coverage,
                         self.cfg.hybrid_motion,
+                        motion_resolution=getattr(self.cfg,"motion_resolution","legacy"),
                     )
                     fed = []
                 fresh = coverage.segments[len(fed) :]

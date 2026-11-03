@@ -652,3 +652,41 @@ test('fullscreen uses the common video and overlay container and handles unavail
     await h.component.toggleFullscreen({ requestFullscreen: async () => { throw new Error('Disabled'); } });
   } finally { h.destroy(); }
 });
+
+
+test('AI playback rewinds to the counting window and waits for analysed frames without overriding user pause', async () => {
+  const h=harness();
+  try {
+    h.component.start();h.mount();await flush();h.video.readyState=4;h.video.paused=false;h.video.currentTime=15;
+    h.component.bufferedFragments=[{sn:1,start:10,duration:10},{sn:2,start:20,duration:10}];
+    const round={marketId:9,streamId:37,status:'open',windowStart:new Date(1000_000).toISOString(),windowEnd:new Date(1030_000).toISOString(),live:{processedUntil:1000.1,segments:[{seq:1,startUtc:1000,duration:10},{seq:2,startUtc:1010,duration:10}]}};
+    h.component.syncToAnalysis(round);
+    assert.equal(h.video.currentTime,10);assert.equal(h.video.paused,true);
+    h.component.playbackPaused(); // internally paused: keep the user's play intent
+    round.live.processedUntil=1003;h.component.syncToAnalysis(round);
+    assert.equal(h.video.paused,false);
+    h.video.pause();h.component.playbackPaused();const plays=h.video.plays;
+    round.live.processedUntil=1008;h.component.syncToAnalysis(round);
+    assert.equal(h.video.plays,plays);assert.equal(h.video.paused,true);
+  } finally {h.destroy();}
+});
+
+test('AI sync ignores other cameras and never highlights or maps a frame during a seek', async () => {
+  const h=harness();
+  try {
+    h.component.start();h.mount();await flush();h.video.readyState=4;h.video.currentTime=15;h.video.seeking=true;
+    h.component.bufferedFragments=[{sn:1,start:10,duration:10}];
+    assert.equal(h.component.displayedCaptureTime([{seq:1,startUtc:1000}]),null);
+    h.component.syncToAnalysis({marketId:9,streamId:999,status:'open',windowStart:new Date(1000_000).toISOString(),windowEnd:new Date(1030_000).toISOString(),live:{processedUntil:1001,segments:[{seq:1,startUtc:1000}]}});
+    assert.equal(h.video.currentTime,15);
+  } finally {h.destroy();}
+});
+
+
+test('releasing a public counter resumes only an analysis pause and keeps a manual pause', async () => {
+  const h=harness();try{
+    h.component.start();h.mount();await flush();h.component.analysisPaused=true;h.component.playbackWanted=true;h.video.pause();
+    h.component.releaseAnalysisSync();assert.equal(h.video.paused,false);assert.equal(h.component.analysisStarted,false);
+    h.video.pause();h.component.playbackPaused();const plays=h.video.plays;h.component.releaseAnalysisSync();assert.equal(h.video.plays,plays);assert.equal(h.video.paused,true);
+  }finally{h.destroy();}
+});

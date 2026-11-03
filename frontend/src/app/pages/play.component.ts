@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { Subject, Subscription, catchError, debounceTime, forkJoin, map, of, switchMap, timeout } from 'rxjs';
 import { VideoPlayerComponent } from '../components/video-player.component';
+import { LiveCameraCounterComponent } from '../components/live-camera-counter.component';
 import { IconComponent } from '../components/icon.component';
 import { Bet, LiveRound, Market, RangeQuote, TrafficStream } from '../models';
 import { ApiService } from '../services/api.service';
@@ -15,7 +16,7 @@ type Stage = 'idle' | 'finding' | 'betting' | 'placed' | 'empty';
 type Choice = { kind: 'option'; index: number } | { kind: 'exact' };
 interface Ticket { marketId: number; label: string; stake: number; payout: number; rangeMin: number; rangeMax: number; }
 
-@Component({ selector: 'app-play', standalone: true, imports: [DecimalPipe, FormsModule, NgFor, NgIf, RouterLink, VideoPlayerComponent, IconComponent], styleUrl: './play.component.css', template: `
+@Component({ selector: 'app-play', standalone: true, imports: [DecimalPipe, FormsModule, NgFor, NgIf, RouterLink, VideoPlayerComponent, LiveCameraCounterComponent, IconComponent], styleUrl: './play.component.css', template: `
   <section class="play" [class.has-game]="!!stream && !!market">
     <div class="play-hero" *ngIf="!stream || !market">
       <span class="tb-chip is-live"><span class="tb-dot is-pulse"></span>Live road cameras · virtual predictions</span>
@@ -36,7 +37,8 @@ interface Ticket { marketId: number; label: string; stake: number; payout: numbe
     <ng-container *ngIf="stream && market">
       <div class="play-stage">
         <div class="play-video">
-          <app-video-player [stream]="stream" [autoplay]="true" [countingSnapshot]="market.countingRules">
+          <app-video-player #videoPlayer [stream]="stream" [autoplay]="true" [countingSnapshot]="stage === 'placed' ? market.countingRules : (cameraCounter.snapshot ?? market.countingRules)" [highlightFrames]="stage === 'placed' ? (live?.status === 'void' ? undefined : live?.live?.highlights) : cameraCounter.highlights" [highlightCaptureTime]="stage === 'placed' ? displayed : cameraCounter.displayed">
+            <app-live-camera-counter #cameraCounter vp-overlay [stream]="stream" [player]="videoPlayer" [enabled]="stage !== 'placed' && automaticSettlement"></app-live-camera-counter>
             <div vp-overlay class="hud" *ngIf="stage === 'placed' && automaticSettlement" [class.is-live]="phase === 'counting' && !behind" [class.is-behind]="behind" [class.is-done]="phase === 'result'">
               <div class="hud-count" [class.is-flash]="flash"><small>AI count</small><strong class="tb-num">{{ count }}</strong></div>
               <div class="hud-status"><span class="tb-spinner hud-spin" *ngIf="behind || phase === 'syncing'"></span><span class="hud-dot" *ngIf="phase === 'counting' && !behind"></span>{{ hudStatus }}</div>
@@ -326,6 +328,7 @@ export class PlayComponent implements OnDestroy {
     this.now = Date.now();
     if (this.stage === 'betting' && this.market && !this.submitting && this.closesIn <= 1) this.nextRoundSameCamera();
     if (this.stage !== 'placed' || !this.market) return;
+    if (this.live) this.player?.syncToAnalysis?.(this.live);
     const segments = this.live?.live?.segments;
     this.displayed = segments?.length ? this.player?.displayedCaptureTime(segments) ?? null : null;
     const round = this.live ?? { status: 'open' as const, windowStart: this.market.windowStart, windowEnd: this.market.windowEnd };

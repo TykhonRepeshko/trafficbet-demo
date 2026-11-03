@@ -1,0 +1,122 @@
+{
+  "id": "caltrans-c008-both-carriageways-v2",
+  "status": "offline_trial_only",
+  "registeredInApplication": false,
+  "source": {
+    "title": "Caltrans C008 I-5 south of I-8, San Diego",
+    "url": "https://wzmedia.dot.ca.gov/D11/C008_NB_5_JSO_Rte_8.stream/playlist.m3u8",
+    "httpsHosts": [
+      "wzmedia.dot.ca.gov"
+    ],
+    "expectedWidth": 640,
+    "expectedHeight": 480,
+    "clockTimeZone": "America/Los_Angeles",
+    "clockReader": "caltrans_c008_header_v1"
+  },
+  "definition": {
+    "label": "C008 both carriageways, outer road edge to outer road edge",
+    "lineStart": {
+      "x": 0.2761645047169811,
+      "y": 0.10833333333333334
+    },
+    "lineEnd": {
+      "x": 0.5625,
+      "y": 0.8375
+    },
+    "directions": [
+      "A_to_B",
+      "B_to_A"
+    ],
+    "classes": [
+      "car",
+      "van",
+      "bus",
+      "truck",
+      "motorcycle"
+    ],
+    "anchor": "bottom_center",
+    "timeBasis": "capture_utc",
+    "notes": "Offline trial only. Count vehicles crossing the line on BOTH carriageways in both directions. The two road polygons exclude the concrete median, timestamp bar, vegetation and shoulder. The extended line is collinear with the previous near-road line. Existing application camera settings are unchanged.",
+    "roadRegions": [
+      [
+        {
+          "x": 0.0,
+          "y": 0.5333333333333333
+        },
+        {
+          "x": 0.9984375,
+          "y": 0.18125
+        },
+        {
+          "x": 0.9984375,
+          "y": 0.36666666666666664
+        },
+        {
+          "x": 0.4109375,
+          "y": 0.9979166666666667
+        },
+        {
+          "x": 0.0,
+          "y": 0.9979166666666667
+        }
+      ],
+      [
+        {
+          "x": 0.0,
+          "y": 0.2
+        },
+        {
+          "x": 0.375,
+          "y": 0.09375
+        },
+        {
+          "x": 0.9984375,
+          "y": 0.08958333333333333
+        },
+        {
+          "x": 0.9984375,
+          "y": 0.12916666666666668
+        },
+        {
+          "x": 0.0,
+          "y": 0.44583333333333336
+        }
+      ]
+    ]
+  },
+  "validation": {
+    "recordedSource": "2026-11-03 Caltrans C008 qualification capture",
+    "calibrationWindowSeconds": [
+      10,
+      20
+    ],
+    "heldOutCountWindowSeconds": [
+      20,
+      50
+    ],
+    "humanReviewer": "Codex visual review; not an independent second human reviewer",
+    "geometryFrozenBeforeCounterPredictions": true,
+    "approvedForSettlement": false,
+    "sampleScope": "Daylight sample only. No night/rain or permanent fixed-view guarantee.",
+    "result": "Both-carriageway control: count 80 vs visually reviewed 94; 77 time/direction matches, 17 unmatched reference events, 3 unmatched predictions. Tracking audit fails. This recheck is not a new unseen benchmark. Source-clock continuity remains unqualified; no activation.",
+    "scope": "Both carriageways combined; previous near-only counts are historical and do not validate this profile.",
+    "manualCalibrationVehicles": 27,
+    "manualCalibrationByCarriageway": {
+      "near": 9,
+      "far": 18
+    },
+    "manualHeldOutVehicles": 94,
+    "manualHeldOutByCarriageway": {
+      "near": 42,
+      "far": 52
+    },
+    "referenceReview": "Single Codex visual review. Near labels reused from the collinear original line; 70 opposing-vehicle events visually added across the two windows before this replay."
+  },
+  "trialConfig": {
+    "model": "yolox-s",
+    "fps": 8,
+    "coverage": "full",
+    "motionResolution": "native",
+    "approvedForSettlement": false
+  }
+}

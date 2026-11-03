@@ -6,6 +6,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Subscription, distinctUntilChanged, forkJoin, map, timeout } from 'rxjs';
 import { CountingRulesComponent } from '../components/counting-rules.component';
 import { VideoPlayerComponent } from '../components/video-player.component';
+import { LiveCameraCounterComponent } from '../components/live-camera-counter.component';
 import { IconComponent } from '../components/icon.component';
 import { BetSide, Market, RangeQuote, StreamMetric, TrafficStream } from '../models';
 import { ApiService } from '../services/api.service';
@@ -13,8 +14,8 @@ import { AuthService } from '../services/auth.service';
 import { apiError } from '../services/ui-helpers';
 import { acceptsPredictions, roundPhase, roundPhaseLabels } from '../services/round-state';
 
-@Component({ selector: 'app-stream-detail', standalone: true, imports: [DatePipe, DecimalPipe, FormsModule, NgFor, NgIf, RouterLink, VideoPlayerComponent, CountingRulesComponent, IconComponent], template: `
-  <a class="cd-back" routerLink="/"><app-icon name="back" [size]="16"></app-icon>All cameras</a>
+@Component({ selector: 'app-stream-detail', standalone: true, imports: [DatePipe, DecimalPipe, FormsModule, NgFor, NgIf, RouterLink, VideoPlayerComponent, LiveCameraCounterComponent, CountingRulesComponent, IconComponent], template: `
+  <a class="cd-back" [routerLink]="auth.isAdmin ? '/streams' : '/'"><app-icon name="back" [size]="16"></app-icon>{{ auth.isAdmin ? 'All cameras' : 'Back to play' }}</a>
   <div class="tb-loading" *ngIf="loading" role="status"><span class="tb-spinner"></span>Loading camera…</div>
   <div *ngIf="error" class="tb-card tb-empty" role="alert"><span class="tb-empty-icon"><app-icon name="alert" [size]="24"></app-icon></span><h3>Camera unavailable</h3><p>{{ error }}</p><button class="tb-btn" type="button" (click)="load()">Try again</button></div>
   <section class="cd" *ngIf="stream && !loading && !error">
@@ -33,12 +34,8 @@ import { acceptsPredictions, roundPhase, roundPhaseLabels } from '../services/ro
 
     <div class="cd-grid">
       <div class="cd-video">
-        <app-video-player [stream]="stream" [countingSnapshot]="displayedRound?.countingRules" [autoplay]="true">
-          <div class="cd-live" *ngIf="observingRound as current">
-            <span class="tb-chip" [class.is-live]="phase(current) === 'counting'" [class.is-warn]="phase(current) !== 'counting'"><span class="tb-dot is-pulse"></span>{{ phase(current) === 'counting' ? 'Counting now' : 'Counting soon' }}</span>
-            <span class="cd-live-text">Round #{{ current.id }} · {{ phase(current) === 'counting' ? 'ends in' : 'starts in' }} <strong class="tb-num" role="timer" aria-live="off">{{ countdownTo(phase(current) === 'counting' ? current.windowEnd : current.windowStart) }}</strong></span>
-            <span class="cd-live-window tb-num">{{ current.windowStart | date:'HH:mm:ss' }}–{{ current.windowEnd | date:'HH:mm:ss' }}</span>
-          </div>
+        <app-video-player #videoPlayer [stream]="stream" [countingSnapshot]="cameraCounter.snapshot ?? displayedRound?.countingRules" [autoplay]="true" [highlightFrames]="cameraCounter.highlights" [highlightCaptureTime]="cameraCounter.displayed">
+          <app-live-camera-counter #cameraCounter vp-overlay [stream]="stream" [player]="videoPlayer"></app-live-camera-counter>
         </app-video-player>
       </div>
 

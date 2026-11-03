@@ -23,6 +23,7 @@ import { IconComponent } from './components/icon.component';
           </a>
           <nav class="tb-nav" aria-label="Main navigation">
             <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page"><app-icon name="play"></app-icon>Play</a>
+            <a *ngIf="auth.isAdmin" routerLink="/streams" routerLinkActive="active" ariaCurrentWhenActive="page"><app-icon name="camera"></app-icon>Cameras</a>
             <a routerLink="/bets" routerLinkActive="active" ariaCurrentWhenActive="page"><app-icon name="ticket"></app-icon>My predictions</a>
             <a routerLink="/how-it-works" routerLinkActive="active" ariaCurrentWhenActive="page"><app-icon name="help"></app-icon>How it works</a>
             <a *ngIf="auth.isAdmin" routerLink="/admin" routerLinkActive="active" ariaCurrentWhenActive="page"><app-icon name="settings"></app-icon>Admin</a>
@@ -55,6 +56,7 @@ import { IconComponent } from './components/icon.component';
       <footer class="tb-footer" *ngIf="!isPlay"><div class="tb-footer-inner"><span>TrafficBet · virtual credits only, no real money</span><nav aria-label="Footer"><a routerLink="/how-it-works">Rules</a><a *ngIf="auth.isAdmin" routerLink="/admin">Admin</a></nav></div></footer>
       <nav class="tb-tabbar" aria-label="Quick navigation">
         <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page"><app-icon name="play" [size]="22"></app-icon>Play</a>
+        <a *ngIf="auth.isAdmin" routerLink="/streams" routerLinkActive="active" ariaCurrentWhenActive="page"><app-icon name="camera" [size]="22"></app-icon>Cameras</a>
         <a routerLink="/bets" routerLinkActive="active" ariaCurrentWhenActive="page"><app-icon name="ticket" [size]="22"></app-icon>Predictions</a>
         <a routerLink="/how-it-works" routerLinkActive="active" ariaCurrentWhenActive="page"><app-icon name="help" [size]="22"></app-icon>Rules</a>
         <a *ngIf="auth.user; else signInTab" routerLink="/account" routerLinkActive="active" ariaCurrentWhenActive="page"><app-icon name="user" [size]="22"></app-icon>Account</a>

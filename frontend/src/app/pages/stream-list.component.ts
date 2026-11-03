@@ -25,7 +25,7 @@ import { acceptsPredictions, roundPhase } from '../services/round-state';
           <p class="tb-kicker home-live"><span class="tb-dot is-pulse"></span>Live road cameras</p>
           <h1>Watch the road.<br><span>Predict the traffic.</span></h1>
           <p class="home-lead">Pick a camera, guess how many vehicles will cross the line in the next round and win virtual credits.</p>
-          <div class="home-hero-cta"><a class="tb-btn tb-btn-primary tb-btn-lg" href="#camera-directory">Browse cameras<app-icon name="arrow" [size]="18"></app-icon></a><a class="tb-btn tb-btn-ghost tb-btn-lg" routerLink="/how-it-works">How it works</a></div>
+          <div class="home-hero-cta"><a class="tb-btn tb-btn-primary tb-btn-lg" href="/streams#camera-directory">Browse cameras<app-icon name="arrow" [size]="18"></app-icon></a><a class="tb-btn tb-btn-ghost tb-btn-lg" routerLink="/how-it-works">How it works</a></div>
         </div>
         <ol class="home-steps" aria-label="How to make a prediction">
           <li><span class="home-step-icon"><app-icon name="camera" [size]="20"></app-icon></span><div><strong>Pick a camera</strong><small>Every camera runs short rounds all day.</small></div></li>

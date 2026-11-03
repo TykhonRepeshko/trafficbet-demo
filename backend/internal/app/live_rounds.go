@@ -17,6 +17,7 @@ import (
 // display data only: settlement still waits for the worker's final, gated result.
 
 type LiveCrossing struct {
+	TrackID   *int64  `json:"trackId,omitempty"`
 	At        float64 `json:"at"` // capture UTC, Unix seconds
 	Direction string  `json:"direction"`
 	Class     string  `json:"class"`
@@ -30,11 +31,25 @@ type LiveSegment struct {
 	Duration float64 `json:"duration"`
 }
 
+type LiveVehicleBox struct {
+	TrackID int64   `json:"trackId"`
+	X       float64 `json:"x"`
+	Y       float64 `json:"y"`
+	Width   float64 `json:"width"`
+	Height  float64 `json:"height"`
+}
+
+type LiveHighlightFrame struct {
+	At    float64          `json:"at"`
+	Boxes []LiveVehicleBox `json:"boxes"`
+}
+
 type LiveProgressInput struct {
-	VehicleCount   int            `json:"vehicleCount"`
-	Crossings      []LiveCrossing `json:"crossings"`
-	Segments       []LiveSegment  `json:"segments"`
-	ProcessedUntil float64        `json:"processedUntil"`
+	Highlights     []LiveHighlightFrame `json:"highlights,omitempty"`
+	VehicleCount   int                  `json:"vehicleCount"`
+	Crossings      []LiveCrossing       `json:"crossings"`
+	Segments       []LiveSegment        `json:"segments"`
+	ProcessedUntil float64              `json:"processedUntil"`
 }
 
 type LiveProgress struct {
@@ -84,6 +99,42 @@ func validateLiveProgress(input LiveProgressInput, start, end time.Time) error {
 			return invalid("each crossing needs a time inside the counting window, a direction and a vehicle class")
 		}
 	}
+	if len(input.Highlights) > 80 {
+		return invalid("at most 80 highlight frames are accepted")
+	}
+	countedTracks := make(map[int64]float64)
+	for _, crossing := range input.Crossings {
+		if crossing.TrackID == nil {
+			continue
+		}
+		if *crossing.TrackID < 0 || *crossing.TrackID > 9007199254740991 {
+			return invalid("invalid crossing track id")
+		}
+		if _, exists := countedTracks[*crossing.TrackID]; exists {
+			return invalid("duplicate crossing track id")
+		}
+		countedTracks[*crossing.TrackID] = crossing.At
+	}
+	boxes, previousFrame := 0, from-1
+	for _, frame := range input.Highlights {
+		if !finite(frame.At) || frame.At < from || frame.At >= to || frame.At <= previousFrame || frame.At > input.ProcessedUntil+0.001 {
+			return invalid("highlight frames need increasing processed times inside the round")
+		}
+		previousFrame = frame.At
+		seen := make(map[int64]bool)
+		for _, box := range frame.Boxes {
+			at, counted := countedTracks[box.TrackID]
+			if !counted || at > frame.At+0.001 || seen[box.TrackID] || !finite(box.X) || !finite(box.Y) || !finite(box.Width) || !finite(box.Height) ||
+				box.X < 0 || box.Y < 0 || box.Width <= 0 || box.Height <= 0 || box.X+box.Width > 1.001 || box.Y+box.Height > 1.001 {
+				return invalid("highlights must be bounded boxes of vehicles already counted")
+			}
+			seen[box.TrackID] = true
+			boxes++
+		}
+	}
+	if boxes > 640 {
+		return invalid("at most 640 highlight boxes are accepted")
+	}
 	previous := int64(-1)
 	for _, segment := range input.Segments {
 		if segment.Seq <= previous || !finite(segment.StartUTC) || !finite(segment.Duration) || segment.Duration <= 0 || segment.Duration > 60 ||
@@ -126,9 +177,12 @@ func (s *Store) RecordLiveProgress(ctx context.Context, marketID int64, input Li
 	if err := validateLiveProgress(input, start, end); err != nil {
 		return err
 	}
-	progress, err := json.Marshal(map[string]any{"crossings": input.Crossings, "segments": input.Segments})
+	progress, err := json.Marshal(map[string]any{"crossings": input.Crossings, "segments": input.Segments, "highlights": input.Highlights})
 	if err != nil {
 		return err
+	}
+	if len(progress) > 65536 {
+		return fmt.Errorf("%w: live progress exceeds storage limit", ErrInvalid)
 	}
 	processed := time.Unix(0, int64(input.ProcessedUntil*1e9)).UTC()
 	_, err = s.pool.Exec(ctx, `INSERT INTO round_live_counts(market_id,vehicle_count,progress,processed_until) VALUES($1,$2,$3,$4)

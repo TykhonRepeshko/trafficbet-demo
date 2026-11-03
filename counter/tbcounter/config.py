@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
-VERSION = "1.3.1"
+VERSION = "1.4.0-exp.1"
 
 
 def _float(name: str, default: float, low: float, high: float) -> float:
@@ -33,6 +33,7 @@ class Config:
     auto_calibration_enabled: bool = True
     hybrid_motion: bool = False
     device: str = "cpu"
+    motion_resolution: str = "legacy"
 
     @property
     def worker_name(self) -> str:
@@ -64,6 +65,7 @@ def load() -> Config:
         hybrid_motion=os.environ.get("HYBRID_MOTION_ENABLED", "false").strip().lower()
         in ("1", "true", "yes", "on"),
         device=os.environ.get("DEVICE", "cpu").strip().lower(),
+        motion_resolution=os.environ.get("MOTION_RESOLUTION", "legacy").strip().lower(),
     )
     if len(cfg.worker_token) < 32:
         raise ValueError("WORKER_TOKEN must contain at least 32 characters")
@@ -82,6 +84,8 @@ def load() -> Config:
         )
     if cfg.device not in ("cpu", "cuda"):
         raise ValueError("DEVICE must be cpu or cuda")
+    if cfg.motion_resolution not in ("legacy", "native"):
+        raise ValueError("MOTION_RESOLUTION must be legacy or native")
     if cfg.device == "cuda" and not cfg.model.startswith("yolox-"):
         raise ValueError("The CUDA image currently supports YOLOX models only")
     return cfg
