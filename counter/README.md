@@ -107,7 +107,7 @@ Exact-source inference overrides are supplied by `SOURCE_INFERENCE_PRESETS`
 (`COUNTER_SOURCE_PRESETS` in Compose). Entries require a source fingerprint,
 `model`, `coverage` and a canonical `definitionHash`. A changed frozen rule does
 not inherit the override. CUDA supports at most two shared sessions. The reviewed
-049 and 052 presets use baked YOLOX-M weights and full-frame context; no pilot/custom
+047, 049 and 052 presets use baked YOLOX-M weights and full-frame context; no pilot/custom
 weights are selected. See `docs/reviewed-inference-presets.json` in the repository.
 
 To compare sampling rates on retained local recordings without predictions being

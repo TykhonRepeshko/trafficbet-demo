@@ -5,9 +5,9 @@
     "definitionHash": "7ca0d8cf3f4730e8e4f82f95450255c9b6cba7e991819be7751b94e457ccf1be"
   },
   "78650ba85c8da7b4e1a64c0532c2e47f08a7d9c1d31d1860f5e58d3b470cbd44": {
-    "model": "yolox-s",
-    "coverage": "line",
-    "definitionHash": "8989677ec6dd6093fbcc901b2f7ceb59d48074db23bad56161b7a2a87df7c76f"
+    "model": "yolox-m",
+    "coverage": "full",
+    "definitionHash": "706f09e4d6fe4124c27eb4f074e705bbf4be3f34a9215ab922fe864058a33bfb"
   },
   "9030656c793ec278eb254cefe3a639bdce5f669cba4c2e424ca219160f6cbcb3": {
     "model": "yolox-s",

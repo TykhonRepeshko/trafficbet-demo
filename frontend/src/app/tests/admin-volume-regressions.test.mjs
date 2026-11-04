@@ -216,8 +216,9 @@ test('design preview Play can request four narrow v2 ranges without contacting a
   const before=await firstValueFrom(previewInterceptor(new HttpRequest('GET','/api/me'),next));
   const response=await firstValueFrom(previewInterceptor(new HttpRequest('GET','/api/bets/range-options',{params:new HttpParams().set('marketId',1)}),next));
   assert.equal(response.body.options.length,4);
+  assert.deepEqual(response.body.options.map(q=>[q.rangeMin,q.rangeMax]),[[12,23],[24,35],[36,47],[48,59]]);
   for(const option of response.body.options) {
-    assert.ok(option.rangeMax-option.rangeMin<=9);
+    assert.ok(option.rangeMax-option.rangeMin<=14);
     assert.equal(option.pricingModel,'demo_normal_v2');assert.ok(option.odds>=1 && option.odds<=10);
     const quote=await firstValueFrom(previewInterceptor(new HttpRequest('GET','/api/bets/range-quote',{params:new HttpParams().set('marketId',1).set('from',option.rangeMin).set('to',option.rangeMax)}),next));
     assert.deepEqual(option,quote.body);

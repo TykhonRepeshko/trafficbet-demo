@@ -101,7 +101,7 @@ export const previewInterceptor: HttpInterceptorFn = (request, next) => {
       requireUser();
       const market=markets.find(item=>item.id===Number(request.params.get('marketId'))) ?? reject(404,'Round not found.');
       if (market.status!=='open' || Date.now()>=Date.parse(market.bettingClosesAt) || !streams.find(stream=>stream.id===market.streamId)?.isActive) reject(409,'This round is closed.');
-      const width=Math.min(10,Math.max(2,Math.ceil(market.threshold/6)));
+      const width=Math.min(15,Math.max(3,Math.ceil(market.threshold/4)));
       const lower=Math.min(Math.max(0,(Math.floor(market.threshold/width)-2)*width),100000000-4*width+1);
       result={options:Array.from({length:4},(_,i)=>previewRangeQuote(market,lower+i*width,lower+(i+1)*width-1))};
     } else if (path === '/api/bets/range-quote' && request.method==='GET') {

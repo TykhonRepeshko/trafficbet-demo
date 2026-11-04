@@ -1,7 +1,9 @@
 # Vehicle identity audit and remaining 052 miss
 
 Serving version `1.4.0-exp.8`, 4 November 2026. This follows the
-[half-second pulse change](counting-pulse-and-recall.md).
+[half-second pulse change](counting-pulse-and-recall.md). The subsequent
+[047 line and range update](line-047-and-ranges.md) changes that camera
+geometry; the recorded counts below retain their original frozen definitions.
 
 ## Result and counting changes
 

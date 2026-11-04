@@ -59,10 +59,10 @@ func (s *Store) QuoteRange(ctx context.Context, marketID int64, minimum, maximum
 	return quoteCountRange(market, minimum, maximum)
 }
 
-// Four nearby finite bands, each containing at most ten integer counts. Quiet
+// Four nearby finite bands, each containing at most fifteen integer counts. Quiet
 // cameras get smaller bands. Custom ranges still cover counts outside these choices.
 func rangeOptions(market Market) ([]RangeQuote, error) {
-	width := min(10, max(2, (market.Threshold+5)/6))
+	width := min(15, max(3, (market.Threshold+3)/4))
 	lower := max(0, (market.Threshold/width-2)*width)
 	lower = min(lower, maxVehicleCount-4*width+1)
 	options := make([]RangeQuote, 0, 4)

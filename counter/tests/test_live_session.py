@@ -220,14 +220,17 @@ def test_right_only_047_profile_discards_left_road_before_tracking(monkeypatch):
         ).read_text()
     )["definition"]
     rule = Definition.from_json(definition)
-    assert rule.line_start.x >= 0.5 and rule.line_end.x >= 0.5
+    assert rule.line_start.x < 0.4 < rule.line_end.x
+    assert rule.line_start.y == rule.line_end.y
     assert len(rule.road_regions) == 1
     assert not in_road_regions(rule.road_regions, Point(0.25, 0.7))
     assert in_road_regions(rule.road_regions, Point(0.65, 0.7))
+    assert in_road_regions(rule.road_regions, Point(0.45, 0.55))
+    assert not in_road_regions(rule.road_regions, Point(0.3, 0.55))
     dets = Detections(
-        np.array([[30, 40, 50, 63], [96, 40, 112, 63]], np.float32),
-        np.array([0.9, 0.9], np.float32),
-        ["car", "car"],
+        np.array([[30, 40, 50, 63], [64, 40, 80, 49.5], [96, 40, 112, 63]], np.float32),
+        np.array([0.9, 0.9, 0.9], np.float32),
+        ["car", "car", "car"],
     )
     received = []
 
@@ -247,7 +250,7 @@ def test_right_only_047_profile_discards_left_road_before_tracking(monkeypatch):
     )
     session = pipeline.RoundSession(FakeDetector(0), rule, 1000.0, 1030.0, 5.0, 0.45)
     session._frame(1005.0, np.zeros((90, 160, 3), np.uint8), None)
-    assert received == [[96.0, 40.0, 112.0, 63.0]]
+    assert received == [[64.0, 40.0, 80.0, 49.5], [96.0, 40.0, 112.0, 63.0]]
     assert session.count == 0
 
 

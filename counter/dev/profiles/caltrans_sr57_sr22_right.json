@@ -1,16 +1,16 @@
 {
-  "id": "caltrans-47-reviewed-v6",
+  "id": "caltrans-47-reviewed-v7",
   "status": "local_reviewed_virtual_credit_test",
   "sourceFingerprint": "78650ba85c8da7b4e1a64c0532c2e47f08a7d9c1d31d1860f5e58d3b470cbd44",
   "definition": {
-    "label": "Right-hand road only - camera 047",
+    "label": "SR-57 SR-22 - screenshot-aligned right-hand carriageways",
     "lineStart": {
-      "x": 0.55,
-      "y": 0.58
+      "x": 0.36,
+      "y": 0.55
     },
     "lineEnd": {
       "x": 1.0,
-      "y": 0.58
+      "y": 0.55
     },
     "directions": [
       "A_to_B",
@@ -25,11 +25,11 @@
     ],
     "anchor": "bottom_center",
     "timeBasis": "capture_utc",
-    "notes": "Right-hand region only, with the left motorway excluded before tracking. Horizontal line at 58% image height, x=0.55..1.00, lower than the previous diagonal line. Avoid placing it below vehicle entry points. Count each confirmed bottom-centre crossing once; published rounds retain their frozen profile.",
+    "notes": "User-reviewed screenshot alignment: horizontal line at 55% image height, x=0.36..1.00, from the median across both central/right-hand carriageways. Exclude the opposing motorway left of the median before tracking. Count each confirmed bottom-centre crossing once in capture UTC; published rounds retain their frozen definitions.",
     "roadRegions": [
       [
         {
-          "x": 0.68,
+          "x": 0.64,
           "y": 0.1
         },
         {
@@ -41,24 +41,24 @@
           "y": 0.3
         },
         {
-          "x": 1,
+          "x": 1.0,
           "y": 0.5
         },
         {
-          "x": 1,
-          "y": 1
+          "x": 1.0,
+          "y": 1.0
         },
         {
-          "x": 0.64,
-          "y": 0.98
+          "x": 0.12,
+          "y": 1.0
         },
         {
-          "x": 0.53,
-          "y": 0.6
+          "x": 0.36,
+          "y": 0.55
         },
         {
-          "x": 0.55,
-          "y": 0.4
+          "x": 0.54,
+          "y": 0.3
         }
       ]
     ]

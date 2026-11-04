@@ -11,7 +11,7 @@ through the audited admin API. No accepted prediction terms were repriced.
 | Local ID | View | Profile / version | Scope |
 | --- | --- | --- | --- |
 | 45 | SR-57 · Ball Road | 24 / 1 | Both carriageways |
-| 47 | SR-57 · SR-22 | 34 / 6 | Right-hand region only |
+| 47 | SR-57 · SR-22 | 38 / 7 | Central/right carriageways beyond the median |
 | 48 | SR-91 · SR-55 | 27 / 2 | Both carriageways |
 | 49 | I-405 · Jamboree Road | 36 / 2 | Both carriageways, corrected mask |
 | 51 | SR-91 · Harbor Boulevard | 35 / 1 | Main carriageways below the bridge |
@@ -25,12 +25,10 @@ tab; public camera detail pages remain available for watching the live counter.
 
 ## Counting and display
 
-Camera 047 uses a lower horizontal line from (0.55, 0.58) to (1.00, 0.58),
-confined to the existing right-hand road polygon. The left motorway is filtered
-out before tracking. Moving the line down to y=0.67 was rejected: cars entering
-above that line would never cross it. The reviewed y=0.58 sample counted 22
-crossings over 107.7 seconds, with no left-side tracks or weak crossings.
-Published rounds keep the profile frozen when they opened.
+Camera 047 now uses the screenshot-aligned horizontal line from (0.36, 0.55)
+to (1.00, 0.55), across the central/right carriageways beyond the median. Its
+expanded road mask excludes the opposing left motorway. Profile 38/v7 and the
+wider prediction choices are described in [the 047 follow-up](line-047-and-ranges.md).
 
 Camera 051 excludes the crossing street above the Harbor Boulevard bridge.
 Its timestamp crop is bound to its exact source fingerprint. The worker's
@@ -61,9 +59,9 @@ windows can remain unverified when independent evidence cannot support zero.
 
 ## Prediction ranges
 
-Four finite nearby ranges now contain at most ten integer counts each; quiet
-cameras use smaller bands. At reference 80 the choices are 60–69, 70–79, 80–89
-and 90–99. Custom ranges and exact counts remain available. The versioned demo
+Four finite nearby ranges now contain at most fifteen integer counts each; quiet
+cameras use smaller bands. At reference 80 the choices are 45–59, 60–74, 75–89
+and 90–104. Custom ranges and exact counts remain available. The versioned demo
 rule `demo_normal_v2` uses a truncated discrete normal distribution, a 15% model
 margin, downward rounding and a 1×–10× return cap. Local Over/Under schedules
 now publish 1.70×. References continue following recent successful AI counts.

@@ -7,7 +7,7 @@ import (
 )
 
 func TestRangeOptionsAreNarrowNearbyAndUseServerQuotes(t *testing.T) {
-	for _, threshold := range []int{0, 3, 8, 25, 60, 90, maxVehicleCount} {
+	for _, threshold := range []int{0, 3, 5, 8, 25, 60, 80, 90, maxVehicleCount} {
 		market := Market{ID: 1, Threshold: threshold}
 		options, err := rangeOptions(market)
 		if err != nil || len(options) != 4 {
@@ -15,7 +15,7 @@ func TestRangeOptionsAreNarrowNearbyAndUseServerQuotes(t *testing.T) {
 		}
 		contains := false
 		for i, option := range options {
-			if option.RangeMin < 0 || option.RangeMax > maxVehicleCount || option.RangeMax-option.RangeMin > 9 {
+			if option.RangeMin < 0 || option.RangeMax > maxVehicleCount || option.RangeMax-option.RangeMin > 14 {
 				t.Fatal("wide or invalid band", option)
 			}
 			if i > 0 && option.RangeMin != options[i-1].RangeMax+1 {
@@ -31,8 +31,12 @@ func TestRangeOptionsAreNarrowNearbyAndUseServerQuotes(t *testing.T) {
 			t.Fatal("reference missing from nearby bands", threshold, options)
 		}
 	}
+	quiet, _ := rangeOptions(Market{ID: 1, Threshold: 5})
+	if quiet[0].RangeMin != 0 || quiet[0].RangeMax != 2 || quiet[3].RangeMax != 11 {
+		t.Fatal("quiet-camera bands did not widen modestly", quiet)
+	}
 	options, _ := rangeOptions(Market{ID: 1, Threshold: 80})
-	if options[0].RangeMin != 60 || options[0].RangeMax != 69 || options[3].RangeMax != 99 {
+	if options[0].RangeMin != 45 || options[0].RangeMax != 59 || options[3].RangeMax != 104 {
 		t.Fatal(options)
 	}
 }
