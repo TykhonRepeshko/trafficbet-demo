@@ -3,7 +3,9 @@
 The prepared database has six active, distinct Caltrans sources. Camera 046
 (MacArthur Boulevard) is temporarily archived because the operator turned it
 toward an information sign. Its records and history are preserved, together
-with the previously archived cameras 38–42 and 44. Open 046 rounds were voided
+with the previously archived cameras 38–42 and 44. Camera 050 (Santiago Canyon)
+is now archived after repeated night-glare failures; replacement 052 preserves
+050's 167 markets, 8 predictions and original counting profile. Open 046 rounds were voided
 through the audited admin API. No accepted prediction terms were repriced.
 
 | Local ID | View | Profile / version | Scope |
@@ -12,8 +14,8 @@ through the audited admin API. No accepted prediction terms were repriced.
 | 47 | SR-57 · SR-22 | 34 / 6 | Right-hand region only |
 | 48 | SR-91 · SR-55 | 27 / 2 | Both carriageways |
 | 49 | I-405 · Jamboree Road | 36 / 2 | Both carriageways, corrected mask |
-| 50 | SR-241 · Santiago Canyon | 31 / 1 | Both carriageways |
 | 51 | SR-91 · Harbor Boulevard | 35 / 1 | Main carriageways below the bridge |
+| 52 | SR-57 · Imperial Highway | 37 / 1 | Both main carriageways; separated left ramp excluded |
 
 Source metadata and attribution live in `reviewed-cameras.json`. Public camera
 lists also suppress repeated source fingerprints or provider-page URLs, while
@@ -167,6 +169,72 @@ All final checks passed: 223 Go unit tests, 95 isolated PostgreSQL integration
 tests, 195 Angular tests, Go vet, both frontend builds, Compose validation and
 154 counter tests (one optional test skipped). The new live stake scenario again
 completed 12 predictions: 4 won, 4 lost, 4 refunded; idempotency and ledger totals
-matched. Camera 050 still frequently refunds unverified night-zero windows;
-this limitation remains explicit rather than relaxing verification gates.
+matched. At that audit, camera 050 still frequently refunded unverified night-zero
+windows; the replacement described below addresses its source limitation.
 Current receipts are in `.tools/project-audit-20261104/`.
+
+
+## Camera 050 night replacement
+
+Santiago Canyon produced 17 consecutive completed night windows with unverified
+zero counts. A fresh 18.1-second recording still produced zero with both YOLOX-S
+and YOLOX-M, under line and full-frame coverage. The source image has clipped
+headlight glare and does not reliably expose vehicle bodies. Its clock remained
+readable; loosening the zero/tracking gate would not establish a correct count.
+
+The selected replacement is Caltrans SR-57 at Imperial Highway (official catalog
+name `SR-57 : (81) SR-90`, Fullerton):
+
+- Operator page: https://cwwp2.dot.ca.gov/vm/loc/d12/sr5781sr90.htm
+- HLS: https://wzmedia.dot.ca.gov/D12/NB57Imperial.stream/playlist.m3u8
+- Local camera 052, approved profile 37/v1; source 050 is archived, not overwritten.
+- Line: (0.30, 0.70) to (1.00, 0.53), with both main carriageways in the road mask.
+  The separated left ramp, triangular island and adjacent local streets are excluded.
+- Offline definition: `counter/dev/profiles/caltrans_sr57_imperial.json`.
+- Reviewed inference: YOLOX-M/full-frame at 15 FPS, bound to source fingerprint
+  and frozen definition hash in `reviewed-inference-presets.json`.
+
+The SR-73 Red Hill candidate was rejected after mostly empty night windows, and
+SR-55 17th Street after missing/discontinuous media segments. No rejected
+candidate was registered in the application.
+
+The Imperial timestamp is small enough that blur/Otsu sometimes reads `5` as `6`.
+A source-bound sharp greyscale reader anchored all 13 recorded segments directly
+from OCR with consecutive media sequences and continuous capture UTC. No anchor
+was inferred for that sample. Its 26 timestamp-only fixture strips, including
+observed five-to-six transitions, are committed as regression coverage. Unknown
+or changed fingerprints keep their existing preprocessing and discovery. No
+unreadable digit is inferred; all existing clock and counting gates remain.
+
+Three separate recorded 30-second windows counted 15, 15 and 10 vehicles with no
+rejected weak crossings or missing highlight identities. A manual visual
+cross-check of the first window matched all 15 events (10 away, 5 approaching)
+with no extras. The other two windows are stability checks without hand labels.
+This small night sample does not certify every vehicle under all conditions.
+
+All 182 counter tests passed in the built serving image (one optional test
+skipped), including 28 new timestamp regressions. The catalog import dry run
+found six distinct active sources and no pending archive/refund actions. Private
+recordings and runtime receipts remain in `.tools/camera050-20261104/`.
+
+The local GPU can be shared with other workloads. Under heavy concurrent GPU
+load, the first live replacement round counted 23 vehicles at 15 FPS but settled
+about four minutes after its window. Higher sampling does not guarantee timely
+results on a saturated host; keep that load limitation separate from accuracy.
+
+
+Live validation completed 12 predictions on three replacement-camera rounds:
+4 won, 4 lost and 4 refunded. The refund round failed the existing
+`unreliable_tracking: unconfirmed_vehicle_crossing` gate; it was not silently
+accepted as a count. Full-range and impossible-range predictions, both fixed
+Over/Under sides, quote validation and idempotent retries before/after settlement
+were checked. The own test account moved from 8,845 to 8,781 credits; the exact
+-64-credit change matched the ledger and stored payouts. No test prediction was
+left pending. Global ledger discrepancies were zero, and all original 050
+markets and predictions remained present after archive. This validates payout
+and refund behavior; it does not remove night tracking or shared-GPU limits.
+
+The public 052 page was checked in the browser after reconnecting its automation
+session: live video, the reviewed line and AI count history were visible without
+signing in. All six current camera schedules are enabled; 050 remains archived
+and its schedule disabled. The rebuilt counter identifies as `1.4.0-exp.3`.

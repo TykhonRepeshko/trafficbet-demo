@@ -1,0 +1,58 @@
+{
+  "id": "caltrans-sr57-imperial-v1",
+  "status": "local_reviewed_virtual_credit_test",
+  "sourceFingerprint": "567d54468ad2e61c7798e4a034eacb0f8ed9457a2f0ab520be541756c2f09a15",
+  "definition": {
+    "label": "SR-57 Imperial Highway - main carriageways",
+    "lineStart": {
+      "x": 0.3,
+      "y": 0.7
+    },
+    "lineEnd": {
+      "x": 1.0,
+      "y": 0.53
+    },
+    "directions": [
+      "A_to_B",
+      "B_to_A"
+    ],
+    "classes": [
+      "car",
+      "van",
+      "bus",
+      "truck",
+      "motorcycle"
+    ],
+    "anchor": "bottom_center",
+    "timeBasis": "capture_utc",
+    "notes": "Both main SR-57 carriageways in the reviewed Imperial Highway framing. Exclude the separated left-hand ramp, its triangular island, local streets, trees, sky and verge. Count each confirmed bottom-centre crossing once in capture UTC. Keep capture-clock, framing and tracking quality gates intact.",
+    "roadRegions": [
+      [
+        {
+          "x": 0.32,
+          "y": 1
+        },
+        {
+          "x": 0.29,
+          "y": 0.46
+        },
+        {
+          "x": 0.43,
+          "y": 0.22
+        },
+        {
+          "x": 0.53,
+          "y": 0.21
+        },
+        {
+          "x": 1,
+          "y": 0.53
+        },
+        {
+          "x": 1,
+          "y": 1
+        }
+      ]
+    ]
+  }
+}

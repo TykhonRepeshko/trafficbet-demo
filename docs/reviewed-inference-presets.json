@@ -3,5 +3,10 @@
     "model": "yolox-m",
     "coverage": "full",
     "definitionHash": "eb51619c20f20dd94103a19ad618452ff877cf0dde8a945985f640f183ac1b34"
+  },
+  "567d54468ad2e61c7798e4a034eacb0f8ed9457a2f0ab520be541756c2f09a15": {
+    "model": "yolox-m",
+    "coverage": "full",
+    "definitionHash": "4ab02d3314439d53ff3931a521f1871cc244b5d6e3ecd7fb86f18a40e374c865"
   }
 }

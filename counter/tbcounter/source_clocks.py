@@ -2,6 +2,7 @@
 from .clock import OverlayClock
 
 REVIEWED_CROPS = {
+    '567d54468ad2e61c7798e4a034eacb0f8ed9457a2f0ab520be541756c2f09a15': (.065, .125, .82, 1.0),
     '76877e6744222736654b6babf9678d9648444722dfa2f853a0cddc36394997fe': (.018, .075, .81, .97),
     'c6394920b50813674cdea1cb4b4ccd420e766f0baed083f7a77d2fcd03cf9076': (.06, .125, .86, 1.0),
     '2d981602b1bff72d02635febad20d39c2e7661f4e43cb05587acf78b1bc46526': (.074, .126, .88, 1.0),
@@ -12,8 +13,15 @@ REVIEWED_CROPS = {
 }
 
 
+# This source's small timestamp loses the open top of 5 after blur/Otsu.
+# Use only the reviewed sharp greyscale reader; never guess unreadable digits.
+REVIEWED_VARIANTS = {
+    '567d54468ad2e61c7798e4a034eacb0f8ed9457a2f0ab520be541756c2f09a15': (1,),
+}
+
+
 def source_clock(info):
-    clock = OverlayClock()
+    clock = OverlayClock(variants=REVIEWED_VARIANTS.get(info.get('sourceFingerprint'), (0, 1)))
     crop = REVIEWED_CROPS.get(info.get('sourceFingerprint'))
     if crop is not None:
         clock.roi = crop

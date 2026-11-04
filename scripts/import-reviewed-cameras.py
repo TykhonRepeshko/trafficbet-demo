@@ -28,6 +28,8 @@ def main():
     previous_urls = {c['streamUrl'] for c in json.loads((ROOT / 'backend/internal/app/camera_catalog.json').read_text(encoding='utf-8'))}
     # This earlier reviewed source was turned toward a road sign and archived.
     previous_urls.add('https://wzmedia.dot.ca.gov/D12/SB405NOMacarthur.stream/playlist.m3u8')
+    # Santiago Canyon cannot reliably distinguish vehicle bodies from night glare.
+    previous_urls.add('https://wzmedia.dot.ca.gov/D12/NB241NOSantiago1.stream/playlist.m3u8')
     new_urls = {c['streamUrl'] for c in cameras}
     settings = dict(line.split('=', 1) for line in (ROOT / '.env').read_text(encoding='utf-8-sig').splitlines() if '=' in line and not line.startswith('#'))
     client = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))

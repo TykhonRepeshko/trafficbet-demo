@@ -101,10 +101,18 @@ Exact-source inference overrides are supplied by `SOURCE_INFERENCE_PRESETS`
 (`COUNTER_SOURCE_PRESETS` in Compose). Entries require a source fingerprint,
 `model`, `coverage` and a canonical `definitionHash`. A changed frozen rule does
 not inherit the override. CUDA supports at most two shared sessions. The reviewed
-049 preset uses baked YOLOX-M weights and full-frame context; no pilot/custom
+049 and 052 presets use baked YOLOX-M weights and full-frame context; no pilot/custom
 weights are selected. See `docs/reviewed-inference-presets.json` in the repository.
 
 To compare sampling rates on retained local recordings without predictions being
 cached or account/API changes, run `python -m dev.fps_benchmark --help`. The input
 profiles select explicit geometry, source fingerprints and optional per-camera
 models. Accuracy metrics are emitted only for cases supplied with manual events.
+
+
+The Imperial Highway replacement for camera 050 uses an exact-source sharp
+greyscale timestamp reader. Blur/Otsu sometimes closes the top of a small `5`
+and produces a plausible `6`; 26 retained timestamp strips cover the regression.
+Only that source uses the sharp-only variant. Unknown/changed fingerprints
+retain default discovery and preprocessing. A clock tick must still be observed,
+and capture latency, continuity, framing and tracking gates remain unchanged.

@@ -73,7 +73,7 @@ PostgreSQL and optional retained footage use separate named volumes. Video captu
 
 ### This prepared Windows workspace: native mode
 
-The prepared local camera refresh (six active views, previous cameras temporarily archived) is documented in [reviewed camera replacement](docs/reviewed-camera-replacement.md). The reviewed CUDA configuration runs at 15 FPS, with an exact-source YOLOX-M/full-frame preset for camera 049; the other views retain YOLOX-S. Counted vehicles use filled green rectangles.
+The prepared local camera refresh (six active views, previous cameras temporarily archived) is documented in [reviewed camera replacement](docs/reviewed-camera-replacement.md). The reviewed CUDA configuration runs at 15 FPS, with exact-source YOLOX-M/full-frame presets for cameras 049 and 052; the other views retain YOLOX-S. Camera 052 (SR-57 Imperial Highway) replaces archived 050 after night validation. Counted vehicles use filled green rectangles.
 
 ```powershell
 .\start.cmd

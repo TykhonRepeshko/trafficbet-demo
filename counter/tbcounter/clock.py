@@ -139,7 +139,8 @@ class OverlayClock:
 
     MIN_LATENCY, MAX_LATENCY = -5.0, 180.0
 
-    def __init__(self) -> None:
+    def __init__(self, variants: tuple[int, ...] = (0, 1)) -> None:
+        self.ocr_variants = variants
         self.region_name: str | None = None
         self.roi: tuple[float, float, float, float] | None = None
         self._next_discovery = 0.0
@@ -158,8 +159,8 @@ class OverlayClock:
                     return True
         return False
 
-    def _read_time(self, gray, region, variants=(0, 1)):
-        return ocr_time(gray, region, variants)
+    def _read_time(self, gray, region, variants=None):
+        return ocr_time(gray, region, self.ocr_variants if variants is None else variants)
 
     def anchor_segment(self, data: bytes, fetched_at: float, duration: float) -> Anchor | None:
         with self._lock:

@@ -1,0 +1,113 @@
+{
+  "sourceFingerprint": "567d54468ad2e61c7798e4a034eacb0f8ed9457a2f0ab520be541756c2f09a15",
+  "width": 768,
+  "height": 432,
+  "left": 600,
+  "scope": "Timestamp-only crops from the public Caltrans SR-57 Imperial Highway source. Visually reviewed 03:21:35 through 03:23:36 on 4 November 2026; catches blur/Otsu confusing 5 with 6. No road images or model labels.",
+  "samples": [
+    {
+      "file": "03-21-35.png",
+      "displayed": "03:21:35"
+    },
+    {
+      "file": "03-21-36.png",
+      "displayed": "03:21:36"
+    },
+    {
+      "file": "03-21-45.png",
+      "displayed": "03:21:45"
+    },
+    {
+      "file": "03-21-46.png",
+      "displayed": "03:21:46"
+    },
+    {
+      "file": "03-21-55.png",
+      "displayed": "03:21:55"
+    },
+    {
+      "file": "03-21-56.png",
+      "displayed": "03:21:56"
+    },
+    {
+      "file": "03-22-05.png",
+      "displayed": "03:22:05"
+    },
+    {
+      "file": "03-22-06.png",
+      "displayed": "03:22:06"
+    },
+    {
+      "file": "03-22-15.png",
+      "displayed": "03:22:15"
+    },
+    {
+      "file": "03-22-16.png",
+      "displayed": "03:22:16"
+    },
+    {
+      "file": "03-22-25.png",
+      "displayed": "03:22:25"
+    },
+    {
+      "file": "03-22-26.png",
+      "displayed": "03:22:26"
+    },
+    {
+      "file": "03-22-35.png",
+      "displayed": "03:22:35"
+    },
+    {
+      "file": "03-22-36.png",
+      "displayed": "03:22:36"
+    },
+    {
+      "file": "03-22-45.png",
+      "displayed": "03:22:45"
+    },
+    {
+      "file": "03-22-46.png",
+      "displayed": "03:22:46"
+    },
+    {
+      "file": "03-22-55.png",
+      "displayed": "03:22:55"
+    },
+    {
+      "file": "03-22-56.png",
+      "displayed": "03:22:56"
+    },
+    {
+      "file": "03-23-05.png",
+      "displayed": "03:23:05"
+    },
+    {
+      "file": "03-23-06.png",
+      "displayed": "03:23:06"
+    },
+    {
+      "file": "03-23-15.png",
+      "displayed": "03:23:15"
+    },
+    {
+      "file": "03-23-16.png",
+      "displayed": "03:23:16"
+    },
+    {
+      "file": "03-23-25.png",
+      "displayed": "03:23:25"
+    },
+    {
+      "file": "03-23-26.png",
+      "displayed": "03:23:26"
+    },
+    {
+      "file": "03-23-35.png",
+      "displayed": "03:23:35"
+    },
+    {
+      "file": "03-23-36.png",
+      "displayed": "03:23:36"
+    }
+  ]
+}

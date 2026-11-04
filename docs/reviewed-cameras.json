@@ -68,23 +68,6 @@
     "isActive": true
   },
   {
-    "title": "SR-241 · Santiago Canyon",
-    "city": "Silverado",
-    "country": "United States",
-    "locationLabel": "SR-241 : (298) 900 Meters NO Santiago 1 Canyon Road Overcross",
-    "description": "Public road view showing both carriageways of SR-241 near Santiago Canyon. Selected for a substantially lighter observed traffic flow than the urban motorway cameras.",
-    "streamType": "hls",
-    "streamUrl": "https://wzmedia.dot.ca.gov/D12/NB241NOSantiago1.stream/playlist.m3u8",
-    "thumbnailUrl": "https://cwwp2.dot.ca.gov/data/d12/cctv/image/sr241298900metersnosantiago1canyonroadovercross/sr241298900metersnosantiago1canyonroadovercross.jpg",
-    "sourceOwner": "California Department of Transportation (Caltrans)",
-    "sourcePageUrl": "https://cwwp2.dot.ca.gov/vm/loc/d12/sr241298900metersnosantiago1canyonroadovercross.htm",
-    "termsUrl": "https://dot.ca.gov/conditions-of-use",
-    "usageNotes": "Official Caltrans CWWP2 source. Operator controls availability and framing. Reviewed for experimental virtual-credit rounds; each window still requires readable capture clock, continuous footage and unchanged framing. Night glare can reduce recognition quality. Unverified rounds refund stakes.",
-    "latitude": 33.78705,
-    "longitude": -117.74372,
-    "isActive": true
-  },
-  {
     "title": "SR-91 · Harbor Boulevard",
     "city": "Anaheim",
     "country": "United States",
@@ -99,6 +82,23 @@
     "usageNotes": "Official Caltrans CWWP2 source. Operator controls availability and framing. Reviewed for experimental virtual-credit rounds; each window still requires readable capture clock, continuous footage and unchanged framing. Night glare can reduce recognition quality. Unverified rounds refund stakes.",
     "latitude": 33.853529,
     "longitude": -117.925913,
+    "isActive": true
+  },
+  {
+    "title": "SR-57 · Imperial Highway",
+    "city": "Fullerton",
+    "country": "United States",
+    "locationLabel": "SR-57 : (81) SR-90",
+    "description": "Public road video of both main SR-57 carriageways at Imperial Highway (SR-90). The separated left-hand ramp and its triangular island are excluded from counting.",
+    "streamType": "hls",
+    "streamUrl": "https://wzmedia.dot.ca.gov/D12/NB57Imperial.stream/playlist.m3u8",
+    "thumbnailUrl": "https://cwwp2.dot.ca.gov/data/d12/cctv/image/sr5781sr90/sr5781sr90.jpg",
+    "sourceOwner": "California Department of Transportation (Caltrans)",
+    "sourcePageUrl": "https://cwwp2.dot.ca.gov/vm/loc/d12/sr5781sr90.htm",
+    "termsUrl": "https://dot.ca.gov/conditions-of-use",
+    "usageNotes": "Official Caltrans CWWP2 source. Operator controls availability and framing. Reviewed for experimental virtual-credit rounds; each window still requires readable capture clock, continuous footage and unchanged framing. Night glare can reduce recognition quality. Unverified rounds refund stakes.",
+    "latitude": 33.90893,
+    "longitude": -117.88267,
     "isActive": true
   }
 ]
