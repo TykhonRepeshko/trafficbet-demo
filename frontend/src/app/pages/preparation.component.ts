@@ -2,7 +2,7 @@ import { DatePipe, JsonPipe, NgFor, NgIf } from '@angular/common';
 import { Component, DestroyRef, OnDestroy, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Observable, Subscription, timeout } from 'rxjs';
 import { AuditItem, CountingDefinition, CountingPreparation, CountingProfile, ReviewDetail, ReviewQueueItem, RoundReview, SourceHealth } from '../models';
 import { ApiService } from '../services/api.service';
@@ -11,6 +11,7 @@ import { OperationsComponent } from '../components/operations.component';
 
 @Component({ standalone: true, selector: 'app-preparation', imports: [DatePipe, JsonPipe, NgFor, NgIf, FormsModule, RouterLink, OperationsComponent], templateUrl: './preparation.component.html', styleUrl: './preparation.component.css' })
 export class PreparationComponent implements OnInit, OnDestroy {
+  private readonly route = inject(ActivatedRoute, { optional: true });
   readonly api = inject(ApiService); private readonly destroyRef = inject(DestroyRef);
   health?: SourceHealth; preparation?: CountingPreparation; detail?: ReviewDetail;
   queue: ReviewQueueItem[] = []; audit: AuditItem[] = []; moreQueue = false; moreAudit = false;
@@ -31,7 +32,10 @@ export class PreparationComponent implements OnInit, OnDestroy {
   cancelRoad(): void { this.drawingRoad = false; this.draftRoad = []; }
   removeRoad(index: number): void { if (!this.busy) this.definition.roadRegions = this.definition.roadRegions?.filter((_, i) => i !== index); }
   private reads = new Map<string, Subscription>(); private generations = new Map<string, number>(); private timer?: number; private alive = true;
-  ngOnInit(): void { this.refresh(); this.timer = window.setInterval(() => { if (!document.hidden && !this.busy) this.loadHealth(); }, 15_000); }
+  ngOnInit(): void { this.route?.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
+    const parse = (name: string) => { const all = params.getAll(name); return all.length===1 && /^[1-9]\d*$/.test(all[0]) && Number.isSafeInteger(Number(all[0])) ? Number(all[0]) : undefined; };
+    const stream=parse('stream'), round=parse('round'); if (stream) this.selectCamera(stream); if (round) this.openReview(round, true);
+  }); this.refresh(); this.timer = window.setInterval(() => { if (!document.hidden && !this.busy) this.loadHealth(); }, 15_000); }
   ngOnDestroy(): void { this.alive = false; this.reads.forEach((request) => request.unsubscribe()); if (this.timer) window.clearInterval(this.timer); }
   private read<T>(key: string, request: Observable<T>, next: (value: T) => void): void {
     this.reads.get(key)?.unsubscribe(); const generation = (this.generations.get(key) ?? 0) + 1; this.generations.set(key, generation);
@@ -61,7 +65,7 @@ export class PreparationComponent implements OnInit, OnDestroy {
   approve(profile: CountingProfile): void { if (this.busy || !profile.sourceMatches || this.approvalNote.trim().length < 20) return; const id = this.selected; this.mutate(this.api.approveCountingProfile(id, profile.id, this.approvalNote), 'Approved for newly published rounds. Existing rounds keep their original rules.', () => { this.selectCamera(id); this.loadHealth(); }); }
   loadQueue(older = false): void { const before = older ? this.queue.at(-1)?.id : undefined; this.read('queue', this.api.reviewQueue(before), (page) => { this.queue = older ? [...this.queue, ...page.items] : page.items; this.moreQueue = page.hasMore; }); }
   loadAudit(older = false): void { const before = older ? this.audit.at(-1)?.id : undefined; this.read('audit', this.api.auditPage(before), (page) => { this.audit = older ? [...this.audit, ...page.items] : page.items; this.moreAudit = page.hasMore; }); }
-  openReview(id: number): void { if (this.busy) return; this.detail = undefined; this.note = ''; this.proposedCount = undefined; this.evidenceId = undefined; this.outcome = 'needs_review'; this.timeOK = this.coverageOK = this.framingOK = false; this.cancelReason = ''; this.confirmCancel = false; this.read('review', this.api.roundReview(id), (data) => this.detail = data); }
+  openReview(id: number, followCamera = false): void { if (this.busy) return; this.detail = undefined; this.note = ''; this.proposedCount = undefined; this.evidenceId = undefined; this.outcome = 'needs_review'; this.timeOK = this.coverageOK = this.framingOK = false; this.cancelReason = ''; this.confirmCancel = false; this.read('review', this.api.roundReview(id), (data) => { this.detail = data; if (followCamera && this.selected !== data.market.streamId) this.selectCamera(data.market.streamId); }); }
   saveReview(): void {
     if (!this.detail || this.busy) return;
     if (this.outcome === 'verified' && this.detail.snapshot?.profileId) { this.error = 'Retained video is currently disabled. Versioned UTC rounds cannot be verified or settled without complete trusted footage; cancel and refund unverifiable rounds.'; return; }

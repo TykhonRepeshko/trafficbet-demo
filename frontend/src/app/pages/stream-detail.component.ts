@@ -15,7 +15,7 @@ import { apiError } from '../services/ui-helpers';
 import { acceptsPredictions, roundPhase, roundPhaseLabels } from '../services/round-state';
 
 @Component({ selector: 'app-stream-detail', standalone: true, imports: [DatePipe, DecimalPipe, FormsModule, NgFor, NgIf, RouterLink, VideoPlayerComponent, LiveCameraCounterComponent, CountingRulesComponent, IconComponent], template: `
-  <a class="cd-back" [routerLink]="auth.isAdmin ? '/streams' : '/'"><app-icon name="back" [size]="16"></app-icon>{{ auth.isAdmin ? 'All cameras' : 'Back to play' }}</a>
+  <a class="cd-back" [routerLink]="auth.isAdmin ? '/admin/cameras' : '/'"><app-icon name="back" [size]="16"></app-icon>{{ auth.isAdmin ? 'All cameras' : 'Back to play' }}</a>
   <div class="tb-loading" *ngIf="loading" role="status"><span class="tb-spinner"></span>Loading camera…</div>
   <div *ngIf="error" class="tb-card tb-empty" role="alert"><span class="tb-empty-icon"><app-icon name="alert" [size]="24"></app-icon></span><h3>Camera unavailable</h3><p>{{ error }}</p><button class="tb-btn" type="button" (click)="load()">Try again</button></div>
   <section class="cd" *ngIf="stream && !loading && !error">

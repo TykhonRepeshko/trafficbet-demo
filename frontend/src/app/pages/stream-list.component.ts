@@ -12,7 +12,7 @@ import { environment } from '../../environments/environment';
 import { cameraSnapshotUrl } from '../services/media-urls';
 import { ApiService } from '../services/api.service';
 import { apiError } from '../services/ui-helpers';
-import { acceptsPredictions, roundPhase } from '../services/round-state';
+import { acceptsPredictions, roundPhase, roundPhaseLabels } from '../services/round-state';
 
 @Component({
   selector: 'app-stream-list', standalone: true,
@@ -20,28 +20,14 @@ import { acceptsPredictions, roundPhase } from '../services/round-state';
   styleUrl: './stream-list.component.css',
   template: `
     <section class="home">
-      <header class="home-hero">
-        <div class="home-hero-copy">
-          <p class="tb-kicker home-live"><span class="tb-dot is-pulse"></span>Live road cameras</p>
-          <h1>Watch the road.<br><span>Predict the traffic.</span></h1>
-          <p class="home-lead">Pick a camera, guess how many vehicles will cross the line in the next round and win virtual credits.</p>
-          <div class="home-hero-cta"><a class="tb-btn tb-btn-primary tb-btn-lg" href="/streams#camera-directory">Browse cameras<app-icon name="arrow" [size]="18"></app-icon></a><a class="tb-btn tb-btn-ghost tb-btn-lg" routerLink="/how-it-works">How it works</a></div>
-        </div>
-        <ol class="home-steps" aria-label="How to make a prediction">
-          <li><span class="home-step-icon"><app-icon name="camera" [size]="20"></app-icon></span><div><strong>Pick a camera</strong><small>Every camera runs short rounds all day.</small></div></li>
-          <li><span class="home-step-icon"><app-icon name="ticket" [size]="20"></app-icon></span><div><strong>Guess the count</strong><small>For example, 12 to 25 vehicles.</small></div></li>
-          <li><span class="home-step-icon"><app-icon name="trophy" [size]="20"></app-icon></span><div><strong>Win credits</strong><small>AI counts the round and pays out automatically.</small></div></li>
-        </ol>
+      <header class="monitor-header">
+        <div><p class="tb-kicker">Admin workspace</p><h1>Camera monitor</h1><p>Inspect the live view, counting window and next round for each camera.</p></div>
+        <nav class="monitor-actions" aria-label="Camera administration"><a class="tb-btn" routerLink="/admin">Admin panel</a><a class="tb-btn" routerLink="/admin" [queryParams]="{ tab: 'cameras' }">Manage cameras</a><a class="tb-btn" routerLink="/admin/preparation">Counting &amp; source checks</a></nav>
       </header>
-
-      <details class="tb-details home-example"><summary>New here? See how a prediction wins</summary><div class="tb-details-body home-example-body">
-        <div><strong>Range: 12 to 25 vehicles</strong><p>A verified count of 12, 18 or 25 wins. 11 or 26 loses — both bounds are included.</p></div>
-        <div><strong>Over / Under is also available</strong><div class="tb-seg" role="group" aria-label="Example outcome"><button type="button" [attr.aria-pressed]="exampleSide === 'over'" (click)="chooseExample('over')">Over 12 → 13+</button><button type="button" [attr.aria-pressed]="exampleSide === 'under'" (click)="chooseExample('under')">Under or equal → 0–12</button></div><p role="status">{{ exampleExplanation }}</p></div>
-      </div></details>
-
+      <div class="monitor-stats" *ngIf="!loading && !error"><div><span>Active cameras</span><strong>{{ streams.length }}</strong></div><div><span>Accepting predictions</span><strong>{{ openCameraCountLabel }}</strong></div><div><span>Paused / update unavailable</span><strong>{{ attentionCount }}</strong></div></div>
       <section class="home-directory" id="camera-directory" aria-labelledby="camera-directory-title">
         <div class="home-toolbar" id="prediction-rounds">
-          <h2 id="camera-directory-title">{{ availability === 'open' ? 'Open for predictions' : 'All cameras' }} <span class="tb-chip" *ngIf="!loading && !error">{{ filtered.length }}</span></h2>
+          <h2 id="camera-directory-title">{{ availability === 'open' ? 'Accepting predictions' : 'Active cameras' }} <span class="tb-chip" *ngIf="!loading && !error">{{ filtered.length }}</span></h2>
           <div class="home-filters">
             <label class="home-search"><app-icon name="search" [size]="17"></app-icon><span class="sr-only">Search cameras</span><input class="tb-input" [(ngModel)]="search" name="search" type="search" placeholder="Search camera, road or city"></label>
             <label class="home-city"><span class="sr-only">Filter by city</span><select class="tb-select" [(ngModel)]="city" name="city"><option value="">All cities</option><option *ngFor="let value of cities" [value]="value">{{ value }}</option></select></label>
@@ -56,7 +42,7 @@ import { acceptsPredictions, roundPhase } from '../services/round-state';
 
         <div class="cam-grid" *ngIf="!loading && !error">
           <article class="cam-card" *ngFor="let stream of filtered; trackBy: trackCamera" [class.is-open]="!!nextRound(stream.id)">
-            <a class="cam-media" [routerLink]="['/streams', stream.id]" [attr.aria-label]="'Open camera: ' + stream.title">
+            <a class="cam-media" [routerLink]="['/admin/cameras', stream.id]" [attr.aria-label]="'Open camera: ' + stream.title">
               <app-camera-scene *ngIf="preview" [variant]="stream.id"></app-camera-scene>
               <img *ngIf="!preview && thumbnail(stream) && !failedThumbnails[stream.id]" [src]="thumbnail(stream)" [alt]="(isReferenceImage(stream) ? 'Reference camera view: ' : 'Camera preview: ') + stream.title" loading="lazy" referrerpolicy="no-referrer" (load)="previewLoaded(stream.id, $event)" (error)="failedThumbnails[stream.id] = true">
               <div *ngIf="!preview && (!thumbnail(stream) || failedThumbnails[stream.id])" class="cam-placeholder"><app-icon name="camera" [size]="28"></app-icon><small>{{ failedThumbnails[stream.id] ? 'Preview unavailable' : 'Open to watch live' }}</small></div>
@@ -68,18 +54,20 @@ import { acceptsPredictions, roundPhase } from '../services/round-state';
               <span class="cam-caption">{{ preview ? 'Illustrated preview' : failedThumbnails[stream.id] || !thumbnail(stream) ? feedLabel(stream) : isReferenceImage(stream) ? 'Still · ' + referenceDate(stream) : 'Preview image' }}</span>
             </a>
             <div class="cam-body">
-              <p class="cam-loc">{{ stream.city }}, {{ stream.country }}</p>
-              <h3><a [routerLink]="['/streams', stream.id]">{{ stream.title }}</a></h3>
+              <p class="cam-loc">CAM {{ cameraNumber(stream.id) }} · {{ stream.city }}, {{ stream.country }}</p>
+              <h3><a [routerLink]="['/admin/cameras', stream.id]">{{ stream.title }}</a></h3>
               <p class="cam-desc">{{ stream.locationLabel }}</p>
+              <div class="monitor-current" *ngIf="currentRound(stream.id) as round"><span>{{ phaseLabel(round) }} · #{{ round.id }}</span><strong>{{ round.windowStart | date:'HH:mm:ss' }}–{{ round.windowEnd | date:'HH:mm:ss' }}</strong><a [routerLink]="['/admin/cameras', stream.id]" [queryParams]="{ round: round.id }" fragment="selected-round">Inspect this round →</a></div>
+              <p class="monitor-pause" *ngIf="stream.automationPause">{{ stream.automationPause }}</p>
             </div>
             <div class="cam-foot">
               <ng-container *ngIf="nextRound(stream.id) as market; else noRound">
                 <div class="cam-round"><span>{{ predictsNextRound(stream.id) ? 'Next round' : 'Round' }} #{{ market.id }}</span><strong class="tb-num">Count at {{ market.windowStart | date:'HH:mm:ss' }}</strong></div>
-                <a class="tb-btn tb-btn-primary tb-btn-sm" [routerLink]="['/streams', stream.id]" [queryParams]="{ round: market.id }" [fragment]="'round-' + market.id">Predict<app-icon name="arrow" [size]="16"></app-icon></a>
+                <a class="tb-btn tb-btn-primary tb-btn-sm" [routerLink]="['/admin/cameras', stream.id]" [queryParams]="{ round: market.id }" [fragment]="'selected-round'">Inspect round<app-icon name="arrow" [size]="16"></app-icon></a>
               </ng-container>
               <ng-template #noRound>
                 <div class="cam-round"><span>{{ marketsLoading ? 'Checking rounds…' : marketErrors[stream.id] ? 'Round info unavailable' : currentRound(stream.id) ? 'Round in progress' : stream.automationPause ? 'Rounds paused' : 'No open round' }}</span><small class="tb-num">{{ marketsLoading ? 'One moment…' : marketErrors[stream.id] ? 'Watch while we reconnect.' : !currentRound(stream.id) && stream.automationPause ? stream.automationPause : waitingLabel(stream.id) }}</small></div>
-                <a class="tb-btn tb-btn-sm" [routerLink]="['/streams', stream.id]">Watch<app-icon name="arrow" [size]="16"></app-icon></a>
+                <a class="tb-btn tb-btn-sm" [routerLink]="['/admin/cameras', stream.id]">Inspect camera<app-icon name="arrow" [size]="16"></app-icon></a>
               </ng-template>
             </div>
             <p class="cam-source">Source: <a *ngIf="sourcePage(stream); else plainSource" [href]="sourcePage(stream)" target="_blank" rel="noopener noreferrer">{{ stream.sourceOwner || 'Camera provider' }}</a><ng-template #plainSource><span>{{ stream.sourceOwner || 'Camera provider' }}</span></ng-template></p>
@@ -125,6 +113,9 @@ export class StreamListComponent implements OnInit, OnDestroy {
   }
   get hasCameraFilters(): boolean { return !!this.search || !!this.city || this.availability !== 'all'; }
   get openCameraCountLabel(): number | string { return this.loading || this.error || this.marketsLoading || this.hasRoundErrors ? '—' : this.streams.filter(stream => !!this.nextRound(stream.id)).length; }
+  get attentionCount(): number { return this.streams.filter(stream => !!stream.automationPause || !!this.marketErrors[stream.id]).length; }
+  cameraNumber(id: number): string { return String(id).padStart(3, '0'); }
+  phaseLabel(market: Market): string { return roundPhaseLabels[roundPhase(market, this.now)]; }
   trackCamera(_index: number, stream: TrafficStream): number { return stream.id; }
   cameraStateLabel(streamId: number, automationPause?: string): string {
     if (this.marketsLoading) return 'Checking entries';

@@ -1,3 +1,4 @@
+import { signInDestination } from '../services/navigation';
 import { NgIf } from '@angular/common';
 import { Component, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -25,7 +26,7 @@ import { apiError } from '../services/ui-helpers';
       <p *ngIf="!preview && !adminRequired" class="auth-switch">New here? <a routerLink="/register" [queryParams]="returnParams">Create a free account</a></p>
       <p class="auth-note">{{ preview ? 'Refreshing the page resets this sample session.' : 'You stay signed in until you sign out or your session expires.' }}</p>
     </div>
-    <a routerLink="/" class="auth-back"><app-icon name="back" [size]="16"></app-icon>Back to cameras</a>
+    <a routerLink="/" class="auth-back"><app-icon name="back" [size]="16"></app-icon>Back to Play</a>
   </section>
 ` })
 export class LoginComponent {
@@ -35,5 +36,5 @@ export class LoginComponent {
   get returnParams(): { returnUrl: string | null } { return { returnUrl: this.route.snapshot.queryParamMap.get('returnUrl') }; }
   email = ''; password = ''; loading = false; error = '';
   demo(role: 'user' | 'admin'): void { if (!this.preview) return; this.email = role + '@demo.local'; this.password = ''; this.submit(); }
-  submit(): void { if (this.loading) return; if (!this.preview && new TextEncoder().encode(this.password).length > 72) { this.error = 'Your password must not exceed 72 UTF-8 bytes.'; return; } this.loading = true; this.error = ''; this.auth.login(this.email.trim(), this.password).subscribe({ next: () => { this.loading = false; this.password = ''; const requested = this.route.snapshot.queryParamMap.get('returnUrl'); const target = requested && /^\/(bets|admin(?:\/preparation|\/media-lab)?|account|streams\/\d+)$/.test(requested) ? requested : '/'; if (target.startsWith('/admin') && !this.auth.isAdmin) { this.error = 'An administrator account is required to open the admin panel.'; return; } void this.router.navigateByUrl(target); }, error: (error) => { this.loading = false; this.password = ''; this.error = error?.status === 401 ? 'The email address or password is incorrect.' : apiError(error); } }); }
+  submit(): void { if (this.loading) return; if (!this.preview && new TextEncoder().encode(this.password).length > 72) { this.error = 'Your password must not exceed 72 UTF-8 bytes.'; return; } this.loading = true; this.error = ''; this.auth.login(this.email.trim(), this.password).subscribe({ next: () => { this.loading = false; this.password = ''; const requested = this.route.snapshot.queryParamMap.get('returnUrl'); const target = signInDestination(requested); if (target.startsWith('/admin') && !this.auth.isAdmin) { this.error = 'An administrator account is required to open the admin panel.'; return; } void this.router.navigateByUrl(target); }, error: (error) => { this.loading = false; this.password = ''; this.error = error?.status === 401 ? 'The email address or password is incorrect.' : apiError(error); } }); }
 }

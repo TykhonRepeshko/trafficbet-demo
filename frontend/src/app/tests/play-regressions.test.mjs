@@ -22,7 +22,8 @@ test('ready-made and exact choices read naturally', () => {
   assert.equal(logic.rangeLabel({ rangeMin: 0, rangeMax: 2 }), '0–2');
   assert.equal(logic.rangeLabel({ rangeMin: 9, rangeMax: 9 }), '9');
   assert.equal(logic.rangeLabel({ rangeMin: 13, rangeMax: logic.OPEN_ENDED_MAX }), '13+');
-  assert.equal(logic.payoutFor(25, 3.79), 94);
+  assert.equal(logic.payoutFor(25, 3.79), 95);
+  assert.equal(logic.payoutFor(25, 1.55), 39);
   assert.equal(logic.mmss(65.2), '1:06');
   assert.equal(logic.mmss(-3), '0:00');
 });

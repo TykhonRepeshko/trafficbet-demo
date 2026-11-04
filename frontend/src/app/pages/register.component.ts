@@ -25,7 +25,7 @@ import { apiError } from '../services/ui-helpers';
       <p class="auth-switch">Already have an account? <a routerLink="/login" [queryParams]="returnParams">Sign in</a></p>
       <p class="auth-note">Virtual credits only — they can’t be bought, withdrawn or exchanged for money.</p>
     </div>
-    <a routerLink="/" class="auth-back"><app-icon name="back" [size]="16"></app-icon>Back to cameras</a>
+    <a routerLink="/" class="auth-back"><app-icon name="back" [size]="16"></app-icon>Back to Play</a>
   </section>
 ` })
 export class RegisterComponent {

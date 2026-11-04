@@ -79,3 +79,8 @@
   .home-city .tb-select{width:100%}
   .cam-grid{grid-template-columns:1fr}
 }
+
+.monitor-header{display:flex;align-items:flex-start;justify-content:space-between;gap:24px}.monitor-header h1{margin:4px 0 8px;font-size:32px;letter-spacing:-.035em}.monitor-header p{margin:0;color:var(--muted)}.monitor-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+.monitor-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.monitor-stats>div{display:grid;gap:8px;padding:18px 20px;background:var(--surface);border:1px solid var(--line);border-radius:14px}.monitor-stats span{color:var(--muted);font-size:13px}.monitor-stats strong{font-size:28px}
+.monitor-current{display:grid;gap:4px;padding:12px;border:1px solid var(--line);border-radius:10px;font-size:12px;margin-top:10px}.monitor-current span{color:var(--muted)}.monitor-current a{color:var(--accent-ink);font-weight:700}.monitor-pause{font-size:12px;color:var(--warning,var(--muted));line-height:1.5}
+@media(max-width:900px){.monitor-header{flex-direction:column}.monitor-actions{justify-content:flex-start}}@media(max-width:600px){.monitor-stats{grid-template-columns:1fr}.monitor-stats>div{display:flex;align-items:center;justify-content:space-between}}

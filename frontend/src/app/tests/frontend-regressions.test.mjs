@@ -450,3 +450,16 @@ test('settlement API forwards operator evidence without manufacturing confirmati
     assert.equal(request[2].withCredentials, true);
   } finally { injector.destroy(); }
 });
+
+test('admin round filters find exact historical rounds and limit recent cards without modifying source data', () => {
+  const component = Object.create(AdminComponent.prototype);
+  const rows = Array.from({length:125}, (_,i) => ({...round, id:7000+i, streamId:i%2?49:45, streamTitle:i%2?'Jamboree':'Ball Road', title:'Line crossing', status:i%3?'settled':'open', windowStart:new Date(start+i*60000).toISOString()}));
+  Object.assign(component, {markets:rows, roundSearch:'', roundCameraId:0, roundStatus:'all', roundLimit:40});
+  assert.equal(component.visibleRounds.length,40); assert.equal(component.visibleRounds[0].id,7124);
+  component.roundSearch='#7001'; assert.deepEqual(component.visibleRounds.map(m=>m.id),[7001]);
+  component.roundSearch=''; component.roundCameraId=49; component.roundStatus='settled';
+  assert.ok(component.matchingRounds.length); assert.ok(component.matchingRounds.every(m=>m.streamId===49 && m.status==='settled'));
+  component.roundCameraId=0; component.roundStatus='all'; component.roundSearch='045';
+  assert.ok(component.matchingRounds.every(m=>m.streamId===45)); assert.equal(rows[0].id,7000);
+  component.roundSearch='does not exist'; assert.equal(component.visibleRounds.length,0);
+});

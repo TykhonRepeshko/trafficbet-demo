@@ -6,14 +6,16 @@ const signedIn: CanActivateFn = (_, state) => {
   const auth = inject(AuthService); const router = inject(Router);
   return auth.user ? true : router.createUrlTree(['/login'], { queryParams: { returnUrl: state.url } });
 };
-const administrator: CanActivateFn = () => {
+const administrator: CanActivateFn = (_, state) => {
   const auth = inject(AuthService); const router = inject(Router);
-  return auth.isAdmin ? true : router.createUrlTree(['/login'], { queryParams: { returnUrl: '/admin', admin: 'required' } });
+  return auth.isAdmin ? true : router.createUrlTree(['/login'], { queryParams: { returnUrl: state.url, admin: 'required' } });
 };
 export const routes: Routes = [
   { path: '', loadComponent: () => import('./pages/play.component').then((module) => module.PlayComponent), title: 'Play · TrafficBet' },
   { path: 'how-it-works', loadComponent: () => import('./pages/how-it-works.component').then((module) => module.HowItWorksComponent), title: 'How it works · TrafficBet' },
-  { path: 'streams', loadComponent: () => import('./pages/stream-list.component').then((module) => module.StreamListComponent), title: 'Cameras · TrafficBet' },
+  { path: 'streams', pathMatch: 'full', redirectTo: 'admin/cameras' },
+  { path: 'admin/cameras', loadComponent: () => import('./pages/stream-list.component').then((module) => module.StreamListComponent), canActivate: [signedIn, administrator], title: 'Camera monitor · TrafficBet' },
+  { path: 'admin/cameras/:id', loadComponent: () => import('./pages/admin-camera.component').then((module) => module.AdminCameraComponent), canActivate: [signedIn, administrator], title: 'Inspect camera and round · TrafficBet' },
   { path: 'streams/:id', loadComponent: () => import('./pages/stream-detail.component').then((module) => module.StreamDetailComponent), title: 'Camera · TrafficBet' },
   { path: 'bets', loadComponent: () => import('./pages/bets.component').then((module) => module.BetsComponent), canActivate: [signedIn], title: 'My predictions · TrafficBet' },
   { path: 'account', loadComponent: () => import('./pages/account.component').then((module) => module.AccountComponent), canActivate: [signedIn], title: 'My account · TrafficBet' },

@@ -68,7 +68,9 @@ export function aiBehind(round: LiveRound | undefined, displayed: number | null,
 }
 
 export function payoutFor(stake: number, odds: number): number {
-  return Number.isFinite(stake) && Number.isFinite(odds) ? Math.floor(stake * odds) : 0;
+  // Match the API: integer hundredths, rounded to the nearest whole credit.
+  return Number.isSafeInteger(stake) && stake >= 0 && Number.isFinite(odds) && odds >= 1
+    ? Math.floor((stake * Math.round(odds * 100) + 50) / 100) : 0;
 }
 
 export function mmss(seconds: number): string {

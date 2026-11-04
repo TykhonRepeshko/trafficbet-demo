@@ -14,7 +14,7 @@ import { apiError, voidReasonLabel } from '../services/ui-helpers';
 
 type Stage = 'idle' | 'finding' | 'betting' | 'placed' | 'empty';
 type Choice = { kind: 'option'; index: number } | { kind: 'exact' };
-interface Ticket { marketId: number; label: string; stake: number; payout: number; rangeMin: number; rangeMax: number; }
+interface Ticket { marketId: number; label: string; stake: number; payout: number; odds: number; rangeMin: number; rangeMax: number; }
 
 @Component({ selector: 'app-play', standalone: true, imports: [DecimalPipe, FormsModule, NgFor, NgIf, RouterLink, VideoPlayerComponent, LiveCameraCounterComponent, IconComponent], styleUrl: './play.component.css', template: `
   <section class="play" [class.has-game]="!!stream && !!market">
@@ -79,6 +79,13 @@ interface Ticket { marketId: number; label: string; stake: number; payout: numbe
             <div class="slip-presets"><button type="button" *ngFor="let amount of presets" [class.is-on]="stake === amount" (click)="stake = amount" [disabled]="submitting || amount > balance">{{ amount }}</button></div>
             <label class="slip-stake-input"><input class="tb-num tb-no-spin" type="number" inputmode="numeric" min="1" [max]="stakeLimit" step="1" name="stake" [(ngModel)]="stake" aria-label="Stake in credits" [disabled]="submitting"><span>cr</span></label>
           </div>
+          <p class="slip-available">Available: {{ balance | number:'1.0-0' }} cr</p>
+          <dl class="play-summary" aria-label="Prediction summary">
+            <div><dt>Your pick</dt><dd>{{ selectedQuote ? label(selectedQuote) + ' vehicles' : '—' }}</dd></div>
+            <div><dt>Odds</dt><dd>{{ selectedQuote ? (selectedQuote.odds | number:'1.2-2') + '×' : '—' }}</dd></div>
+            <div><dt>Stake</dt><dd>{{ !stakeProblem ? (stake | number:'1.0-0') + ' cr' : '—' }}</dd></div>
+            <div class="is-return"><dt>Potential return</dt><dd>{{ selectedQuote && !stakeProblem ? (potential | number:'1.0-0') + ' cr' : '—' }}</dd></div>
+          </dl>
           <button type="button" class="tb-btn tb-btn-primary tb-btn-block slip-confirm" (click)="place()" [disabled]="!canPlace">
             <span class="tb-spinner" *ngIf="submitting"></span>
             <ng-container *ngIf="selectedQuote as quote; else pick">Bet {{ stake | number:'1.0-0' }} cr on {{ label(quote) }} · win {{ potential | number:'1.0-0' }} cr</ng-container>
@@ -88,7 +95,12 @@ interface Ticket { marketId: number; label: string; stake: number; payout: numbe
         </ng-container>
 
         <ng-container *ngIf="stage === 'placed' && ticket">
-          <div class="slip-ticket"><span>Your pick</span><strong>{{ ticket.label }} vehicles</strong><small>{{ ticket.stake | number:'1.0-0' }} cr · pays {{ ticket.payout | number:'1.0-0' }} cr</small></div>
+          <dl class="play-summary" aria-label="Accepted prediction summary">
+            <div><dt>Your pick</dt><dd>{{ ticket.label }} vehicles</dd></div>
+            <div><dt>Accepted odds</dt><dd>{{ ticket.odds | number:'1.2-2' }}×</dd></div>
+            <div><dt>Stake</dt><dd>{{ ticket.stake | number:'1.0-0' }} cr</dd></div>
+            <div class="is-return"><dt>Potential return</dt><dd>{{ ticket.payout | number:'1.0-0' }} cr</dd></div>
+          </dl>
           <div class="slip-live" *ngIf="phase !== 'result'">
             <div class="slip-live-count" *ngIf="automaticSettlement" [class.is-behind]="behind"><small>AI count</small><strong class="tb-num">{{ count }}{{ behind ? '+' : '' }}</strong></div>
             <div class="slip-live-text"><strong>{{ phaseTitle }}</strong><span>{{ phaseHint }}</span></div>
@@ -303,7 +315,7 @@ export class PlayComponent implements OnDestroy {
   }
 
   private beginLive(bet: Bet, quote: RangeQuote): void {
-    this.ticket = { marketId: bet.marketId, label: rangeLabel(quote), stake: bet.stakeCredits, payout: bet.potentialPayoutCredits, rangeMin: quote.rangeMin, rangeMax: quote.rangeMax };
+    this.ticket = { marketId: bet.marketId, label: rangeLabel(quote), stake: bet.stakeCredits, payout: bet.potentialPayoutCredits, odds: bet.rangeOdds ?? quote.odds, rangeMin: quote.rangeMin, rangeMax: quote.rangeMax };
     this.stage = 'placed'; this.live = undefined; this.displayed = null; this.count = 0; this.phase = 'waiting'; this.balanceRefreshed = false;
     this.poll();
     this.pollTimer = window.setInterval(() => this.poll(), 1000);

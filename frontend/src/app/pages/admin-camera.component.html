@@ -1,0 +1,29 @@
+<nav class="inspect-nav" aria-label="Operator navigation"><a class="tb-link" routerLink="/admin/cameras">← Camera monitor</a><a class="tb-link" routerLink="/admin" [queryParams]="{tab:'markets'}">All rounds</a></nav>
+<div class="tb-loading" *ngIf="loading" role="status"><span class="tb-spinner"></span>Loading camera and round…</div>
+<div class="tb-alert is-error" *ngIf="error" role="alert">{{ error }} <button class="tb-btn tb-btn-sm" type="button" (click)="load()" *ngIf="cameraId">Retry</button></div>
+<section class="inspect" *ngIf="stream && !loading && !error">
+  <header class="inspect-header"><div><p class="tb-kicker">Operator view · CAM {{ cameraNumber(stream.id) }}</p><h1>{{ stream.title }}</h1><p>{{ stream.city }} · {{ stream.locationLabel }}</p></div><div class="inspect-actions"><a *ngIf="stream.isActive" class="tb-btn" [routerLink]="['/streams',stream.id]">User view ↗</a><a class="tb-btn" routerLink="/admin/preparation" [queryParams]="{stream:stream.id}" fragment="counting-rules">Line &amp; source settings</a><button class="tb-btn" type="button" [disabled]="refreshing" (click)="load(true)">{{ refreshing ? 'Updating…' : 'Refresh' }}</button></div></header>
+  <p class="tb-alert is-warn" *ngIf="refreshError" role="status">{{ refreshError }}</p>
+  <div class="inspect-grid">
+    <div class="inspect-feed">
+      <div class="inspect-feed-label"><strong>Current live broadcast</strong><span class="tb-chip">CAM {{ cameraNumber(stream.id) }}</span></div>
+      <app-video-player *ngIf="stream.isActive" #player [stream]="stream" [autoplay]="true" [countingSnapshot]="counter.snapshot" [highlightFrames]="counter.highlights" [highlightCrossings]="counter.crossings" [highlightCaptureTime]="counter.displayed"><app-live-camera-counter #counter vp-overlay [stream]="stream" [player]="player"></app-live-camera-counter></app-video-player>
+      <p class="tb-alert" *ngIf="!stream.isActive">This camera is archived. Its round history is preserved; live playback is unavailable.</p>
+      <p class="inspect-context" *ngIf="selected">{{ ended ? 'The selected round has ended. This player shows the current broadcast, not that round. A recording of the selected interval is unavailable.' : 'The player and green counter follow the current live video. The selected round and its counting window are shown alongside.' }}</p>
+    </div>
+    <article class="tb-card inspect-round" id="selected-round" *ngIf="selected as market" aria-labelledby="selected-round-title">
+      <p class="tb-kicker">Selected round · CAM {{ cameraNumber(stream.id) }}</p><h2 id="selected-round-title">Round #{{ market.id }}</h2><span class="tb-chip">{{ phaseLabel(market) }}</span>
+      <p>{{ market.title }}</p>
+      <dl class="inspect-facts"><div><dt>Predictions close</dt><dd>{{ market.bettingClosesAt | date:'MMM d, HH:mm:ss' }}</dd></div><div><dt>Counting window</dt><dd>{{ market.windowStart | date:'MMM d, HH:mm:ss' }}–{{ market.windowEnd | date:'HH:mm:ss' }}</dd></div><div><dt>Reference threshold</dt><dd>{{ market.threshold }} vehicles</dd></div><div><dt>Over / Under odds</dt><dd>{{ market.oddsOver | number:'1.2-2' }}× / {{ market.oddsUnder | number:'1.2-2' }}×</dd></div></dl>
+      <div class="inspect-result" *ngIf="market.status==='settled'"><span>Verified result</span><strong>{{ market.actualCount }} <small>vehicles</small></strong></div>
+      <p class="tb-alert is-warn" *ngIf="market.status==='void'">Round voided · stakes refunded. {{ refundReason(market) }}</p>
+      <div class="inspect-result" *ngIf="market.status==='open'"><span>AI progress for round #{{ market.id }}</span><strong>{{ processedCount === undefined ? '—' : processedCount }} <small>vehicles analysed</small></strong><small>{{ liveError || (processedUntil ? 'Processed through ' + (processedUntil! * 1000 | date:'HH:mm:ss') : 'Waiting for verified footage and AI progress. No final count yet.') }}</small></div>
+      <app-counting-rules [snapshot]="snapshot"></app-counting-rules>
+      <a class="tb-btn tb-btn-primary" routerLink="/admin/preparation" [queryParams]="{ stream:stream.id, round:market.id }" fragment="round-review">Review this round ↗</a>
+      <p class="inspect-context">Selection stays on this round as new rounds are published.</p>
+    </article>
+    <div class="tb-card" *ngIf="!selected"><p>No rounds have been published for this camera yet.</p></div>
+  </div>
+  <section class="tb-card inspect-history" aria-labelledby="camera-round-history"><h2 id="camera-round-history">Recent camera rounds</h2><p class="inspect-context">Latest 30 rounds plus the selected round. Choose one to inspect its exact window, result and frozen rules.</p><div class="inspect-table"><table><thead><tr><th>Round</th><th>Counting window</th><th>Status</th><th>Result</th></tr></thead><tbody><tr *ngFor="let round of rounds; trackBy:trackRound" [class.is-selected]="round.id===selectedId"><td><button class="tb-link" type="button" (click)="selectRound(round)" [attr.aria-pressed]="round.id===selectedId">#{{ round.id }}</button></td><td>{{ round.windowStart | date:'MMM d, HH:mm:ss' }}–{{ round.windowEnd | date:'HH:mm:ss' }}</td><td>{{ phaseLabel(round) }}</td><td>{{ round.actualCount === undefined ? '—' : round.actualCount + ' vehicles' }}</td></tr></tbody></table></div><p *ngIf="!rounds.length">No rounds yet.</p></section>
+  <p class="inspect-context" *ngIf="updatedAt">Updated {{ updatedAt | date:'HH:mm:ss' }} · refreshes every 5 seconds</p>
+</section>
