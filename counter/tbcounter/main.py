@@ -41,6 +41,7 @@ MOVED_STREAK_RECALIBRATE = 3
 NO_CLOCK_REASON = (
     "No readable capture clock in the video; rounds cannot be verified automatically."
 )
+NO_SOURCE_REASON = "The camera feed has stopped advancing; automatic rounds are paused until fresh video returns."
 NO_LINE_REASON = "Waiting for automatic calibration: no counting line has been placed for this camera yet."
 RESUME_REASON = "Capture clock and counting line verified; automatic counting resumed."
 CALIBRATION_MAX_BACKOFF = 1800.0
@@ -216,6 +217,9 @@ class Counter:
     @staticmethod
     def wanted_availability(cam: Camera) -> tuple[bool | None, str]:
         """Rounds are offered only when they can be settled: readable clock and a calibrated line."""
+        last_segment = getattr(getattr(cam, "fetcher", None), "last_segment_at", None)
+        if last_segment is not None and time.monotonic() - last_segment > 45:
+            return False, NO_SOURCE_REASON
         state = cam.clock_state
         if state == "missing":
             return False, NO_CLOCK_REASON
@@ -237,6 +241,7 @@ class Counter:
         ):
             self.api.availability(cam.id, False, reason)
             cam.availability = False
+            cam.info = cam.info | {"roundsEnabled": False, "automationNote": reason}
             LOG.warning("camera unavailable", stream=cam.id, reason=reason)
         elif (
             wanted is True
@@ -248,7 +253,7 @@ class Counter:
             cam.availability = True
             cam.info = cam.info | {"roundsEnabled": True, "automationNote": ""}
             LOG.info("camera available again", stream=cam.id)
-        if state != "ok":
+        if state != "ok" or reason == NO_SOURCE_REASON:
             return
         self.maybe_probe_coverage(cam)
         needs = cam.profile is None or cam.recalibrate
@@ -419,6 +424,11 @@ class Counter:
     # ---------- rounds ----------
     def schedule_rounds(self) -> None:
         now = time.time()
+        # A very short advance can finish before submit() stores its Future.
+        # Reap it here as well so a completed Future can never strand a round.
+        for rid, future in list(self.inflight.items()):
+            if future.done():
+                self.inflight.pop(rid, None)
         for rid, payload in list(self.pending_results.items()):
             self.post_result(rid, payload)
         rounds = self.api.rounds()
@@ -463,6 +473,13 @@ class Counter:
             )
             growing = coverage.covered or coverage.reason == "footage_not_yet_available"
             if growing and coverage.segments:
+                # Never use ThreadPoolExecutor's unbounded queue as a backlog.
+                # Older windows retain priority and each camera has one tracker
+                # session at a time, including while waiting for the next segment.
+                if len(self.inflight) >= self.cfg.processors:
+                    continue
+                if job is None and any(other.cam.id == cam.id for other in list(self.jobs.values())):
+                    continue
                 if job is None:
                     # Wide detection only while the pool keeps up; otherwise fall back to the cheap mode.
                     mode = (

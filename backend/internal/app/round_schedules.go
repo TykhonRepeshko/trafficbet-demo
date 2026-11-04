@@ -220,6 +220,22 @@ func (s *Store) runRoundSchedule(ctx context.Context, id int64, now time.Time) e
 	if _, err = tx.Exec(ctx, `UPDATE round_schedules SET last_checked_at=$2 WHERE stream_id=$1`, id, now); err != nil {
 		return err
 	}
+	// Preserve published terms, but stop replenishing the horizon while an AI
+	// window is overdue. Otherwise an offline/overloaded worker accumulates an
+	// unlimited number of promised counts. Settlement/refund resumes publication.
+	var delayed bool
+	if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM bet_markets m
+        JOIN round_counting_snapshots c ON c.market_id=m.id AND c.profile_id IS NOT NULL
+        WHERE m.stream_id=$1 AND m.status='open' AND m.window_end<=$2)`,
+		id, now.Add(-30*time.Second)).Scan(&delayed); err != nil {
+		return err
+	}
+	if delayed {
+		if _, err = tx.Exec(ctx, `UPDATE round_schedules SET next_run_at=$2 WHERE stream_id=$1`, id, now.Add(10*time.Second)); err != nil {
+			return err
+		}
+		return tx.Commit(ctx)
+	}
 	// next_run_at is a UI/worker hint rather than a publication barrier. Always
 	// reconcile the bounded horizon so upgrades, cancellations and restarts can
 	// repair a missing successor even when an older hint lies in the future.

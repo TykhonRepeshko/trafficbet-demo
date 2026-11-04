@@ -30,7 +30,7 @@ function harness() {
   let response;const calls=[];
   const api={health:()=>of({automaticSettlement:automatic}),listPublicMarkets:id=>{calls.push(['markets',id]);return of(markets);},liveRound:id=>{calls.push(['live',id]);return response ?? (fail?throwError(()=>new Error('temporary')):of(id === live.marketId ? live : { marketId:id, streamId:47, status:'open', windowStart:markets.find(m=>m.id===id).windowStart, windowEnd:markets.find(m=>m.id===id).windowEnd, live:null }));}};
   const injector=createEnvironmentInjector([{provide:ApiService,useValue:api}]);const c=runInInjectionContext(injector,()=>new LiveCameraCounterComponent());c.stream={id:47,streamType:'hls',streamUrl:'camera',countingGuide:{sourceFingerprint:'camera-47'}};c.player={syncToAnalysis:()=>syncs++,releaseAnalysisSync:()=>released++,displayedCaptureTime:()=>shown};
-  return {c,calls,timers,start:()=>c.ngOnChanges(),advance(ms,position=shown){now+=ms;shown=position;if(live.live) live.live.updatedAt=iso(now);c.tick();},setLive(value){live=value;},get live(){return live;},setMarkets(value){markets=value;},manual(){automatic=false;},fail(){fail=true;},pending(){response=new Subject();return response;},get released(){return released;},get syncs(){return syncs;},cleanup(){c.ngOnDestroy();injector.destroy();globalThis.window=saved.window;globalThis.document=saved.document;Date.now=saved.now;}};
+  return {c,calls,timers,start:()=>c.ngOnChanges(),advance(ms,position=shown,fresh=true){now+=ms;shown=position;if(live.live && fresh) live.live.updatedAt=iso(now);c.tick();},setLive(value){live=value;},get live(){return live;},setMarkets(value){markets=value;},manual(){automatic=false;},fail(){fail=true;},pending(){response=new Subject();return response;},get released(){return released;},get syncs(){return syncs;},cleanup(){c.ngOnDestroy();injector.destroy();globalThis.window=saved.window;globalThis.document=saved.document;Date.now=saved.now;}};
 }
 
 test('a viewer sees a synchronized count and frozen line without any account or bet', () => {
@@ -76,4 +76,15 @@ test('a temporary HLS seek cannot spoil the final count or discard the current g
     h.advance(4000,start/1000+31);assert.equal(h.c.phase,'result');assert.equal(h.c.count,2);
     h.advance(4000);assert.equal(h.c.market.id,2);assert.equal(h.c.phase,'waiting');
   } finally {h.cleanup();}
+});
+
+test('a settled round without retained live progress shows its final result, never Waiting for AI', () => {
+  const h=harness();try{h.start();h.setLive({...h.live,status:'settled',actualCount:17,live:null});h.advance(20_000,null);assert.equal(h.c.count,17);assert.equal(h.c.statusText,'Final');assert.equal(h.c.analysisDelayed,false);}finally{h.cleanup();}
+});
+test('missing analysis becomes an explicit delay and releases playback instead of an endless spinner', () => {
+  const h=harness();try{h.start();h.setLive({...h.live,live:null});h.advance(2000);assert.match(h.c.statusText,/AI delayed/);assert.equal(h.c.analysisDelayed,true);assert.equal(h.c.count,null);assert.equal(h.c.highlights,undefined);assert.ok(h.released);}finally{h.cleanup();}
+});
+
+test('stale progress cannot keep pausing or rewinding the broadcast on every timer tick', () => {
+  const h=harness();try{h.start();const synced=h.syncs;h.advance(20_000,undefined,false);assert.equal(h.c.analysisDelayed,true);assert.equal(h.c.unavailable,false);assert.match(h.c.statusText,/AI delayed/);assert.equal(h.syncs,synced);assert.ok(h.released);assert.equal(h.c.highlights,undefined);}finally{h.cleanup();}
 });

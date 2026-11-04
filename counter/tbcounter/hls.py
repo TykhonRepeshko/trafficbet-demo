@@ -97,14 +97,28 @@ class StreamFetcher(threading.Thread):
         self.stop_event.set()
 
     def _get(self, url: str, limit: int) -> bytes:
-        with self.session.get(url, headers=self.headers, timeout=(5, 20), stream=True) as response:
-            response.raise_for_status()
-            data = bytearray()
-            for chunk in response.iter_content(65536):
-                data += chunk
-                if len(data) > limit:
-                    raise ValueError("response exceeds size limit")
-            return bytes(data)
+        # A full gateway is not an expired camera session. Briefly retry the
+        # same scoped handle instead of reopening playlists and backing off 30s.
+        for attempt in range(3):
+            with self.session.get(url, headers=self.headers, timeout=(5, 20), stream=True) as response:
+                if response.status_code == 503 and attempt < 2:
+                    retry = response.headers.get("Retry-After", "2")
+                    try:
+                        wait = min(2.0, max(0.25, float(retry)))
+                    except ValueError:
+                        wait = 2.0
+                    response.close()
+                    if self.stop_event.wait(wait):
+                        raise requests.RequestException("camera fetch stopped")
+                    continue
+                response.raise_for_status()
+                data = bytearray()
+                for chunk in response.iter_content(65536):
+                    data += chunk
+                    if len(data) > limit:
+                        raise ValueError("response exceeds size limit")
+                return bytes(data)
+        raise RuntimeError("unreachable")
 
     def _resolve(self) -> str:
         text = self._get(self.master_url, MAX_PLAYLIST_BYTES).decode("utf-8", "replace")
@@ -120,16 +134,19 @@ class StreamFetcher(threading.Thread):
             self.variant_url = None  # gateway handles expire; resolve the master again next time
             raise
         playlist = parse_media(text, self.variant_url)
+        failed = None
         for item in playlist.segments:
             if self.buffer.has(item.seq) or self.stop_event.is_set():
                 continue
             try:
                 data = self._get(item.uri, MAX_SEGMENT_BYTES)
-            except requests.HTTPError:
-                # Source session URLs can expire on a segment before the child
-                # playlist fails. Reopen the scoped master on the next poll.
+            except requests.HTTPError as exc:
+                # Keep downloading newer segments even if an older one expired.
+                # The missing segment stays missing; coverage gates still fail
+                # that window, while subsequent windows can recover normally.
                 self.variant_url = None
-                raise
+                failed = exc
+                continue
             fetched_at = time.time()
             first_pts, width, height = video.probe(data)
             if first_pts is None:
@@ -143,6 +160,8 @@ class StreamFetcher(threading.Thread):
             self.last_segment_at = time.monotonic()
             LOG.debug("segment", stream=self.stream_id, seq=item.seq, duration=item.duration,
                       anchored=anchor is not None, latency=round(anchor.latency, 2) if anchor else None)
+        if failed is not None:
+            raise failed
         # A session may keep returning HTTP 200 with a frozen media playlist.
         # Re-resolve the public master after three missed segment intervals.
         if not self.stop_event.is_set() and time.monotonic()-self.last_segment_at >= max(30.0, playlist.target_duration*3):
@@ -155,11 +174,15 @@ class StreamFetcher(threading.Thread):
     def run(self) -> None:
         backoff = 2.0
         while not self.stop_event.is_set():
+            before = self.segments_seen
             try:
                 wait = self.poll_once()
                 self.last_error, backoff = "", 2.0
             except Exception as exc:  # network errors must never kill the camera thread
                 self.last_error = f"{type(exc).__name__}: {exc}"[:300]
                 LOG.warning("fetch failed", stream=self.stream_id, error=self.last_error)
-                wait, backoff = backoff, min(backoff * 2, 30.0)
+                if self.segments_seen > before:
+                    wait, backoff = 2.0, 2.0
+                else:
+                    wait, backoff = backoff, min(backoff * 2, 30.0)
             self.stop_event.wait(wait)

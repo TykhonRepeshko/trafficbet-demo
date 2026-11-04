@@ -80,3 +80,40 @@ def test_047_timestamp_crop_excludes_scene_under_the_clock(displayed):
     reader=source_clock({'sourceFingerprint':meta['sourceFingerprint']})
     hh,mm,ss=map(int,displayed.split(':'))
     assert reader._read_time(frame,reader.roi)==hh*3600+mm*60+ss
+
+
+def test_expired_old_segment_does_not_prevent_buffering_newer_footage(monkeypatch):
+    clock=type('Clock',(),{'anchor_segment':lambda *args:None})()
+    fetcher=StreamFetcher(49,'http://localhost/master',None,SegmentBuffer(120),clock)
+    fetcher.variant_url='http://localhost/session'
+    def get(url,limit):
+        if url.endswith('/session'):return b'#EXTM3U\n#EXT-X-TARGETDURATION:10\n#EXT-X-MEDIA-SEQUENCE:1\n#EXTINF:10,\nexpired.ts\n#EXTINF:10,\nfresh.ts\n'
+        if url.endswith('/expired.ts'):raise requests.HTTPError('expired')
+        return b'fresh video'
+    monkeypatch.setattr(fetcher,'_get',get)
+    monkeypatch.setattr('tbcounter.hls.video.probe',lambda data:(1.,1280,720))
+    with pytest.raises(requests.HTTPError):fetcher.poll_once()
+    assert not fetcher.buffer.has(1)
+    assert fetcher.buffer.has(2)
+    assert fetcher.variant_url is None
+
+
+def test_gateway_busy_retries_the_same_handle_with_a_bounded_wait():
+    from types import SimpleNamespace
+    calls=[];waits=[]
+    class Response:
+        headers={'Retry-After':'2'}
+        def __init__(self,status):self.status_code=status
+        def __enter__(self):return self
+        def __exit__(self,*args):pass
+        def close(self):pass
+        def raise_for_status(self):
+            if self.status_code!=200:raise requests.HTTPError('busy')
+        def iter_content(self,size):yield b'video'
+    responses=iter([Response(503),Response(503),Response(200)])
+    session=SimpleNamespace(get=lambda url,**kw:(calls.append(url) or next(responses)))
+    fetcher=StreamFetcher(49,'http://localhost/master',session,SegmentBuffer(120),None)
+    fetcher.stop_event=SimpleNamespace(wait=lambda seconds:(waits.append(seconds) or False))
+    assert fetcher._get('http://localhost/resource/handle',100)==b'video'
+    assert calls==['http://localhost/resource/handle']*3
+    assert waits==[2.,2.]

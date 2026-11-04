@@ -23,11 +23,11 @@ class Client:
         self.session.headers.update({"X-Worker-Token": token, "Accept": "application/json",
                                      "User-Agent": "trafficbet-counter"})
 
-    def _request(self, method: str, path: str, *, json: Any = None, raw: bool = False, attempts: int = 4):
+    def _request(self, method: str, path: str, *, json: Any = None, raw: bool = False, attempts: int = 4, timeout: tuple[float, float] = (5, 30)):
         delay = 1.0
         for attempt in range(attempts):
             try:
-                response = self.session.request(method, self.base + path, json=json, timeout=(5, 30), allow_redirects=False)
+                response = self.session.request(method, self.base + path, json=json, timeout=timeout, allow_redirects=False)
             except requests.RequestException as exc:
                 if attempt == attempts - 1:
                     raise
@@ -73,4 +73,4 @@ class Client:
 
     def progress(self, round_id: int, payload: dict) -> dict:
         """Live count while the round is being counted; best effort, never retried."""
-        return self._request("POST", f"/api/internal/automation/rounds/{round_id}/progress", json=payload, attempts=1)
+        return self._request("POST", f"/api/internal/automation/rounds/{round_id}/progress", json=payload, attempts=1, timeout=(2, 3))

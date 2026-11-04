@@ -400,3 +400,57 @@ func TestPostgresRoundScheduleAPIAuthValidationAndLiteralRules(t *testing.T) {
 		t.Fatal("admin configuration audit missing", count, err)
 	}
 }
+
+func TestPostgresRoundPublicationWaitsForOverdueAIWithoutChangingPublishedTerms(t *testing.T) {
+	s, ctx := integrationStore(t, true)
+	stream := integrationStream(t, s, ctx)
+	ref, err := s.SaveCountingReference(ctx, stream.ID, preparationPNG(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile, err := s.SaveCountingProfile(ctx, stream.ID, ref.ID, preparationDefinition())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = s.ApproveCountingProfile(ctx, stream.ID, profile.ID, "Synthetic test approval for scheduler backpressure only."); err != nil {
+		t.Fatal(err)
+	}
+	p := defaultRoundSchedule(stream)
+	p.Enabled = true
+	if err = s.SaveRoundSchedule(ctx, stream.ID, p); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().Add(time.Second)
+	if err = s.runRoundSchedule(ctx, stream.ID, now); err != nil {
+		t.Fatal(err)
+	}
+	before, err := s.ListMarkets(ctx, &stream.ID, "")
+	if err != nil || len(before) != 2 {
+		t.Fatal(before, err)
+	}
+	delayedNow := before[1].WindowEnd.Add(31 * time.Second)
+	for i := 0; i < 3; i++ {
+		if err = s.runRoundSchedule(ctx, stream.ID, delayedNow); err != nil {
+			t.Fatal(err)
+		}
+	}
+	after, err := s.ListMarkets(ctx, &stream.ID, "")
+	if err != nil || len(after) != 2 {
+		t.Fatal("overdue AI expanded the horizon", len(after), err)
+	}
+	for i, m := range before {
+		if m.ID != after[i].ID || m.Status != after[i].Status || m.Title != after[i].Title || !m.WindowStart.Equal(after[i].WindowStart) || !m.WindowEnd.Equal(after[i].WindowEnd) || m.Threshold != after[i].Threshold {
+			t.Fatal("published terms changed")
+		}
+	}
+	if _, err = s.VoidMarket(ctx, before[1].ID, "Synthetic missing footage; release the isolated test backlog."); err != nil {
+		t.Fatal(err)
+	}
+	if err = s.runRoundSchedule(ctx, stream.ID, delayedNow); err != nil {
+		t.Fatal(err)
+	}
+	after, err = s.ListMarkets(ctx, &stream.ID, "")
+	if err != nil || len(after) != 4 {
+		t.Fatal("publication did not resume after resolution", len(after), err)
+	}
+}

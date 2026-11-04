@@ -122,3 +122,5 @@ and produces a plausible `6`; 26 retained timestamp strips cover the regression.
 Only that source uses the sharp-only variant. Unknown/changed fingerprints
 retain default discovery and preprocessing. A clock tick must still be observed,
 and capture latency, continuity, framing and tracking gates remain unchanged.
+
+Live processing uses bounded admission and pauses future publication when counts are overdue. Viewer delay states, gateway recovery and validation are described in [AI processing backpressure](../docs/ai-processing-backpressure.md).
