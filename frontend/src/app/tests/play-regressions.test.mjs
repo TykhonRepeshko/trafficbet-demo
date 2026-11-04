@@ -87,16 +87,30 @@ test('the HUD says the AI is catching up instead of showing a confident count', 
 });
 
 
-test('counted vehicle highlights match video time, interpolate the same track and clear stale boxes', () => {
+test('counted vehicle pulses last half a second after the crossing in capture time', () => {
   const box={trackId:7,x:.1,y:.2,width:.1,height:.2};
-  const frames=[{at:10,boxes:[box]},{at:10.4,boxes:[{...box,x:.3}]},{at:10.8,boxes:[]}];
-  assert.equal(logic.countedVehicleBoxes(frames,null).length,0);
-  assert.equal(logic.countedVehicleBoxes(frames,9.9).length,0);
-  const midway=logic.countedVehicleBoxes(frames,10.2)[0];
-  assert.ok(Math.abs(midway.x-.2)<1e-6);
-  assert.equal(logic.countedVehicleBoxes(frames,10.8).length,0);
-  assert.equal(logic.countedVehicleBoxes(frames,20).length,0);
-  assert.equal(logic.countedVehicleBoxes([{at:10,boxes:[{...box,width:2}]}],10).length,0);
+  const crossings=[{trackId:7,at:10,direction:'A_to_B',class:'car'}];
+  const frames=[{at:9.9,boxes:[box]},{at:10,boxes:[box]},{at:10.2,boxes:[{...box,x:.3}]},{at:10.4,boxes:[box]},{at:10.8,boxes:[box]}];
+  const get=(at)=>logic.countedVehicleBoxes(frames,at,crossings);
+  assert.equal(get(null).length,0);
+  assert.equal(get(9.99).length,0);
+  assert.equal(get(10).length,1);
+  assert.ok(Math.abs(get(10.1)[0].x-.2)<1e-6);
+  assert.equal(get(10.4999).length,1);
+  assert.equal(get(10.5).length,0);
+  assert.equal(get(10.8).length,0,'later observations must not restart the pulse');
+  assert.equal(get(20).length,0);
+  assert.equal(logic.countedVehicleBoxes(frames,10,[]).length,0);
+  assert.equal(logic.countedVehicleBoxes([{at:10,boxes:[{...box,width:2}]}],10,crossings).length,0);
+});
+
+test('highlight expiry is per vehicle and cannot interpolate across missing observations', () => {
+  const a={trackId:1,x:.1,y:.2,width:.1,height:.2},b={...a,trackId:2};
+  const crossings=[{trackId:1,at:10},{trackId:2,at:10.4}];
+  const frames=[{at:10.4,boxes:[a,b]},{at:10.6,boxes:[a,b]}];
+  assert.deepEqual(logic.countedVehicleBoxes(frames,10.6,crossings).map(b=>b.trackId),[2]);
+  assert.equal(logic.countedVehicleBoxes(frames,10.9,crossings).length,0);
+  assert.equal(logic.countedVehicleBoxes([{at:10,boxes:[a]},{at:10.5,boxes:[a]}],10.3,crossings).length,0);
 });
 
 

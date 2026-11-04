@@ -4,7 +4,7 @@ import os
 from dataclasses import dataclass, field
 from .inference import InferencePreset, load_presets
 
-VERSION = "1.4.0-exp.3"
+VERSION = "1.4.0-exp.7"
 
 
 def _float(name: str, default: float, low: float, high: float) -> float:

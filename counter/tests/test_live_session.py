@@ -178,7 +178,7 @@ def test_green_boxes_follow_only_counted_tracks_and_stay_bounded(monkeypatch):
     assert any(f["boxes"] for f in frames)
     for frame in frames:
         for box in frame["boxes"]:
-            assert frame["at"] >= crossing["at"]
+            assert crossing["at"] <= frame["at"] < crossing["at"] + 0.5
             assert box["trackId"] == crossing["trackId"]
             assert 0 <= box["x"] < box["x"] + box["width"] <= 1.001
             assert 0 <= box["y"] < box["y"] + box["height"] <= 1.001
@@ -313,3 +313,32 @@ def test_progress_preserves_a_crossing_just_before_the_exclusive_window_end():
     assert payload['crossings'][0]['at']==at
     assert payload['crossings'][0]['at']<session.end
     assert payload['highlights'][0]['at']<=payload['processedUntil']<session.end
+
+
+def test_late_neural_confirmation_publishes_only_measured_half_second_pulse(monkeypatch):
+    class LateTracker:
+        def __init__(self, *args):
+            pass
+        def update(self, dets, at):
+            # The ID is already tracked, but strong class evidence arrives late.
+            x = 64 + min((at-1000)*40, 60)
+            return [SimpleNamespace(track_id=7,label="car",confidence=.9 if at>=1001.1 else .31,
+                                    xyxy=(x-8,40,x+8,70),source="detector")]
+    monkeypatch.setattr(pipeline,"Tracker",LateTracker)
+    monkeypatch.setattr(pipeline,"TiledDetector",lambda *args,**kw:SimpleNamespace(detect=lambda bgr:[]))
+    session=pipeline.RoundSession(FakeDetector(0),RULE,1000.,1030.,15.,.3)
+    image=np.zeros((90,160,3),np.uint8)
+    for n in range(11):
+        session._frame(1000.+n*.1,image,None)
+    assert session.progress()["vehicleCount"]==0
+    assert not any(f["boxes"] for f in session.progress()["highlights"])
+    session._frame(1001.1,image,None)
+    session._frame(1001.2,image,None)
+    payload=session.progress()
+    assert payload["vehicleCount"]==1
+    crossing=payload["crossings"][0]["at"]
+    assert 1000.3<crossing<1000.5
+    pulse=[f for f in payload["highlights"] if f["boxes"]]
+    assert pulse, "late class confirmation must not erase the real earlier crossing flash"
+    assert all(crossing<=f["at"]<crossing+.5 for f in pulse)
+    assert not any(f["boxes"] for f in payload["highlights"] if f["at"]>=crossing+.5)

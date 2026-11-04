@@ -34,7 +34,7 @@ import { acceptsPredictions, roundPhase, roundPhaseLabels } from '../services/ro
 
     <div class="cd-grid">
       <div class="cd-video">
-        <app-video-player #videoPlayer [stream]="stream" [countingSnapshot]="cameraCounter.snapshot ?? displayedRound?.countingRules" [autoplay]="true" [highlightFrames]="cameraCounter.highlights" [highlightCaptureTime]="cameraCounter.displayed">
+        <app-video-player #videoPlayer [stream]="stream" [countingSnapshot]="cameraCounter.snapshot ?? displayedRound?.countingRules" [autoplay]="true" [highlightFrames]="cameraCounter.highlights" [highlightCrossings]="cameraCounter.crossings" [highlightCaptureTime]="cameraCounter.displayed">
           <app-live-camera-counter #cameraCounter vp-overlay [stream]="stream" [player]="videoPlayer"></app-live-camera-counter>
         </app-video-player>
       </div>

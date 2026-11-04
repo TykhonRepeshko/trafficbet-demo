@@ -4,7 +4,7 @@ import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import type Hls from 'hls.js';
 import type { ErrorData, LevelUpdatedData } from 'hls.js';
 import { environment } from '../../environments/environment';
-import { CountingSnapshot, LiveHighlightFrame, LiveRound, TrafficStream } from '../models';
+import { CountingSnapshot, LiveCrossing, LiveHighlightFrame, LiveRound, TrafficStream } from '../models';
 import { cameraGatewayUrl, cameraSnapshotUrl, youtubeVideoId } from '../services/media-urls';
 import { CountingOverlayComponent } from './counting-overlay.component';
 import { CameraSceneComponent } from './camera-scene.component';
@@ -20,7 +20,7 @@ import { CountedVehiclesOverlayComponent } from './counted-vehicles-overlay.comp
       <img *ngIf="playing && !preview && (stream.streamType === 'image' || stream.streamType === 'mjpeg') && imageUrl" class="vp-media" [src]="imageUrl" [alt]="stream.streamType === 'image' ? 'Refreshing camera snapshot' : 'MJPEG camera feed'" referrerpolicy="no-referrer" (load)="loaded()" (error)="mediaError()">
       <iframe *ngIf="playing && !preview && stream.streamType === 'youtube' && youtubeUrl" class="vp-media" [src]="youtubeUrl" title="Source operator camera player on YouTube" referrerpolicy="strict-origin-when-cross-origin" sandbox="allow-scripts allow-same-origin allow-presentation" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen (load)="loaded()"></iframe>
       <app-counting-overlay *ngIf="!preview && !error && (playing ? !loading : !!poster && !posterFailed && posterWidth > 0)" [guide]="stream.countingGuide" [snapshot]="countingSnapshot" [mediaWidth]="playing ? mediaWidth : posterWidth" [mediaHeight]="playing ? mediaHeight : posterHeight"></app-counting-overlay>
-      <app-counted-vehicles-overlay *ngIf="playing && !loading && !error && !preview" [frames]="highlightFrames" [captureTime]="highlightCaptureTime" [mediaWidth]="mediaWidth" [mediaHeight]="mediaHeight"></app-counted-vehicles-overlay>
+      <app-counted-vehicles-overlay *ngIf="playing && !loading && !error && !preview" [frames]="highlightFrames" [crossings]="highlightCrossings" [captureTime]="highlightCaptureTime" [mediaWidth]="mediaWidth" [mediaHeight]="mediaHeight"></app-counted-vehicles-overlay>
       <div *ngIf="preview || (!playing && !(autoplay && playable))" class="vp-idle" [class.is-plain]="!preview && (!poster || posterFailed)">
         <strong>{{ preview ? 'Sample location' : playable ? 'Camera stream' : 'Feed not connected' }}</strong>
         <p>{{ preview ? 'Illustrated road scene. This design preview has no live video.' : playable ? 'Start the camera feed. Timing depends on the source.' : 'A supported camera feed has not been connected yet.' }}</p>
@@ -62,6 +62,7 @@ export class VideoPlayerComponent implements OnChanges, OnDestroy {
   @Input({ required: true }) stream!: TrafficStream;
   @Input() countingSnapshot?: CountingSnapshot;
   @Input() highlightFrames?: LiveHighlightFrame[];
+  @Input() highlightCrossings?: LiveCrossing[];
   @Input() highlightCaptureTime: number | null = null;
   /** Start playback as soon as the source is known. Muted video satisfies browser autoplay rules. */
   @Input() autoplay = false;

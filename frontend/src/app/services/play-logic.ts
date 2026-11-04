@@ -1,4 +1,4 @@
-import type { LiveHighlightFrame, LiveVehicleBox, LiveRound, Market, RangeQuote, TrafficStream } from '../models';
+import type { LiveCrossing, LiveHighlightFrame, LiveVehicleBox, LiveRound, Market, RangeQuote, TrafficStream } from '../models';
 
 /** Largest custom count accepted by the API. */
 export const OPEN_ENDED_MAX = 100000000;
@@ -76,22 +76,29 @@ export function mmss(seconds: number): string {
   return `${Math.floor(value / 60)}:${(value % 60).toString().padStart(2, '0')}`;
 }
 
-/** Align measured boxes to the displayed frame, interpolating only bracketed observations of the same counted track. */
-export function countedVehicleBoxes(frames: readonly LiveHighlightFrame[] | undefined, displayed: number | null): LiveVehicleBox[] {
-  if (!frames?.length || displayed === null || !Number.isFinite(displayed)) return [];
+/** Half-second pulse after the measured crossing, aligned to capture time and observed positions. */
+export function countedVehicleBoxes(frames: readonly LiveHighlightFrame[] | undefined, displayed: number | null, crossings?: readonly LiveCrossing[]): LiveVehicleBox[] {
+  if (!frames?.length || !crossings?.length || displayed === null || !Number.isFinite(displayed)) return [];
+  const crossed = new Map<number, number>();
+  for (const c of crossings) {
+    if (Number.isSafeInteger(c.trackId) && c.trackId! >= 0 && Number.isFinite(c.at))
+      crossed.set(c.trackId!, Math.min(c.at, crossed.get(c.trackId!) ?? Infinity));
+  }
   const before = [...frames].reverse().find(f => Number.isFinite(f.at) && f.at <= displayed);
   if (!before) return [];
   const valid = (b: LiveVehicleBox) => Number.isSafeInteger(b.trackId) && b.trackId >= 0 &&
     [b.x,b.y,b.width,b.height].every(Number.isFinite) && b.x >= 0 && b.y >= 0 && b.width > 0 && b.height > 0 && b.x+b.width <= 1.001 && b.y+b.height <= 1.001;
   const after = frames.find(f => Number.isFinite(f.at) && f.at > displayed);
   return before.boxes.filter(valid).flatMap(box => {
+    const at = crossed.get(box.trackId);
+    if (at === undefined || displayed < at || displayed >= at + 0.5) return [];
     const next = after?.boxes.find(b => b.trackId === box.trackId && valid(b));
-    if (next && after && after.at-before.at <= 1.01) {
+    if (next && after && after.at-before.at <= 0.31) {
       const r = (displayed-before.at)/(after.at-before.at);
       return [{ trackId:box.trackId, x:box.x+(next.x-box.x)*r, y:box.y+(next.y-box.y)*r,
         width:box.width+(next.width-box.width)*r, height:box.height+(next.height-box.height)*r }];
     }
-    return displayed-before.at <= 0.45 ? [box] : [];
+    return displayed-before.at <= 0.25 ? [box] : [];
   });
 }
 

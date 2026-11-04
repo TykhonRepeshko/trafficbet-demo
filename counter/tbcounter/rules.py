@@ -357,6 +357,7 @@ class CrossingCounter:
         xyxy: tuple[float, float, float, float],
         at: float,
         source: str | None = None,
+        history: list[tuple[float, str, float, tuple[float, float, float, float], str | None]] | None = None,
     ) -> None:
         self._distinct_cache = None
         # NumPy float32 coordinates must not promote epoch-second arithmetic to
@@ -380,7 +381,25 @@ class CrossingCounter:
                     target
                 ].areas.clear()  # the new id's box size starts a fresh footprint baseline
                 track_id = target
+        new_track = track_id not in self.tracks
         state = self.tracks.setdefault(track_id, _TrackState())
+        if new_track and history:
+            # Resolve stitching at the current confirmed observation first.
+            # Only recover a crossing actually hidden by ID confirmation;
+            # older boxes far from the line must not alter other trajectories.
+            measured = sorted(history, key=lambda row: row[0])
+            measured = [row for row in measured if row[0] < at]
+            measured.append((at, vehicle_class, confidence, (x1, y1, x2, y2), source))
+            def point(box):
+                return Point((box[0] + box[2]) / 2 / self.width, box[3] / self.height)
+            hidden_crossing = any(
+                crossing_candidate(self.rule, point(a[3]), point(b[3]), a[0], b[0],
+                                   self.start, self.end, vehicle_class) is not None
+                for a, b in zip(measured, measured[1:])
+            )
+            if hidden_crossing:
+                for observed_at, label, score, box, origin in measured[:-1]:
+                    self.observe(track_id, label, score, box, observed_at, origin)
         if confidence < self.min_conf:
             return
         area = max(x2 - x1, 1.0) * max(y2 - y1, 1.0)

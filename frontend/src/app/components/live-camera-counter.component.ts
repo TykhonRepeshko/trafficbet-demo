@@ -40,6 +40,7 @@ export class LiveCameraCounterComponent implements OnChanges, OnDestroy {
 
   get visible(): boolean { return this.enabled && this.stream?.streamType === 'hls' && this.automatic !== false; }
   get snapshot() { return this.market?.countingRules; }
+  get crossings() { return this.round?.status === 'void' || this.unavailable ? undefined : this.round?.live?.crossings; }
   get highlights() { return this.round?.status === 'void' || this.unavailable ? undefined : this.round?.live?.highlights; }
   get statusText(): string {
     if (this.unavailable) return 'Counter reconnecting…';

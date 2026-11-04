@@ -26,6 +26,12 @@ from .segments import SegmentBuffer
 from .quality import counting_problem
 
 LOG = log.get("counter")
+
+
+class _RoundClosed(Exception):
+    """The authoritative API no longer accepts work for this round."""
+
+
 COVERAGE_DEADLINE = 120.0  # seconds after window end to wait for footage
 LAST_START = (
     540.0  # don't start a round the backend will expire (10 min) before we finish
@@ -545,6 +551,10 @@ class Counter:
             def publish(progress: dict) -> None:
                 try:
                     self.api.progress(rid, progress)
+                except api_mod.Conflict:
+                    # A watchdog/operator already closed it. Continuing would
+                    # spend the shared detector on footage that cannot settle.
+                    raise _RoundClosed() from None
                 except (
                     Exception
                 ) as exc:  # display only; the final result is what settles
@@ -565,6 +575,9 @@ class Counter:
                     coverage,
                     model_name=job.model or None,
                 )
+        except _RoundClosed:
+            self.jobs.pop(rid, None)
+            LOG.info("round closed during analysis", round=rid, stream=job.cam.id)
         except Exception as exc:
             self.jobs.pop(rid, None)
             LOG.exception("round processing failed", round=rid, stream=job.cam.id)

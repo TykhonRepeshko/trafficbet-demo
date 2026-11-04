@@ -1,6 +1,6 @@
 import { NgFor, NgIf } from '@angular/common';
 import { Component, Input } from '@angular/core';
-import { LiveHighlightFrame } from '../models';
+import { LiveCrossing, LiveHighlightFrame } from '../models';
 import { countedVehicleBoxes } from '../services/play-logic';
 
 @Component({
@@ -14,8 +14,9 @@ import { countedVehicleBoxes } from '../services/play-logic';
 })
 export class CountedVehiclesOverlayComponent {
   @Input() frames?: LiveHighlightFrame[];
+  @Input() crossings?: LiveCrossing[];
   @Input() captureTime: number | null = null;
   @Input() mediaWidth = 0;
   @Input() mediaHeight = 0;
-  get boxes() { return countedVehicleBoxes(this.frames, this.captureTime); }
+  get boxes() { return countedVehicleBoxes(this.frames, this.captureTime, this.crossings); }
 }

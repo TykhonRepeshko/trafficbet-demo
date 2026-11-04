@@ -215,6 +215,13 @@ class RoundSession:
         if self.motion is not None:
             dets = self.motion.augment(bgr, dets, t)
         boxes = self.tracker.update(dets, t)
+        # Original neural measurements linked after ID confirmation.
+        early = getattr(self.tracker, "take_early_observations", lambda: [])()
+        history = {}
+        for observed_at, box in early:
+            history.setdefault(box.track_id, []).append(
+                (observed_at, box.label, box.confidence, box.xyxy, box.source)
+            )
         if self.motion is not None:
             boxes = self.motion.update(bgr, boxes, t)
         for box in boxes:
@@ -225,6 +232,7 @@ class RoundSession:
                 box.xyxy,
                 t,
                 source=getattr(box, "source", None),
+                history=history.get(box.track_id),
             )
         if self.motion is not None:
             self.motion.completed.update(
@@ -248,7 +256,7 @@ class RoundSession:
             highlights, highlighted_tracks = [], set()
             for box in sorted(boxes, key=lambda b: b.confidence, reverse=True):
                 canonical = self.counter.alias.get(box.track_id, box.track_id)
-                if canonical not in counted or canonical in highlighted_tracks:
+                if canonical in highlighted_tracks:
                     continue
                 x1, y1, x2, y2 = map(float, box.xyxy)
                 x1, y1 = max(0.0, min(1.0, x1 / self.width)), max(
@@ -268,7 +276,7 @@ class RoundSession:
                             "height": round(y2 - y1, 4),
                         }
                     )
-            self.highlighted_tracks.update(b["trackId"] for b in highlights[:40])
+            self.highlighted_tracks.update(b["trackId"] for b in highlights[:40] if b["trackId"] in counted)
             self.highlight_frames.append({"at": float(t), "boxes": highlights[:40]})
         if on_frame is not None:
             on_frame(t, bgr, boxes, self.counter)
@@ -284,18 +292,20 @@ class RoundSession:
         (including the one being processed, so players can map the frame on screen)."""
         crossings = self.counter.crossings if self.counter else []
         counted_at = {int(c["trackId"]): c["at"] for c in crossings}
-        frames = [
-            {
-                "at": f["at"],
-                "boxes": [
-                    b
-                    for b in f["boxes"]
-                    if b["trackId"] in counted_at
-                    and counted_at[b["trackId"]] <= f["at"] + 0.001
-                ],
-            }
-            for f in self.highlight_frames
-        ]
+        # Keep measured positions before late class confirmation so a pulse
+        # can be shown at its real crossing time, never later along the road.
+        aliases = getattr(self.counter, "alias", {})
+        frames = []
+        for frame in self.highlight_frames:
+            boxes, seen = [], set()
+            for box in frame["boxes"]:
+                canonical = aliases.get(box["trackId"], box["trackId"])
+                at = counted_at.get(canonical)
+                if at is None or canonical in seen or not at <= frame["at"] < at + 0.5:
+                    continue
+                seen.add(canonical)
+                boxes.append(box | {"trackId": canonical})
+            frames.append({"at": frame["at"], "boxes": boxes})
         payload = {
             "vehicleCount": len(crossings),
             "crossings": [

@@ -37,7 +37,7 @@ interface Ticket { marketId: number; label: string; stake: number; payout: numbe
     <ng-container *ngIf="stream && market">
       <div class="play-stage">
         <div class="play-video">
-          <app-video-player #videoPlayer [stream]="stream" [autoplay]="true" [countingSnapshot]="stage === 'placed' ? market.countingRules : (cameraCounter.snapshot ?? market.countingRules)" [highlightFrames]="stage === 'placed' ? (live?.status === 'void' ? undefined : live?.live?.highlights) : cameraCounter.highlights" [highlightCaptureTime]="stage === 'placed' ? displayed : cameraCounter.displayed">
+          <app-video-player #videoPlayer [stream]="stream" [autoplay]="true" [countingSnapshot]="stage === 'placed' ? market.countingRules : (cameraCounter.snapshot ?? market.countingRules)" [highlightFrames]="stage === 'placed' ? (live?.status === 'void' ? undefined : live?.live?.highlights) : cameraCounter.highlights" [highlightCrossings]="stage === 'placed' ? (live?.status === 'void' ? undefined : live?.live?.crossings) : cameraCounter.crossings" [highlightCaptureTime]="stage === 'placed' ? displayed : cameraCounter.displayed">
             <app-live-camera-counter #cameraCounter vp-overlay [stream]="stream" [player]="videoPlayer" [enabled]="stage !== 'placed' && automaticSettlement"></app-live-camera-counter>
             <div vp-overlay class="hud" *ngIf="stage === 'placed' && automaticSettlement" [class.is-live]="phase === 'counting' && !behind" [class.is-behind]="behind" [class.is-done]="phase === 'result'">
               <div class="hud-count" [class.is-flash]="flash"><small>AI count</small><strong class="tb-num">{{ count }}</strong></div>

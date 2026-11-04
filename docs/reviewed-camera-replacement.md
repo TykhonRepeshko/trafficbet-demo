@@ -207,9 +207,10 @@ or changed fingerprints keep their existing preprocessing and discovery. No
 unreadable digit is inferred; all existing clock and counting gates remain.
 
 Three separate recorded 30-second windows counted 15, 15 and 10 vehicles with no
-rejected weak crossings or missing highlight identities. A manual visual
-cross-check of the first window matched all 15 events (10 away, 5 approaching)
-with no extras. The other two windows are stability checks without hand labels.
+rejected weak crossings or missing highlight identities. The initial manual review listed 15 events (10 away, 5 approaching). That review
+was incomplete: a subsequent frame-by-frame adjudication found two additional
+approaching cars, for 17 actual events. The [follow-up](counting-pulse-and-recall.md)
+records the correction, the conservative serving fix and its remaining miss. The other two windows are stability checks without hand labels.
 This small night sample does not certify every vehicle under all conditions.
 
 All 182 counter tests passed in the built serving image (one optional test
@@ -237,4 +238,5 @@ and refund behavior; it does not remove night tracking or shared-GPU limits.
 The public 052 page was checked in the browser after reconnecting its automation
 session: live video, the reviewed line and AI count history were visible without
 signing in. All six current camera schedules are enabled; 050 remains archived
-and its schedule disabled. The rebuilt counter identifies as `1.4.0-exp.3`.
+and its schedule disabled. That deployment identified as `1.4.0-exp.3`. The current pulse/recall follow-up
+uses `1.4.0-exp.7`; see [current checks and limits](counting-pulse-and-recall.md).

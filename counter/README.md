@@ -92,7 +92,11 @@ progress updates every second. Green display boxes are sampled every 0.2–0.25 
 with an immediate sample for newly counted identities; payload packing protects
 their first observation. The full 30-second window fits the 320-frame buffer,
 with at most 640 boxes and the existing 64 KiB API limit. Only confirmed counted
-identities are green. This does not certify detection of every vehicle at night.
+identities are green, only during `[crossing.at, crossing.at + 0.5)` in capture time.
+Pre-ID neural measurements can recover a crossing hidden during ByteTrack ID
+confirmation; established stitched trajectories are never rewound. See
+`docs/counting-pulse-and-recall.md` for the controlled comparison and known miss.
+This does not certify detection of every vehicle at night.
 See `docs/reviewed-camera-replacement.md` in the repository for current geometry,
 source limitations and local validation receipts.
 
