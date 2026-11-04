@@ -306,7 +306,7 @@ export class PlayComponent implements OnDestroy {
     this.ticket = { marketId: bet.marketId, label: rangeLabel(quote), stake: bet.stakeCredits, payout: bet.potentialPayoutCredits, rangeMin: quote.rangeMin, rangeMax: quote.rangeMax };
     this.stage = 'placed'; this.live = undefined; this.displayed = null; this.count = 0; this.phase = 'waiting'; this.balanceRefreshed = false;
     this.poll();
-    this.pollTimer = window.setInterval(() => this.poll(), 2000);
+    this.pollTimer = window.setInterval(() => this.poll(), 1000);
   }
 
   private poll(): void {

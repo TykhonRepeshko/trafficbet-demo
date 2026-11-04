@@ -357,3 +357,31 @@ func TestPostgresStaggeredSchedulesKeepEntryNotice(t *testing.T) {
 		t.Fatal("staggered rounds must keep the cadence", markets[0].WindowStart, markets[1].WindowStart)
 	}
 }
+
+func TestPostgresAutomaticThresholdDoesNotReuseUnversionedCountsAfterLineApproval(t *testing.T) {
+	s, ctx := integrationStore(t, true)
+	stream := integrationStream(t, s, ctx)
+	now := time.Now()
+	for i := 1; i <= 6; i++ {
+		end := now.Add(-time.Duration(i) * time.Minute)
+		if _, err := s.pool.Exec(ctx, `INSERT INTO stream_metrics(stream_id,source,vehicle_count,interval_start,interval_end) VALUES($1,'ai',100,$2::timestamptz-interval '30 seconds',$2)`, stream.ID, end); err != nil {
+			t.Fatal(err)
+		}
+	}
+	check := func(wantAutomatic bool) {
+		tx, err := s.pool.Begin(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tx.Rollback(ctx)
+		_, automatic, err := automaticThreshold(ctx, tx, stream.ID, 30, now)
+		if err != nil || automatic != wantAutomatic {
+			t.Fatal("incomparable old counts affected new geometry", automatic, err)
+		}
+	}
+	check(true)
+	if _, err := s.AutoCalibrate(ctx, stream.ID, automationTestPNG(t), automationTestDefinition(), "New reviewed road geometry; old unversioned counts must not price it."); err != nil {
+		t.Fatal(err)
+	}
+	check(false)
+}

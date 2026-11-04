@@ -23,7 +23,7 @@ function harness(automaticSettlement, mode) {
   globalThis.window = { setInterval: () => 1, clearInterval: () => {}, setTimeout: () => 2, clearTimeout: () => {} };
   const stream = { id: 38, isActive: true, streamType: 'hls' };
   const market = { id: 99, streamId: 38, status: 'open', threshold: 10, bettingClosesAt: new Date(Date.now() + 60_000).toISOString(), windowStart: new Date(Date.now() + 90_000).toISOString(), windowEnd: new Date(Date.now() + 120_000).toISOString(), countingRules: { mode } };
-  const quote = { marketId: market.id, rangeMin: 3, rangeMax: 8, odds: 2, pricingModel: 'demo_geometric_v1' };
+  const quote = { marketId: market.id, rangeMin: 3, rangeMax: 8, odds: 2, pricingModel: 'demo_normal_v2' };
   const api = { health: () => of({ ok: true, automaticSettlement }), listStreams: () => of([stream]), listPublicMarkets: () => of([market]), rangeOptions: () => of({ options: [quote, quote] }), quoteRange: () => of(quote) };
   const injector = createEnvironmentInjector([
     { provide: ApiService, useValue: api }, { provide: AuthService, useValue: { user: { id: 1, balanceCredits: 1000 }, sessionGeneration: 1 } },

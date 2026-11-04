@@ -6,7 +6,7 @@ import { build } from 'esbuild';
 
 const output = new URL(`.play-regressions-${process.pid}.mjs`, import.meta.url);
 const bundle = await build({
-  stdin: { contents: `export * from './services/play-logic';`, resolveDir: fileURLToPath(new URL('..', import.meta.url)), loader: 'ts' },
+  stdin: { contents: `export * from './services/play-logic'; export * from './services/camera-sources';`, resolveDir: fileURLToPath(new URL('..', import.meta.url)), loader: 'ts' },
   bundle: true, platform: 'node', format: 'esm', packages: 'external', write: false
 });
 await writeFile(output, bundle.outputFiles[0].text);
@@ -97,4 +97,18 @@ test('counted vehicle highlights match video time, interpolate the same track an
   assert.equal(logic.countedVehicleBoxes(frames,10.8).length,0);
   assert.equal(logic.countedVehicleBoxes(frames,20).length,0);
   assert.equal(logic.countedVehicleBoxes([{at:10,boxes:[{...box,width:2}]}],10).length,0);
+});
+
+
+test('duplicate camera sources do not create repeated cards or random-selection weight', () => {
+  const streams=[
+    {id:45,countingGuide:{sourceFingerprint:'same'},streamUrl:'/api/media/streams/45/index.m3u8'},
+    {id:99,countingGuide:{sourceFingerprint:'same'},streamUrl:'/api/media/streams/99/index.m3u8'},
+    {id:50,sourcePageUrl:'https://provider.example/camera/50'},
+    {id:98,sourcePageUrl:'https://provider.example/camera/50'},
+    {id:51,sourcePageUrl:'https://provider.example/camera/51'},
+    {id:52},{id:53}
+  ];
+  assert.deepEqual(logic.uniqueCameraSources(streams).map(s=>s.id),[45,50,51,52,53]);
+  assert.equal(streams.length,7,'deduplication must not mutate admin history');
 });

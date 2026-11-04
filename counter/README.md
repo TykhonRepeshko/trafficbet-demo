@@ -85,3 +85,26 @@ python -m dev.native_dataset --annotations /pilot/annotations.json --sources /so
 Run them in the counter image with read-only source mounts, a writable report directory and `--network none`. CUDA benchmarks also require the CUDA image and `--gpus all`; use `--device cpu` for CPU tests. The benchmark performs real inference without a prediction cache, checks one-to-one crossing times against reviewed event intervals, and measures concurrent compute. Paced replay models segment availability; it excludes network, API and initial OCR, and is not a live uptime test. The optional `--pilot-weights` flag compares a single-class ensemble; add `--pilot-only` to compare that detector alone. Both are offline comparisons, without changing the serving model.
 
 Native dataset export decodes original segments, preserves session splits and exports adjacent frames. Scaled boxes and propagated tracklets are proposals, and every included frame requires visual review before training. It adds temporal coverage, not independent test sessions. `dev.pilot_finetune` supports explicitly partial labels: unknown negatives do not supply objectness gradients, and an uncertain empty frame cannot become background truth. Empty and positive examples use the same crop-scale augmentation; negative sampling can be balanced across cameras. Partial-label metrics report known-positive recall and false positives on complete images, with unmatched partial predictions separately unscored. They are not whole-scene precision or mAP. Training dependencies remain separate from the serving image, and better frame recall alone does not establish correct vehicle counts.
+
+
+The prepared November 2026 local CUDA setup uses YOLOX-S at 15 fps. Public live
+progress updates every second. Green display boxes are sampled every 0.2–0.25 seconds,
+with an immediate sample for newly counted identities; payload packing protects
+their first observation. The full 30-second window fits the 320-frame buffer,
+with at most 640 boxes and the existing 64 KiB API limit. Only confirmed counted
+identities are green. This does not certify detection of every vehicle at night.
+See `docs/reviewed-camera-replacement.md` in the repository for current geometry,
+source limitations and local validation receipts.
+
+
+Exact-source inference overrides are supplied by `SOURCE_INFERENCE_PRESETS`
+(`COUNTER_SOURCE_PRESETS` in Compose). Entries require a source fingerprint,
+`model`, `coverage` and a canonical `definitionHash`. A changed frozen rule does
+not inherit the override. CUDA supports at most two shared sessions. The reviewed
+049 preset uses baked YOLOX-M weights and full-frame context; no pilot/custom
+weights are selected. See `docs/reviewed-inference-presets.json` in the repository.
+
+To compare sampling rates on retained local recordings without predictions being
+cached or account/API changes, run `python -m dev.fps_benchmark --help`. The input
+profiles select explicit geometry, source fingerprints and optional per-camera
+models. Accuracy metrics are emitted only for cases supplied with manual events.

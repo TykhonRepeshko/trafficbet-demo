@@ -11,26 +11,9 @@
     "sourceOwner": "California Department of Transportation (Caltrans)",
     "sourcePageUrl": "https://cwwp2.dot.ca.gov/vm/loc/d12/sr576ballroad.htm",
     "termsUrl": "https://dot.ca.gov/conditions-of-use",
-    "usageNotes": "Official Caltrans CWWP2 source. No vehicle privacy mosaic was observed in the reviewed footage. Source operator may interrupt or reposition the camera. Preserve source attribution and check applicable third-party exceptions in the Caltrans Conditions of Use. Tested source is not yet approved for automated round settlement.",
+    "usageNotes": "Official Caltrans CWWP2 source. Operator controls availability and framing. Reviewed for experimental virtual-credit rounds; each window still requires readable capture clock, continuous footage and unchanged framing. Night glare can reduce recognition quality. Unverified rounds refund stakes.",
     "latitude": 33.8177,
     "longitude": -117.87591,
-    "isActive": true
-  },
-  {
-    "title": "I-405 · MacArthur Boulevard",
-    "city": "Santa Ana",
-    "country": "United States",
-    "locationLabel": "I-405 : (25) MacArthur",
-    "description": "Continuous public road video showing both carriageways. Vehicle counting must include traffic in both directions.",
-    "streamType": "hls",
-    "streamUrl": "https://wzmedia.dot.ca.gov/D12/SB405NOMacarthur.stream/playlist.m3u8",
-    "thumbnailUrl": "https://cwwp2.dot.ca.gov/data/d12/cctv/image/i40525macarthur/i40525macarthur.jpg",
-    "sourceOwner": "California Department of Transportation (Caltrans)",
-    "sourcePageUrl": "https://cwwp2.dot.ca.gov/vm/loc/d12/i40525macarthur.htm",
-    "termsUrl": "https://dot.ca.gov/conditions-of-use",
-    "usageNotes": "Official Caltrans CWWP2 source. No vehicle privacy mosaic was observed in the reviewed footage. Source operator may interrupt or reposition the camera. Preserve source attribution and check applicable third-party exceptions in the Caltrans Conditions of Use. Tested source is not yet approved for automated round settlement.",
-    "latitude": 33.682579,
-    "longitude": -117.857693,
     "isActive": true
   },
   {
@@ -45,7 +28,7 @@
     "sourceOwner": "California Department of Transportation (Caltrans)",
     "sourcePageUrl": "https://cwwp2.dot.ca.gov/vm/loc/d12/sr5712sr22.htm",
     "termsUrl": "https://dot.ca.gov/conditions-of-use",
-    "usageNotes": "Official Caltrans CWWP2 source. No vehicle privacy mosaic was observed in the reviewed footage. Source operator may interrupt or reposition the camera. Preserve source attribution and check applicable third-party exceptions in the Caltrans Conditions of Use. Tested source is not yet approved for automated round settlement.",
+    "usageNotes": "Official Caltrans CWWP2 source. Operator controls availability and framing. Reviewed for experimental virtual-credit rounds; each window still requires readable capture clock, continuous footage and unchanged framing. Night glare can reduce recognition quality. Unverified rounds refund stakes.",
     "latitude": 33.783174,
     "longitude": -117.879614,
     "isActive": true
@@ -62,7 +45,7 @@
     "sourceOwner": "California Department of Transportation (Caltrans)",
     "sourcePageUrl": "https://cwwp2.dot.ca.gov/vm/loc/d12/sr915rte55hmpole.htm",
     "termsUrl": "https://dot.ca.gov/conditions-of-use",
-    "usageNotes": "Official Caltrans CWWP2 source. No vehicle privacy mosaic was observed in the reviewed footage. Source operator may interrupt or reposition the camera. Preserve source attribution and check applicable third-party exceptions in the Caltrans Conditions of Use. Tested source is not yet approved for automated round settlement.",
+    "usageNotes": "Official Caltrans CWWP2 source. Operator controls availability and framing. Reviewed for experimental virtual-credit rounds; each window still requires readable capture clock, continuous footage and unchanged framing. Night glare can reduce recognition quality. Unverified rounds refund stakes.",
     "latitude": 33.845023,
     "longitude": -117.82938,
     "isActive": true
@@ -79,13 +62,12 @@
     "sourceOwner": "California Department of Transportation (Caltrans)",
     "sourcePageUrl": "https://cwwp2.dot.ca.gov/vm/loc/d12/i40526jamboree.htm",
     "termsUrl": "https://dot.ca.gov/conditions-of-use",
-    "usageNotes": "Official Caltrans CWWP2 source. No vehicle privacy mosaic was observed in the reviewed footage. Source operator may interrupt or reposition the camera. Preserve source attribution and check applicable third-party exceptions in the Caltrans Conditions of Use. Tested source is not yet approved for automated round settlement.",
+    "usageNotes": "Official Caltrans CWWP2 source. Operator controls availability and framing. Reviewed for experimental virtual-credit rounds; each window still requires readable capture clock, continuous footage and unchanged framing. Night glare can reduce recognition quality. Unverified rounds refund stakes.",
     "latitude": 33.67633,
     "longitude": -117.84352,
     "isActive": true
   },
   {
-    "id": 50,
     "title": "SR-241 · Santiago Canyon",
     "city": "Silverado",
     "country": "United States",
@@ -97,11 +79,26 @@
     "sourceOwner": "California Department of Transportation (Caltrans)",
     "sourcePageUrl": "https://cwwp2.dot.ca.gov/vm/loc/d12/sr241298900metersnosantiago1canyonroadovercross.htm",
     "termsUrl": "https://dot.ca.gov/conditions-of-use",
-    "usageNotes": "Official Caltrans CWWP2 source. Operator controls camera framing and availability. Traffic density varies; the low-flow selection is based on observation, not a permanent guarantee. Validate capture clock, coverage and framing for every experimental virtual-credit round.",
+    "usageNotes": "Official Caltrans CWWP2 source. Operator controls availability and framing. Reviewed for experimental virtual-credit rounds; each window still requires readable capture clock, continuous footage and unchanged framing. Night glare can reduce recognition quality. Unverified rounds refund stakes.",
     "latitude": 33.78705,
     "longitude": -117.74372,
-    "isActive": true,
-    "createdAt": "2026-11-03T22:13:45.935246+01:00",
-    "updatedAt": "2026-11-03T22:13:45.935246+01:00"
+    "isActive": true
+  },
+  {
+    "title": "SR-91 · Harbor Boulevard",
+    "city": "Anaheim",
+    "country": "United States",
+    "locationLabel": "SR-91 : (132) Harbor Boulevard",
+    "description": "Public road video on SR-91 below the Harbor Boulevard bridge. Both main carriageways cross the reviewed counting line; traffic on the cross street above the bridge is excluded.",
+    "streamType": "hls",
+    "streamUrl": "https://wzmedia.dot.ca.gov/D12/EB91HARBOR.stream/playlist.m3u8",
+    "thumbnailUrl": "https://cwwp2.dot.ca.gov/data/d12/cctv/image/sr91132harborboulevard/sr91132harborboulevard.jpg",
+    "sourceOwner": "California Department of Transportation (Caltrans)",
+    "sourcePageUrl": "https://cwwp2.dot.ca.gov/vm/loc/d12/sr91132harborboulevard.htm",
+    "termsUrl": "https://dot.ca.gov/conditions-of-use",
+    "usageNotes": "Official Caltrans CWWP2 source. Operator controls availability and framing. Reviewed for experimental virtual-credit rounds; each window still requires readable capture clock, continuous footage and unchanged framing. Night glare can reduce recognition quality. Unverified rounds refund stakes.",
+    "latitude": 33.853529,
+    "longitude": -117.925913,
+    "isActive": true
   }
 ]

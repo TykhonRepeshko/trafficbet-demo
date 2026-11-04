@@ -10,6 +10,7 @@ services:
       API_BASE: http://host.docker.internal:8080
       WORKER_TOKEN: ${WORKER_TOKEN:?Run scripts/setup.ps1}
       MODEL: ${COUNTER_MODEL:-yolox-tiny}
+      SOURCE_INFERENCE_PRESETS: ${COUNTER_SOURCE_PRESETS:-}
       SAMPLE_FPS: ${COUNTER_SAMPLE_FPS:-5}
       PROCESSORS: ${COUNTER_PROCESSORS:-4}
       DETECTOR_THREADS: ${COUNTER_DETECTOR_THREADS:-2}

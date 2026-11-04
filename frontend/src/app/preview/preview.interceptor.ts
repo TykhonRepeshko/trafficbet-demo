@@ -38,9 +38,15 @@ const copy = <T>(value: T): T => structuredClone(value);
 // Design preview only. The real application always requests its quote from Go.
 function previewRangeQuote(market: Market, from: number, to: number): RangeQuote {
   if (!Number.isInteger(from) || !Number.isInteger(to) || from<0 || to<from || to>100000000) reject(400,'Enter valid whole-number From and To bounds.');
-  const logQ=Math.log1p(-1/(market.threshold+1.5));
-  const probability=Math.exp(from*logQ)*-Math.expm1((to-from+1)*logQ);
-  return { marketId:market.id, rangeMin:from, rangeMax:to, odds: probability>0 ? Math.max(1,Math.min(100,Math.floor(95/probability)/100)) : 100, pricingModel:'demo_geometric_v1' };
+  const mean=market.threshold+.5, scale=Math.max(3,Math.sqrt(mean))*Math.SQRT2;
+  const erfc=(x:number):number => {
+    const z=Math.abs(x), t=1/(1+.5*z);
+    const value=t*Math.exp(-z*z-1.26551223+t*(1.00002368+t*(.37409196+t*(.09678418+t*(-.18628806+t*(.27886807+t*(-1.13520398+t*(1.48851587+t*(-.82215223+t*.17087277)))))))));
+    return x<0 ? 2-value : value;
+  };
+  const mass=(lo:number,hi:number) => .5*(erfc((lo-mean)/scale)-erfc((hi-mean)/scale));
+  const probability=mass(from-.5,to+.5)/mass(-.5,100000000.5);
+  return { marketId:market.id, rangeMin:from, rangeMax:to, odds:probability>0 ? Math.max(1,Math.min(10,Math.floor(85/probability)/100)) : 10, pricingModel:'demo_normal_v2' };
 }
 
 function previewStakeVolume(): StakeVolumeSnapshot {
@@ -91,6 +97,13 @@ export const previewInterceptor: HttpInterceptorFn = (request, next) => {
       const stream = streams.find((item) => item.id === id && item.isActive) ?? reject(404, 'Camera unavailable.');
       const status = request.params.get('status') ?? 'open';
       result = path.endsWith('/markets') ? markets.filter((market) => market.streamId === id && market.status !== 'draft' && (!status || market.status === status)) : path.endsWith('/metrics') ? metrics.filter((metric) => metric.streamId === id).slice().reverse() : stream;
+    } else if (path === '/api/bets/range-options' && request.method==='GET') {
+      requireUser();
+      const market=markets.find(item=>item.id===Number(request.params.get('marketId'))) ?? reject(404,'Round not found.');
+      if (market.status!=='open' || Date.now()>=Date.parse(market.bettingClosesAt) || !streams.find(stream=>stream.id===market.streamId)?.isActive) reject(409,'This round is closed.');
+      const width=Math.min(10,Math.max(2,Math.ceil(market.threshold/6)));
+      const lower=Math.min(Math.max(0,(Math.floor(market.threshold/width)-2)*width),100000000-4*width+1);
+      result={options:Array.from({length:4},(_,i)=>previewRangeQuote(market,lower+i*width,lower+(i+1)*width-1))};
     } else if (path === '/api/bets/range-quote' && request.method==='GET') {
       requireUser();
       const market=markets.find(item=>item.id===Number(request.params.get('marketId'))) ?? reject(404,'Round not found.');

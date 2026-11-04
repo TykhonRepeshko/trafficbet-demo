@@ -1,0 +1,62 @@
+{
+  "id": "caltrans-i405-jamboree-v2",
+  "status": "local_reviewed_virtual_credit_test",
+  "sourceFingerprint": "83164430487979bef3ee7acd5f25aefe163fae1b926e82e17db8c3006753e71f",
+  "definition": {
+    "label": "Reviewed road crossing - camera 49",
+    "lineStart": {
+      "x": 0.22,
+      "y": 0.38
+    },
+    "lineEnd": {
+      "x": 0.68,
+      "y": 0.86
+    },
+    "directions": [
+      "A_to_B",
+      "B_to_A"
+    ],
+    "classes": [
+      "car",
+      "van",
+      "bus",
+      "truck",
+      "motorcycle"
+    ],
+    "anchor": "bottom_center",
+    "timeBasis": "capture_utc",
+    "notes": "Both I-405 carriageways in the reviewed Pre-position 1 framing. Line crosses traffic instead of following the road. Exclude frontage roads, adjacent buildings and the right-hand pavement. Count each confirmed bottom-centre crossing once. Frozen round definitions and all source-clock and tracking gates stay unchanged.",
+    "roadRegions": [
+      [
+        {
+          "x": 0.0,
+          "y": 0.46
+        },
+        {
+          "x": 0.78,
+          "y": 0.15
+        },
+        {
+          "x": 0.89,
+          "y": 0.15
+        },
+        {
+          "x": 0.89,
+          "y": 0.26
+        },
+        {
+          "x": 0.73,
+          "y": 0.59
+        },
+        {
+          "x": 0.34,
+          "y": 1.0
+        },
+        {
+          "x": 0.0,
+          "y": 1.0
+        }
+      ]
+    ]
+  }
+}

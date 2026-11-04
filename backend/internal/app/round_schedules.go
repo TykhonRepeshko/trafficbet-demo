@@ -308,15 +308,21 @@ func staggeredStart(start time.Time, streamID int64, cadence time.Duration) time
 
 // automaticThreshold sets the Over/Under line (and the centre of the range odds)
 // to the median of recent AI counts, rescaled to the round's counting length, so
-// the reference threshold follows real traffic without an operator. With fewer
+// the reference threshold follows real traffic under the currently approved geometry.
+// Counts made under an older line/mask are not comparable. With fewer
 // than automaticThresholdMinRounds recent AI counts the configured value stays.
 func automaticThreshold(ctx context.Context, tx pgx.Tx, streamID int64, countingSeconds int, now time.Time) (int, bool, error) {
 	var rounds int
 	var median *float64
 	err := tx.QueryRow(ctx, `SELECT count(*), percentile_cont(0.5) WITHIN GROUP (ORDER BY rate) FROM (
-        SELECT vehicle_count::float8 * $2 / EXTRACT(EPOCH FROM interval_end-interval_start) AS rate
-        FROM stream_metrics WHERE stream_id=$1 AND source='ai' AND interval_end > $3::timestamptz - interval '2 hours'
-        ORDER BY interval_end DESC LIMIT 30) recent`, streamID, countingSeconds, now).Scan(&rounds, &median)
+        SELECT sm.vehicle_count::float8 * $2 / EXTRACT(EPOCH FROM sm.interval_end-sm.interval_start) AS rate
+        FROM stream_metrics sm LEFT JOIN counting_selections selected ON selected.stream_id=sm.stream_id
+        WHERE sm.stream_id=$1 AND sm.source='ai' AND sm.interval_end > $3::timestamptz - interval '2 hours'
+          AND (selected.profile_id IS NULL OR EXISTS (
+            SELECT 1 FROM bet_markets m JOIN round_counting_snapshots c ON c.market_id=m.id
+            WHERE m.stream_id=sm.stream_id AND m.window_start=sm.interval_start AND m.window_end=sm.interval_end
+              AND c.profile_id=selected.profile_id))
+        ORDER BY sm.interval_end DESC LIMIT 30) recent`, streamID, countingSeconds, now).Scan(&rounds, &median)
 	if err != nil || rounds < automaticThresholdMinRounds || median == nil {
 		return 0, false, err
 	}

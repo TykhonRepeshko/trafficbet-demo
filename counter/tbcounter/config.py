@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from .inference import InferencePreset, load_presets
 
-VERSION = "1.4.0-exp.1"
+VERSION = "1.4.0-exp.2"
 
 
 def _float(name: str, default: float, low: float, high: float) -> float:
@@ -35,6 +36,8 @@ class Config:
     device: str = "cpu"
     motion_resolution: str = "legacy"
 
+    source_presets: dict[str, InferencePreset] = field(default_factory=dict)
+
     @property
     def worker_name(self) -> str:
         return f"trafficbet-counter/{VERSION} {self.model}"
@@ -65,6 +68,7 @@ def load() -> Config:
         hybrid_motion=os.environ.get("HYBRID_MOTION_ENABLED", "false").strip().lower()
         in ("1", "true", "yes", "on"),
         device=os.environ.get("DEVICE", "cpu").strip().lower(),
+        source_presets=load_presets(os.environ.get("SOURCE_INFERENCE_PRESETS", "")),
         motion_resolution=os.environ.get("MOTION_RESOLUTION", "legacy").strip().lower(),
     )
     if len(cfg.worker_token) < 32:
@@ -88,4 +92,11 @@ def load() -> Config:
         raise ValueError("MOTION_RESOLUTION must be legacy or native")
     if cfg.device == "cuda" and not cfg.model.startswith("yolox-"):
         raise ValueError("The CUDA image currently supports YOLOX models only")
+    if cfg.hybrid_motion and cfg.source_presets:
+        raise ValueError("SOURCE_INFERENCE_PRESETS require HYBRID_MOTION_ENABLED=false")
+    if (
+        cfg.device == "cuda"
+        and len({cfg.model} | {p.model for p in cfg.source_presets.values()}) > 2
+    ):
+        raise ValueError("CUDA inference presets may load at most two model sessions")
     return cfg

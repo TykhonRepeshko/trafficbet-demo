@@ -277,7 +277,7 @@ test('invalid choices and query-only changes cannot turn a URL fragment into an 
 
 function answerQuote(h, index = h.quoteRequests.length-1, extra = {}) {
   const {args,result}=h.quoteRequests[index];
-  result.next({marketId:args[0],rangeMin:args[1],rangeMax:args[2],odds:3.25,pricingModel:'demo_geometric_v1',...extra});
+  result.next({marketId:args[0],rangeMin:args[1],rangeMax:args[2],odds:3.25,pricingModel:'demo_normal_v2',...extra});
   result.complete();
 }
 
@@ -316,7 +316,7 @@ test('editing bounds immediately invalidates an earlier quote, and stale or mism
     const old=h.quoteRequests.at(-1).result;
     h.component.rangeMaximums[71]=26; h.component.requestRangeQuote(h.market);
     assert.equal(old.observed,false);
-    old.next({marketId:71,rangeMin:12,rangeMax:25,odds:99,pricingModel:'demo_geometric_v1'});
+    old.next({marketId:71,rangeMin:12,rangeMax:25,odds:99,pricingModel:'demo_normal_v2'});
     answerQuote(h,h.quoteRequests.length-1,{rangeMax:25});
     assert.equal(h.component.canConfirm(h.market),false); assert.ok(h.component.quoteError);
     h.component.requestRangeQuote(h.market); answerQuote(h);
@@ -384,7 +384,7 @@ test('an uncertain range submission retries the same intent even after the quote
     assert.equal(h.component.submitting,false);
     h.component.requestRangeQuote(h.market);
     const {args,result}=h.quoteRequests.at(-1);
-    result.next({pricingModel:'demo_geometric_v1',odds:3.25,rangeMax:args[2],rangeMin:args[1],marketId:args[0]}); result.complete();
+    result.next({pricingModel:'demo_normal_v2',odds:3.25,rangeMax:args[2],rangeMin:args[1],marketId:args[0]}); result.complete();
     h.component.confirmPrediction(h.market);
     assert.equal(h.rangeBetCalls[1][2],key,'A retry generated a second stake intent');
     h.rangeResponses[1].error(new HttpErrorResponse({status:0}));
@@ -643,5 +643,22 @@ test('round timers distinguish entry cutoff from counting time, round seconds up
     h.component.now=Date.parse(h.market.windowEnd)+1000;
     assert.equal(h.component.countdownTo(h.market.windowEnd),'00:00');
     assert.deepEqual(h.rangeBetCalls,[]); assert.deepEqual(h.betCalls,[]);
+  } finally {h.destroy();}
+});
+
+
+test('range confirmation rejects retired pricing and returns above the current 10x cap', () => {
+  const h=harness();
+  try {
+    h.component.chooseRound(h.market);
+    answerQuote(h,h.quoteRequests.length-1,{pricingModel:'demo_geometric_v1'});
+    assert.equal(h.component.canConfirm(h.market),false);
+    h.component.requestRangeQuote(h.market);
+    answerQuote(h,h.quoteRequests.length-1,{odds:10.01});
+    assert.equal(h.component.canConfirm(h.market),false);
+    h.component.requestRangeQuote(h.market);
+    answerQuote(h,h.quoteRequests.length-1,{odds:10});
+    assert.equal(h.component.canConfirm(h.market),true);
+    assert.deepEqual(h.rangeBetCalls,[]);
   } finally {h.destroy();}
 });

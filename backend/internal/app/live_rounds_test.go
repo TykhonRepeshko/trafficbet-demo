@@ -6,33 +6,34 @@ import (
 	"time"
 )
 
-func TestRangeOptionsSplitTheModelIntoFourSimilarChoices(t *testing.T) {
-	for _, threshold := range []int{0, 3, 8, 25} {
-		options, err := rangeOptions(Market{ID: 1, Threshold: threshold})
+func TestRangeOptionsAreNarrowNearbyAndUseServerQuotes(t *testing.T) {
+	for _, threshold := range []int{0, 3, 8, 25, 60, 90, maxVehicleCount} {
+		market := Market{ID: 1, Threshold: threshold}
+		options, err := rangeOptions(market)
 		if err != nil || len(options) != 4 {
 			t.Fatal(threshold, options, err)
 		}
-		next := 0
-		for _, option := range options {
-			if option.RangeMin != next || option.RangeMax < option.RangeMin || option.PricingModel != rangePricingModel {
-				t.Fatalf("threshold %d: options must be contiguous from zero, got %+v", threshold, options)
+		contains := false
+		for i, option := range options {
+			if option.RangeMin < 0 || option.RangeMax > maxVehicleCount || option.RangeMax-option.RangeMin > 9 {
+				t.Fatal("wide or invalid band", option)
 			}
-			next = option.RangeMax + 1
-		}
-		if options[3].RangeMax != maxVehicleCount {
-			t.Fatalf("threshold %d: the last option must be open-ended", threshold)
-		}
-		if threshold >= 8 {
-			for _, option := range options {
-				if option.Odds < 3 || option.Odds > 4.5 {
-					t.Fatalf("threshold %d: quartile options should pay similar odds, got %+v", threshold, options)
-				}
+			if i > 0 && option.RangeMin != options[i-1].RangeMax+1 {
+				t.Fatal("overlapping or gapped options", options)
 			}
+			contains = contains || (option.RangeMin <= threshold && threshold <= option.RangeMax)
+			quote, _ := quoteCountRange(market, option.RangeMin, option.RangeMax)
+			if option != quote || option.Odds < 1 || option.Odds > 10 {
+				t.Fatal("option differs from payable server quote", option)
+			}
+		}
+		if !contains {
+			t.Fatal("reference missing from nearby bands", threshold, options)
 		}
 	}
-	options, _ := rangeOptions(Market{ID: 1, Threshold: 8})
-	if options[0].RangeMax != 2 || options[1].RangeMax != 6 || options[2].RangeMax != 12 {
-		t.Fatalf("unexpected quartile bounds for threshold 8: %+v", options)
+	options, _ := rangeOptions(Market{ID: 1, Threshold: 80})
+	if options[0].RangeMin != 60 || options[0].RangeMax != 69 || options[3].RangeMax != 99 {
+		t.Fatal(options)
 	}
 }
 
@@ -131,6 +132,7 @@ func TestLiveHighlightValidation(t *testing.T) {
 	cases := map[string]func(*LiveProgressInput){
 		"unknown track":       func(p *LiveProgressInput) { p.Highlights[0].Boxes[0].TrackID = 99 },
 		"before count":        func(p *LiveProgressInput) { p.Highlights[0].At = from + 3 },
+		"future crossing":     func(p *LiveProgressInput) { p.Crossings[0].At = from + 11; p.Highlights = nil },
 		"unprocessed frame":   func(p *LiveProgressInput) { p.Highlights[0].At = from + 11 },
 		"outside image":       func(p *LiveProgressInput) { p.Highlights[0].Boxes[0].Width = 2 },
 		"negative coordinate": func(p *LiveProgressInput) { p.Highlights[0].Boxes[0].X = -.1 },
@@ -143,5 +145,23 @@ func TestLiveHighlightValidation(t *testing.T) {
 				t.Fatal("invalid highlights accepted", err)
 			}
 		})
+	}
+}
+
+func TestPostgresLiveRoundDoesNotExposeDraftRules(t *testing.T) {
+	s, ctx := integrationStore(t, true)
+	stream := integrationStream(t, s, ctx)
+	market := integrationMarket(t, s, ctx, stream.ID)
+	if _, err := s.pool.Exec(ctx, `UPDATE bet_markets SET status='draft' WHERE id=$1`, market.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.GetLiveRound(ctx, market.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatal("draft threshold/window exposed publicly", err)
+	}
+	if _, err := s.pool.Exec(ctx, `UPDATE bet_markets SET status='open' WHERE id=$1`, market.ID); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.GetLiveRound(ctx, market.ID); err != nil || got.MarketID != market.ID {
+		t.Fatal("published round missing", got, err)
 	}
 }

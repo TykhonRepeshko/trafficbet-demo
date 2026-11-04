@@ -27,6 +27,7 @@ export class LiveCameraCounterComponent implements OnChanges, OnDestroy {
   phase: LivePhase = 'waiting';
   behind = false;
   unavailable = false;
+  private lastDisplayed: number | null = null;
   private automatic?: boolean;
   private identity = '';
   private timer?: number;
@@ -46,6 +47,7 @@ export class LiveCameraCounterComponent implements OnChanges, OnDestroy {
     if (this.round?.status === 'void') return 'Round unverified';
     if (Date.parse(this.market.windowStart)>this.now) return `Starts in ${mmss((Date.parse(this.market.windowStart)-this.now)/1000)}`;
     if (!this.round?.live) return 'Waiting for AI…';
+    if (this.displayed === null && this.lastDisplayed !== null) return 'Synchronizing video…';
     if (this.phase === 'syncing') return 'Waiting for video…';
     if (this.behind) return 'AI catching up…';
     if (this.phase === 'counting') return `Live · ${mmss(Date.parse(this.market.windowEnd)/1000-(this.displayed ?? this.now/1000))}`;
@@ -67,7 +69,7 @@ export class LiveCameraCounterComponent implements OnChanges, OnDestroy {
     this.timer = undefined;
     this.discoverSub?.unsubscribe(); this.liveSub?.unsubscribe();
     if (this.round) this.player?.releaseAnalysisSync();
-    this.market = undefined; this.round = undefined; this.displayed = null; this.count = null;
+    this.market = undefined; this.round = undefined; this.displayed = null; this.lastDisplayed = null; this.count = null;
     this.phase = 'waiting'; this.behind = false; this.unavailable = false; this.automatic = undefined;
     this.nextDiscover = 0; this.nextProgress = 0;
   }
@@ -90,13 +92,13 @@ export class LiveCameraCounterComponent implements OnChanges, OnDestroy {
         if (this.market && !ended && !stalled && this.now <= Date.parse(this.market.windowEnd)+90_000) return;
         if (!next) {
           if (!this.market || this.now > Date.parse(this.market.windowEnd)+90_000) {
-            this.player?.releaseAnalysisSync(); this.market = undefined; this.round = undefined; this.count = null; this.displayed = null;
+            this.player?.releaseAnalysisSync(); this.market = undefined; this.round = undefined; this.count = null; this.displayed = null; this.lastDisplayed = null;
           }
           return;
         }
         if (next.id === this.market?.id) return;
         if (this.market) this.player?.releaseAnalysisSync();
-        this.liveSub?.unsubscribe(); this.market = next; this.round = undefined; this.displayed = null;
+        this.liveSub?.unsubscribe(); this.market = next; this.round = undefined; this.displayed = null; this.lastDisplayed = null;
         this.phase = Date.parse(next.windowStart)>this.now ? 'waiting' : 'syncing';
         this.count = Date.parse(next.windowStart)>this.now ? 0 : null; this.unavailable = false; this.nextProgress = 0;
       },
@@ -107,7 +109,7 @@ export class LiveCameraCounterComponent implements OnChanges, OnDestroy {
   private progress(): void {
     const market = this.market, generation = this.generation;
     if (!market || this.automatic !== true || (this.liveSub && !this.liveSub.closed)) return;
-    this.nextProgress = this.now+2000;
+    this.nextProgress = this.now+1000;
     this.liveSub = this.api.liveRound(market.id).pipe(timeout(8000)).subscribe({
       next: round => {
         if (generation !== this.generation || this.market?.id !== round.marketId || round.streamId !== this.stream?.id) return;
@@ -127,10 +129,14 @@ export class LiveCameraCounterComponent implements OnChanges, OnDestroy {
     if (!this.unavailable) this.player?.syncToAnalysis(this.round);
     const segments = this.round.live?.segments;
     this.displayed = segments?.length ? this.player?.displayedCaptureTime(segments) ?? null : null;
-    this.phase = livePhase(this.round, this.displayed, this.now);
-    this.behind = aiBehind(this.round, this.displayed, this.now, this.phase);
+    // HLS seeks can temporarily remove the frame clock. Keep this window and
+    // its last shown count until mapping resumes; never reveal a future count.
+    if (this.displayed !== null) this.lastDisplayed = this.displayed;
+    const shown = this.displayed ?? this.lastDisplayed;
+    this.phase = livePhase(this.round, shown, this.now);
+    this.behind = aiBehind(this.round, shown, this.now, this.phase);
     this.count = this.round.status === 'void' ? null : this.phase === 'result' && this.round.status === 'settled'
-      ? this.round.actualCount ?? null : this.round.live ? liveCount(this.round, this.displayed) : this.phase === 'waiting' ? 0 : null;
+      ? this.round.actualCount ?? null : this.round.live ? liveCount(this.round, shown) : this.phase === 'waiting' ? 0 : null;
     if (this.round.status === 'open' && this.round.live && this.phase !== 'waiting' && this.now-Date.parse(this.round.live.updatedAt)>15_000) this.unavailable = true;
     if (this.unavailable) this.player?.releaseAnalysisSync();
   }

@@ -1,6 +1,6 @@
 import type { LiveHighlightFrame, LiveVehicleBox, LiveRound, Market, RangeQuote, TrafficStream } from '../models';
 
-/** Largest count the API accepts; the last ready-made option is open-ended up to it. */
+/** Largest custom count accepted by the API. */
 export const OPEN_ENDED_MAX = 100000000;
 /** A round is offered only if the player still has time to read the options and confirm. */
 export const MIN_ENTRY_MS = 12_000;

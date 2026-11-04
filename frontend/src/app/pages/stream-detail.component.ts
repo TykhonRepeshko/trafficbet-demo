@@ -75,7 +75,7 @@ import { acceptsPredictions, roundPhase, roundPhaseLabels } from '../services/ro
                     </div>
                     <p class="tb-help" [class.is-error]="!!rangeError(market)" [id]="'range-help-' + market.id">{{ rangeError(market) || ('You win if the count is ' + rangeMinimums[market.id] + '–' + rangeMaximums[market.id] + ' vehicles (both included).') }}</p>
                     <div class="slip-odds" role="status"><span>{{ quoteLoading ? 'Calculating odds…' : currentRangeQuote(market) ? 'Odds for this range' : !isSelectedMarket(market) ? 'Waiting for the next round’s odds' : quoteError || 'Enter a valid range to see odds' }}</span><strong *ngIf="currentRangeQuote(market) as quote" class="tb-num">{{ quote.odds | number:'1.2-2' }}×</strong><span class="tb-spinner" *ngIf="quoteLoading"></span><button *ngIf="quoteError" type="button" class="tb-link" (click)="requestRangeQuote(market)">Retry</button></div>
-                    <details class="slip-pricing"><summary>How are range odds calculated?</summary><p>Range odds come from a fixed demo model around this round’s reference threshold ({{ market.threshold }}), with a 5% margin and a 100× cap. Narrow ranges pay more; very wide ranges may only return your stake. They are not real traffic probabilities.</p></details>
+                    <details class="slip-pricing"><summary>How are range odds calculated?</summary><p>Range odds come from a fixed demo model around this round’s reference threshold ({{ market.threshold }}), with a 15% margin and a 10× cap. Narrow ranges pay more; very wide ranges may only return your stake. They are not real traffic probabilities.</p></details>
                   </ng-container>
 
                   <div class="slip-outcomes" *ngIf="editingSide === 'under' || editingSide === 'over'">
@@ -311,7 +311,7 @@ export class StreamDetailComponent implements OnInit, OnDestroy {
         if (generation!==this.quoteGeneration) return;
         this.quoteLoading=false;
         if (identity!==this.quoteKey(market) || !this.isSelectedMarket(market) || this.selectedSide!=='range') return;
-        if (quote.marketId!==market.id || quote.rangeMin!==this.rangeMinimums[market.id] || quote.rangeMax!==this.rangeMaximums[market.id] || quote.pricingModel!=='demo_geometric_v1' || !Number.isFinite(quote.odds) || quote.odds<1 || quote.odds>100 || Math.abs(quote.odds*100-Math.round(quote.odds*100))>0.000001) { this.quoteError='Could not verify demo odds. Please retry.'; return; }
+        if (quote.marketId!==market.id || quote.rangeMin!==this.rangeMinimums[market.id] || quote.rangeMax!==this.rangeMaximums[market.id] || quote.pricingModel!=='demo_normal_v2' || !Number.isFinite(quote.odds) || quote.odds<1 || quote.odds>10 || Math.abs(quote.odds*100-Math.round(quote.odds*100))>0.000001) { this.quoteError='Could not verify demo odds. Please retry.'; return; }
         this.rangeQuote=quote;
       },
       error: error => { if (generation!==this.quoteGeneration) return; this.quoteLoading=false; if (identity===this.quoteKey(market)) this.quoteError=apiError(error,'Could not calculate demo odds. Please retry.'); }

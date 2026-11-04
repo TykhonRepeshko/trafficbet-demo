@@ -1,0 +1,62 @@
+{
+  "id": "caltrans-51-reviewed-v1",
+  "status": "local_reviewed_virtual_credit_test",
+  "sourceFingerprint": "76877e6744222736654b6babf9678d9648444722dfa2f853a0cddc36394997fe",
+  "definition": {
+    "label": "SR-91 Harbor Boulevard - both carriageways",
+    "lineStart": {
+      "x": 0.3,
+      "y": 0.42
+    },
+    "lineEnd": {
+      "x": 0.78,
+      "y": 0.78
+    },
+    "directions": [
+      "A_to_B",
+      "B_to_A"
+    ],
+    "classes": [
+      "car",
+      "van",
+      "bus",
+      "truck",
+      "motorcycle"
+    ],
+    "anchor": "bottom_center",
+    "timeBasis": "capture_utc",
+    "notes": "Count both visible carriageways below the Harbor Boulevard bridge. Exclude the cross street above the bridge, vegetation and adjacent buildings. Each confirmed vehicle counts once at its bottom-centre line crossing. Require readable capture clock, continuous footage and unchanged framing.",
+    "roadRegions": [
+      [
+        {
+          "x": 0.0,
+          "y": 0.57
+        },
+        {
+          "x": 0.62,
+          "y": 0.31
+        },
+        {
+          "x": 0.85,
+          "y": 0.3
+        },
+        {
+          "x": 0.89,
+          "y": 0.38
+        },
+        {
+          "x": 0.9,
+          "y": 0.55
+        },
+        {
+          "x": 0.71,
+          "y": 1.0
+        },
+        {
+          "x": 0.0,
+          "y": 1.0
+        }
+      ]
+    ]
+  }
+}

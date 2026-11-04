@@ -1,6 +1,7 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
+import { uniqueCameraSources } from './camera-sources';
 import { environment } from '../../environments/environment';
 import { LiveRound, RangeQuote, RoundScheduleSettings, RoundScheduleSnapshot } from '../models';
 import { AuditItem, CountingDefinition, CountingPreparation, CountingProfile, CountingReference, CursorPage, ReviewDetail, ReviewQueueItem, RoundReview, SourceHealth } from '../models';
@@ -28,7 +29,7 @@ export class ApiService {
     const params = new HttpParams().set('page', page).set('pageSize', pageSize).set('q', query);
     return this.http.get<UserPage>(`${this.base}/admin/users`, { ...this.credentials, params });
   }
-  listStreams(): Observable<TrafficStream[]> { return this.http.get<TrafficStream[]>(`${this.base}/streams`, this.credentials); }
+  listStreams(): Observable<TrafficStream[]> { return this.http.get<TrafficStream[]>(`${this.base}/streams`, this.credentials).pipe(map(uniqueCameraSources)); }
   getStream(id: number): Observable<TrafficStream> { return this.http.get<TrafficStream>(`${this.base}/streams/${id}`, this.credentials); }
   listMarkets(): Observable<Market[]> { return this.http.get<Market[]>(`${this.base}/admin/markets`, this.credentials); }
   listPublicMarkets(id: number, status = 'open'): Observable<Market[]> {

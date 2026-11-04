@@ -206,3 +206,22 @@ test('design preview drill-down returns the member, amount and outcome on the se
   assert.equal(response.body.items[0].displayName, 'Alex'); assert.equal(response.body.items[0].side, 'over');
   assert.equal(response.body.items[0].marketId, 3);
 });
+
+
+test('design preview Play can request four narrow v2 ranges without contacting a backend', async () => {
+  const {HttpRequest,HttpParams}=await import('@angular/common/http');
+  const {firstValueFrom}=await import('rxjs');
+  const next=()=>{throw new Error('Preview unexpectedly contacted a server');};
+  await firstValueFrom(previewInterceptor(new HttpRequest('POST','/api/auth/login',{email:'user@demo.local'}),next));
+  const before=await firstValueFrom(previewInterceptor(new HttpRequest('GET','/api/me'),next));
+  const response=await firstValueFrom(previewInterceptor(new HttpRequest('GET','/api/bets/range-options',{params:new HttpParams().set('marketId',1)}),next));
+  assert.equal(response.body.options.length,4);
+  for(const option of response.body.options) {
+    assert.ok(option.rangeMax-option.rangeMin<=9);
+    assert.equal(option.pricingModel,'demo_normal_v2');assert.ok(option.odds>=1 && option.odds<=10);
+    const quote=await firstValueFrom(previewInterceptor(new HttpRequest('GET','/api/bets/range-quote',{params:new HttpParams().set('marketId',1).set('from',option.rangeMin).set('to',option.rangeMax)}),next));
+    assert.deepEqual(option,quote.body);
+  }
+  const after=await firstValueFrom(previewInterceptor(new HttpRequest('GET','/api/me'),next));
+  assert.equal(after.body.balanceCredits,before.body.balanceCredits);
+});

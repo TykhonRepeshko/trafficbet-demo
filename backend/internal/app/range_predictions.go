@@ -12,7 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-const rangePricingModel = "demo_geometric_v1"
+const rangePricingModel = "demo_normal_v2"
 
 type RangeQuote struct {
 	MarketID     int64   `json:"marketId"`
@@ -26,21 +26,22 @@ func validCountRange(minimum, maximum int) bool {
 	return minimum >= 0 && maximum >= minimum && maximum <= maxVehicleCount
 }
 
-// This is an explicit simulation rule, NOT an estimate fitted to camera data.
-// A geometric count model uses the round threshold + 0.5 as its mean. The
-// inclusive probability q^min - q^(max+1) is evaluated with stable log/expm1.
-// A 5% model margin and downward rounding set odds; [1,100] caps bound payouts.
-// Very broad ranges therefore approach 1x, rather than generating free profit.
+// Explicit demo pricing: a discretized normal count distribution centred on the
+// published threshold, truncated to the accepted count domain. This is not a
+// camera forecast. A 15% margin, downward rounding and a 10x cap bound returns.
 func quoteCountRange(market Market, minimum, maximum int) (RangeQuote, error) {
 	if !validCountRange(minimum, maximum) || market.Threshold < 0 || market.Threshold > maxVehicleCount {
 		return RangeQuote{}, fmt.Errorf("%w: enter whole-number range bounds from 0 to %d, with From no greater than To", ErrInvalid, maxVehicleCount)
 	}
 	mean := float64(market.Threshold) + 0.5
-	logQ := math.Log1p(-1 / (mean + 1))
-	probability := math.Exp(float64(minimum)*logQ) * -math.Expm1(float64(maximum-minimum+1)*logQ)
-	odds := float64(100)
+	scale := math.Max(3, math.Sqrt(mean)) * math.Sqrt2
+	mass := func(lo, hi float64) float64 {
+		return 0.5 * (math.Erfc((lo-mean)/scale) - math.Erfc((hi-mean)/scale))
+	}
+	probability := mass(float64(minimum)-0.5, float64(maximum)+0.5) / mass(-0.5, float64(maxVehicleCount)+0.5)
+	odds := float64(10)
 	if probability > 0 {
-		odds = math.Max(1, math.Min(100, math.Floor(95/probability)/100))
+		odds = math.Max(1, math.Min(10, math.Floor(85/probability)/100))
 	}
 	return RangeQuote{MarketID: market.ID, RangeMin: minimum, RangeMax: maximum, Odds: odds, PricingModel: rangePricingModel}, nil
 }
@@ -58,25 +59,15 @@ func (s *Store) QuoteRange(ctx context.Context, marketID int64, minimum, maximum
 	return quoteCountRange(market, minimum, maximum)
 }
 
-// rangeOptions offers four ready-made choices that split the pricing model into
-// buckets of roughly equal probability (its quartiles), so each pays similar odds.
+// Four nearby finite bands, each containing at most ten integer counts. Quiet
+// cameras get smaller bands. Custom ranges still cover counts outside these choices.
 func rangeOptions(market Market) ([]RangeQuote, error) {
-	mean := float64(market.Threshold) + 0.5
-	logQ := math.Log1p(-1 / (mean + 1))
-	uppers := make([]int, 0, 4)
-	previous := -1
-	for _, p := range []float64{0.25, 0.5, 0.75} {
-		upper := int(math.Ceil(math.Log1p(-p)/logQ)) - 1
-		if upper <= previous {
-			upper = previous + 1
-		}
-		uppers = append(uppers, upper)
-		previous = upper
-	}
-	uppers = append(uppers, maxVehicleCount)
-	options := make([]RangeQuote, 0, len(uppers))
-	lower := 0
-	for _, upper := range uppers {
+	width := min(10, max(2, (market.Threshold+5)/6))
+	lower := max(0, (market.Threshold/width-2)*width)
+	lower = min(lower, maxVehicleCount-4*width+1)
+	options := make([]RangeQuote, 0, 4)
+	for i := 0; i < 4; i++ {
+		upper := lower + width - 1
 		quote, err := quoteCountRange(market, lower, upper)
 		if err != nil {
 			return nil, err

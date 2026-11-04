@@ -21,8 +21,9 @@ func TestCustomRangePricingAndInclusiveBounds(t *testing.T) {
 		}
 	}
 	quote, _ := quoteCountRange(market, 12, 25)
-	q := 10.5 / 11.5
-	expected := math.Floor(95/(math.Pow(q, 12)-math.Pow(q, 26))) / 100
+	scale := math.Sqrt(10.5) * math.Sqrt2
+	mass := func(lo, hi float64) float64 { return .5 * (math.Erfc((lo-10.5)/scale) - math.Erfc((hi-10.5)/scale)) }
+	expected := math.Max(1, math.Min(10, math.Floor(85/(mass(11.5, 25.5)/mass(-.5, float64(maxVehicleCount)+.5)))/100))
 	if quote.Odds != expected {
 		t.Fatalf("incorrect demo price: %v, want %v", quote.Odds, expected)
 	}
@@ -237,4 +238,40 @@ func TestPostgresRangeHTTPValidationAndSessionPersistence(t *testing.T) {
 	request("GET", path, "", cookie, "", 409)
 	request("POST", "/api/bets", payload, cookie, "range-http-late-intent", 409)
 	request("POST", "/api/bets", payload, cookie, "range-http-stake-intent", 201)
+}
+
+func TestPostgresLegacyRangePayoutSurvivesNewPricing(t *testing.T) {
+	s, ctx := integrationStore(t, true)
+	user := integrationUser(t, s, ctx, "legacy-range@example.org", RoleUser, 1000)
+	stream := integrationStream(t, s, ctx)
+	market := integrationMarket(t, s, ctx, stream.ID)
+	var id int64
+	err := s.pool.QueryRow(ctx, `INSERT INTO bets(user_id,market_id,side,stake_credits,potential_payout_credits,status,idempotency_key,range_min,range_max,range_odds,pricing_model) VALUES($1,$2,'range',100,2000,'pending','legacy-range-intent',12,25,20,'demo_geometric_v1') RETURNING id`, user.ID, market.ID).Scan(&id)
+	if err != nil {
+		t.Fatal("historical v1 terms rejected", err)
+	}
+	if _, err = s.pool.Exec(ctx, `UPDATE users SET balance_credits=900 WHERE id=$1`, user.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.pool.Exec(ctx, `INSERT INTO credit_ledger(user_id,bet_id,market_id,reason,delta_credits,balance_after) VALUES($1,$2,$3,'stake',-100,900)`, user.ID, id, market.ID); err != nil {
+		t.Fatal(err)
+	}
+	endAutomationWindow(t, s, ctx, market.ID, 0)
+	if _, err = s.SettleMarket(ctx, market.ID, 12, verifiedSettlementFixture()); err != nil {
+		t.Fatal(err)
+	}
+	history, err := s.ListBetsForUser(ctx, user.ID)
+	if err != nil || len(history) != 1 || history[0].Status != BetWon || history[0].PotentialPayoutCredits != 2000 || *history[0].PricingModel != "demo_geometric_v1" {
+		t.Fatal("stored legacy payout changed", history, err)
+	}
+	got, _, err := s.GetUserByEmail(ctx, user.Email)
+	if err != nil || got.BalanceCredits != 2900 {
+		t.Fatal("legacy payout repriced", got.BalanceCredits, err)
+	}
+	if _, err = s.pool.Exec(ctx, `UPDATE bets SET pricing_model='demo_normal_v2',range_odds=2,potential_payout_credits=200 WHERE id=$1`, id); err == nil {
+		t.Fatal("accepted terms were mutable")
+	}
+	if _, err = s.pool.Exec(ctx, `INSERT INTO bets(user_id,market_id,side,stake_credits,potential_payout_credits,status,idempotency_key,range_min,range_max,range_odds,pricing_model) VALUES($1,$2,'range',1,11,'pending','invalid-v2-cap',12,25,10.01,'demo_normal_v2')`, user.ID, market.ID); err == nil {
+		t.Fatal("database accepted v2 above 10x")
+	}
 }

@@ -44,9 +44,14 @@ def test_uncertain_positive_count_is_posted_as_invalid_without_vehicle_count():
     )
     coverage = SimpleNamespace(segments=[], evidence=lambda: {})
     worker.finalize_round(
-        camera, {"id": 3, "countingRules": {"profileId": 1}}, result, coverage
+        camera,
+        {"id": 3, "countingRules": {"profileId": 1}},
+        result,
+        coverage,
+        model_name="yolox-m",
     )
     assert len(posted) == 1
     assert posted[0]["outcome"] == "invalid"
     assert "vehicleCount" not in posted[0]
     assert "unclassified_motion_at_line" in posted[0]["reason"]
+    assert posted[0]["evidence"]["model"] == "yolox-m"

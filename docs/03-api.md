@@ -79,12 +79,12 @@ Outbound access requires HTTPS port 443 and exact hosts in `MEDIA_ALLOWED_HOSTS`
 For a custom range, first make an authenticated `GET /bets/range-quote?marketId=1&from=12&to=25`. Both bounds must be whole numbers from 0 through 100,000,000 and `from <= to`; both are inclusive. The response contains `marketId`, `rangeMin`, `rangeMax`, `odds` and `pricingModel`. Submit those terms through `POST /bets`:
 
 ```json
-{ "marketId": 1, "side": "range", "rangeMin": 12, "rangeMax": 25, "quotedOdds": 4.88, "pricingModel": "demo_geometric_v1", "stakeCredits": 100 }
+{ "marketId": 1, "side": "range", "rangeMin": 12, "rangeMax": 25, "quotedOdds": 1.29, "pricingModel": "demo_normal_v2", "stakeCredits": 100 }
 ```
 
 The example odds are illustrative: use the exact quote returned for that round. Go recomputes the quote under the round lock and returns 409 without a debit if odds differ. Range terms are rejected on Over / Under requests. Retries must preserve bounds, quoted odds, model, stake and the idempotency key; accepted retries remain readable after closing/cancellation. Saved bets expose `rangeMin`, `rangeMax`, `rangeOdds` and `pricingModel` in member history and authorized admin lists.
 
-`demo_geometric_v1` is a fixed simulation rule, not an estimate learned from camera traffic. With mean `threshold + 0.5` and `q = mean / (mean + 1)`, inclusive model probability is `q^from - q^(to+1)`. Odds are `clamp(floor(95 / probability) / 100, 1, 100)`, evaluated with stable logarithms; numerical underflow selects the 100× cap. Payout uses the existing integer-hundredths calculation. Quotes are non-cacheable, authenticated reads and never spend credits.
+`demo_normal_v2` is a fixed simulation rule, not an estimate learned from camera traffic. It uses a discrete normal distribution with mean `threshold + 0.5`, standard deviation `max(3, sqrt(mean))`, and truncation to integer counts 0–100000000. Inclusive model probability integrates from `from - 0.5` through `to + 0.5` and divides by the mass of that domain. Odds are `clamp(floor(85 / probability) / 100, 1, 10)`; numerical underflow selects the 10× cap. Payout uses the existing integer-hundredths calculation. Existing accepted bets retain their stored bounds, pricing model and payout. Quotes are non-cacheable, authenticated reads and never spend credits.
 
 The same user/key/body returns the existing prediction without another debit, including after cutoff, settlement or cancellation. Changed parameters with an existing key return `409`. `GET /bets/my` returns only the session user's history.
 
@@ -201,7 +201,7 @@ Enabled by `AUTOMATIC_SETTLEMENT_ENABLED=true` (Docker default). All routes requ
 
 The API watchdog (every 15 s) voids, with refunds, open rounds that will never be counted: rounds published without a calibrated line 30 s after their window ends (`invalid`, `legacy_round`) and versioned rounds with no result 10 minutes after the window ends (`expired`). Manual settlement routes remain available for administrators before a round is resolved.
 
-Public `GET /api/markets/{id}/live` (no sign-in, `no-store`) returns the round's status, window, final `actualCount`/`voidReason` once resolved, and the latest live progress. The play screen maps the frame on screen to capture time through `segments` (HLS media sequence numbers shared by the player and the worker), so the count rises when a vehicle crosses the line in the video the viewer is watching. Signed-in `GET /api/bets/range-options?marketId=N` returns four ready-made ranges that split the `demo_geometric_v1` model into quartiles (similar odds); an exact number is a one-value range quote.
+Public `GET /api/markets/{id}/live` (no sign-in, `no-store`) returns the round's status, window, final `actualCount`/`voidReason` once resolved, and the latest live progress. The play screen maps the frame on screen to capture time through `segments` (HLS media sequence numbers shared by the player and the worker), so the count rises when a vehicle crosses the line in the video the viewer is watching. Signed-in `GET /api/bets/range-options?marketId=N` returns four nearby finite ranges of at most ten counts each, priced by `demo_normal_v2`; an exact number is a one-value range quote.
 
 With `ROUND_STAGGER=true` (Docker default) each camera's counting windows are shifted to one of three phase slots (camera id mod 3, i.e. 20 s apart at the 60 s cadence) so the AI worker never counts every camera at once; windows only ever move later, so entry notice is never shortened.
 

@@ -6,6 +6,7 @@ services:
         WITH_CUDA: "1"
     environment:
       DEVICE: cuda
+      SAMPLE_FPS: ${COUNTER_SAMPLE_FPS:-15}
       NVIDIA_DRIVER_CAPABILITIES: compute,utility
     gpus: all
     mem_limit: 4g

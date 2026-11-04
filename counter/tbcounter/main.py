@@ -19,6 +19,7 @@ from . import detector as detector_mod
 from . import framing, log, pipeline
 from .clock import OverlayClock
 from .source_clocks import source_clock
+from .inference import select_preset
 from .hls import StreamFetcher
 from .rules import Definition, valid_definition
 from .segments import SegmentBuffer
@@ -101,6 +102,7 @@ class LiveJob:
     cam: Camera
     rnd: dict
     session: pipeline.RoundSession
+    model: str = ""
 
 
 class Counter:
@@ -117,7 +119,7 @@ class Counter:
             max_workers=1, thread_name_prefix="calib"
         )
         self.local = threading.local()
-        self.gpu_detector = None
+        self.gpu_detectors = {}
         self.detector_lock = threading.Lock()
         self.inflight: dict[int, Future] = {}
         self.jobs: dict[int, LiveJob] = {}
@@ -126,29 +128,24 @@ class Counter:
         self.stop_event = threading.Event()
         self.last_streams = 0.0
 
-    # ---------- detectors (one per pool thread) ----------
-    def detector(self, threads: int | None = None):
+    # ---------- bounded shared CUDA sessions, or one CPU session per thread ----------
+    def detector(self, threads: int | None = None, model: str | None = None):
+        name = model or self.cfg.model
         if self.cfg.device == "cuda":
-            # Share one bounded CUDA session across processing threads. Five
-            # per-thread models would compete for the laptop's 8 GiB VRAM.
             with self.detector_lock:
-                if self.gpu_detector is None:
-                    self.gpu_detector = detector_mod.build(
-                        self.cfg.model,
-                        self.cfg.models_dir,
-                        self.cfg.detector_threads,
-                        "cuda",
+                if name not in self.gpu_detectors:
+                    self.gpu_detectors[name] = detector_mod.build(
+                        name, self.cfg.models_dir, self.cfg.detector_threads, "cuda"
                     )
-                return self.gpu_detector
-        det = getattr(self.local, "detector", None)
-        if det is None:
-            det = detector_mod.build(
-                self.cfg.model,
-                self.cfg.models_dir,
-                threads or self.cfg.detector_threads,
+                return self.gpu_detectors[name]
+        sessions = getattr(self.local, "detectors", None)
+        if sessions is None:
+            sessions = self.local.detectors = {}
+        if name not in sessions:
+            sessions[name] = detector_mod.build(
+                name, self.cfg.models_dir, threads or self.cfg.detector_threads
             )
-            self.local.detector = det
-        return det
+        return sessions[name]
 
     # ---------- cameras ----------
     def refresh_streams(self) -> None:
@@ -160,13 +157,17 @@ class Counter:
             sid = int(info["id"])
             seen.add(sid)
             cam = self.cameras.get(sid)
-            if cam is not None and cam.info.get("sourceFingerprint") != info.get("sourceFingerprint"):
+            if cam is not None and cam.info.get("sourceFingerprint") != info.get(
+                "sourceFingerprint"
+            ):
                 cam.fetcher.stop()
                 if cam.calibration is not None:
                     cam.calibration.cancel()
                 cam = None
             if cam is None:
-                buffer, clock = SegmentBuffer(self.cfg.buffer_seconds), source_clock(info)
+                buffer, clock = SegmentBuffer(self.cfg.buffer_seconds), source_clock(
+                    info
+                )
                 fetcher = StreamFetcher(
                     sid,
                     self.cfg.api_base + info["mediaPath"],
@@ -263,6 +264,15 @@ class Counter:
                 )
 
     def maybe_probe_coverage(self, cam: Camera) -> None:
+        # A reviewed preset is valid only for this exact approved definition.
+        if cam.profile and getattr(self.cfg, "source_presets", None):
+            rule = Definition.from_json(cam.profile["definition"])
+            preset = select_preset(
+                self.cfg.source_presets, cam.info.get("sourceFingerprint", ""), rule
+            )
+            if preset is not None:
+                cam.coverage = preset.coverage
+                return
         if self.cfg.hybrid_motion:
             # Pixelated continuation needs approach observations even when a
             # quiet calibration sample happens to contain no crossings.
@@ -458,6 +468,13 @@ class Counter:
                             else "line"
                         )
                     )
+                    preset = select_preset(
+                        getattr(self.cfg, "source_presets", {}),
+                        cam.info.get("sourceFingerprint", ""),
+                        rule,
+                    )
+                    if preset is not None:
+                        mode = preset.coverage
                     job = self.jobs[rid] = LiveJob(
                         cam,
                         rnd,
@@ -470,8 +487,11 @@ class Counter:
                             self.cfg.conf_threshold,
                             mode,
                             self.cfg.hybrid_motion,
-                            motion_resolution=getattr(self.cfg,"motion_resolution","legacy"),
+                            motion_resolution=getattr(
+                                self.cfg, "motion_resolution", "legacy"
+                            ),
                         ),
+                        preset.model if preset is not None else self.cfg.model,
                     )
                 fed = [seg.seq for seg in job.session.segments]
                 if [seg.seq for seg in coverage.segments[: len(fed)]] != fed:
@@ -489,7 +509,9 @@ class Counter:
                         self.cfg.conf_threshold,
                         job.session.coverage,
                         self.cfg.hybrid_motion,
-                        motion_resolution=getattr(self.cfg,"motion_resolution","legacy"),
+                        motion_resolution=getattr(
+                            self.cfg, "motion_resolution", "legacy"
+                        ),
                     )
                     fed = []
                 fresh = coverage.segments[len(fed) :]
@@ -516,7 +538,7 @@ class Counter:
         rid = int(job.rnd["id"])
         try:
             # Each advance may run on another pool thread: always use this thread's own detector session.
-            job.session.detector = self.detector()
+            job.session.detector = self.detector(model=job.model or None)
             if job.session.tiled is not None:
                 job.session.tiled.base = job.session.detector
 
@@ -536,7 +558,13 @@ class Counter:
                 publish(job.session.progress())
             if coverage is not None and job.session.complete:
                 self.jobs.pop(rid, None)
-                self.finalize_round(job.cam, job.rnd, job.session.analysis(), coverage)
+                self.finalize_round(
+                    job.cam,
+                    job.rnd,
+                    job.session.analysis(),
+                    coverage,
+                    model_name=job.model or None,
+                )
         except Exception as exc:
             self.jobs.pop(rid, None)
             LOG.exception("round processing failed", round=rid, stream=job.cam.id)
@@ -551,7 +579,12 @@ class Counter:
             self.inflight.pop(rid, None)
 
     def finalize_round(
-        self, cam: Camera, rnd: dict, analysis: pipeline.RoundAnalysis, coverage
+        self,
+        cam: Camera,
+        rnd: dict,
+        analysis: pipeline.RoundAnalysis,
+        coverage,
+        model_name: str | None = None,
     ) -> None:
         rid = int(rnd["id"])
         rules = rnd.get("countingRules") or {}
@@ -561,7 +594,7 @@ class Counter:
             evidence = {
                 "profileId": profile_id,
                 "worker": self.cfg.worker_name,
-                "model": self.cfg.model,
+                "model": model_name or self.cfg.model,
                 "device": getattr(self.cfg, "device", "cpu"),
                 "packages": _packages(),
                 "sampleFps": self.cfg.sample_fps,

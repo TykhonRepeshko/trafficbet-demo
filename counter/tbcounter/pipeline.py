@@ -118,11 +118,12 @@ class RoundSession:
         self.segments: list[Segment] = []
         self.complete = False
         self._last_frame: np.ndarray | None = None
-        self.highlight_frames = deque(maxlen=80)
+        self.highlight_frames = deque(maxlen=320)
         self.last_highlight_at = float("-inf")
+        self.highlighted_tracks: set[int] = set()
 
     def feed(
-        self, seg: Segment, on_frame=None, on_progress=None, progress_every: float = 2.0
+        self, seg: Segment, on_frame=None, on_progress=None, progress_every: float = 1.0
     ) -> None:
         """Process one segment. `on_progress` is called each `progress_every` seconds of footage, so viewers see
         the count rise within the segment rather than once per 8–12 s segment."""
@@ -234,22 +235,41 @@ class RoundSession:
                 for tid, canonical in self.counter.alias.items()
                 if canonical in self.motion.completed
             )
-        if self.start <= t < self.end and t - self.last_highlight_at >= 0.38:
+        counted = {c["trackId"] for c in self.counter.crossings}
+        newly_visible = any(
+            self.counter.alias.get(b.track_id, b.track_id)
+            in counted - self.highlighted_tracks
+            for b in boxes
+        )
+        if self.start <= t < self.end and (
+            t - self.last_highlight_at >= 0.19 or newly_visible
+        ):
             self.last_highlight_at = t
-            counted = {c["trackId"] for c in self.counter.crossings}
             highlights, highlighted_tracks = [], set()
             for box in sorted(boxes, key=lambda b: b.confidence, reverse=True):
                 canonical = self.counter.alias.get(box.track_id, box.track_id)
                 if canonical not in counted or canonical in highlighted_tracks:
                     continue
                 x1, y1, x2, y2 = map(float, box.xyxy)
-                x1, y1 = max(0., min(1., x1 / self.width)), max(0., min(1., y1 / self.height))
-                x2, y2 = max(x1, min(1., x2 / self.width)), max(y1, min(1., y2 / self.height))
+                x1, y1 = max(0.0, min(1.0, x1 / self.width)), max(
+                    0.0, min(1.0, y1 / self.height)
+                )
+                x2, y2 = max(x1, min(1.0, x2 / self.width)), max(
+                    y1, min(1.0, y2 / self.height)
+                )
                 if x2 > x1 and y2 > y1:
                     highlighted_tracks.add(canonical)
-                    highlights.append({"trackId": int(canonical), "x": round(x1,4), "y": round(y1,4),
-                                       "width": round(x2-x1,4), "height": round(y2-y1,4)})
-            self.highlight_frames.append({"at": round(t,3), "boxes": highlights[:40]})
+                    highlights.append(
+                        {
+                            "trackId": int(canonical),
+                            "x": round(x1, 4),
+                            "y": round(y1, 4),
+                            "width": round(x2 - x1, 4),
+                            "height": round(y2 - y1, 4),
+                        }
+                    )
+            self.highlighted_tracks.update(b["trackId"] for b in highlights[:40])
+            self.highlight_frames.append({"at": float(t), "boxes": highlights[:40]})
         if on_frame is not None:
             on_frame(t, bgr, boxes, self.counter)
         self.frames += 1
@@ -264,12 +284,23 @@ class RoundSession:
         (including the one being processed, so players can map the frame on screen)."""
         crossings = self.counter.crossings if self.counter else []
         counted_at = {int(c["trackId"]): c["at"] for c in crossings}
-        frames = [{"at":f["at"], "boxes":[b for b in f["boxes"] if b["trackId"] in counted_at and counted_at[b["trackId"]] <= f["at"]+0.001]} for f in self.highlight_frames]
+        frames = [
+            {
+                "at": f["at"],
+                "boxes": [
+                    b
+                    for b in f["boxes"]
+                    if b["trackId"] in counted_at
+                    and counted_at[b["trackId"]] <= f["at"] + 0.001
+                ],
+            }
+            for f in self.highlight_frames
+        ]
         payload = {
             "vehicleCount": len(crossings),
             "crossings": [
                 {
-                    "at": round(c["at"], 3),
+                    "at": float(c["at"]),
                     "trackId": int(c["trackId"]),
                     "direction": c["direction"],
                     "class": c["class"],
@@ -279,25 +310,58 @@ class RoundSession:
             "segments": [
                 {
                     "seq": s.seq,
-                    "startUtc": round(s.start, 3),
+                    "startUtc": float(s.start),
                     "duration": round(s.duration, 3),
                 }
                 for s in self.segments
                 if s.anchor is not None
             ][-40:],
-            "processedUntil": round(self.processed_until, 3),
+            "processedUntil": float(self.processed_until),
             "highlights": frames,
         }
+
         # Display metadata stays inside the existing 64 KiB progress limit.
         # Keep the newest frames, including empty frames that clear old boxes.
-        while payload["highlights"] and (sum(len(f["boxes"]) for f in payload["highlights"]) > 640
-                                          or len(json.dumps(payload).encode()) > 60000):
-            latest = payload["highlights"][-1]
-            payload["highlights"] = payload["highlights"][::2]
-            if payload["highlights"][-1] is not latest:
-                payload["highlights"].append(latest)
-            if len(payload["highlights"]) <= 2 and len(json.dumps(payload).encode()) > 60000:
-                payload["highlights"] = []
+        def too_large():
+            return (
+                sum(len(f["boxes"]) for f in payload["highlights"]) > 640
+                or len(json.dumps(payload).encode()) > 60000
+            )
+
+        # Protect the first real box of every counted identity. Blindly dropping
+        # every second frame used to erase cars that exited just after crossing.
+        seen, protected = set(), set()
+        for i, frame in enumerate(frames):
+            ids = {b["trackId"] for b in frame["boxes"]}
+            if ids - seen:
+                protected.add(frame["at"])
+            seen.update(ids)
+        while payload["highlights"] and too_large():
+            current = payload["highlights"]
+            reduced = [
+                f
+                for i, f in enumerate(current)
+                if f["at"] in protected or i % 2 == 0 or i == len(current) - 1
+            ]
+            if len(reduced) == len(current):
+                # Preserve an identity's first box; spend the remaining budget
+                # on current positions rather than repeated historical boxes.
+                seen = set()
+                reduced = []
+                for i, frame in enumerate(current):
+                    boxes = [
+                        b
+                        for b in frame["boxes"]
+                        if b["trackId"] not in seen or i == len(current) - 1
+                    ]
+                    seen.update(b["trackId"] for b in boxes)
+                    reduced.append({"at": frame["at"], "boxes": boxes})
+                payload["highlights"] = reduced
+                if too_large():
+                    # Pathological payloads still respect the public API limit.
+                    payload["highlights"] = []
+                break
+            payload["highlights"] = reduced
         return payload
 
     def analysis(self) -> RoundAnalysis:

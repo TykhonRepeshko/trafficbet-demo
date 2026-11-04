@@ -1,4 +1,4 @@
-"""Install the six reviewed views and reversibly archive the previous catalog.
+"""Install the reviewed views and reversibly archive the previous catalog.
 
 Run from this prepared checkout after scripts/start.ps1 -Local. The default is
 a dry run; --apply uses audited admin APIs. Existing source settings, counting
@@ -22,10 +22,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--apply', action='store_true')
     args = parser.parse_args()
-    cameras = json.loads((ROOT / 'docs/reviewed-cameras-20261103.json').read_text(encoding='utf-8'))
-    assert len(cameras) == 6 and len({c['streamUrl'] for c in cameras}) == 6
+    cameras = json.loads((ROOT / 'docs/reviewed-cameras.json').read_text(encoding='utf-8'))
+    assert cameras and len({c['streamUrl'] for c in cameras}) == len(cameras)
     assert all(c['isActive'] and c['streamUrl'].startswith('https://wzmedia.dot.ca.gov/D12/') for c in cameras)
     previous_urls = {c['streamUrl'] for c in json.loads((ROOT / 'backend/internal/app/camera_catalog.json').read_text(encoding='utf-8'))}
+    # This earlier reviewed source was turned toward a road sign and archived.
+    previous_urls.add('https://wzmedia.dot.ca.gov/D12/SB405NOMacarthur.stream/playlist.m3u8')
     new_urls = {c['streamUrl'] for c in cameras}
     settings = dict(line.split('=', 1) for line in (ROOT / '.env').read_text(encoding='utf-8-sig').splitlines() if '=' in line and not line.startswith('#'))
     client = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
@@ -57,7 +59,7 @@ def main():
             print(json.dumps({'dryRun': True, 'newViews': [c['title'] for c in cameras], 'archiveIds': sorted(s['id'] for s in old if s['isActive']), 'openRoundsToRefund': sum(m['status'] == 'open' for m in markets)}))
             return
 
-        receipt_dir = ROOT / '.tools/camera-activation-20261103'
+        receipt_dir = ROOT / '.tools/camera-activation'
         receipt_dir.mkdir(exist_ok=True)
         stamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
         (receipt_dir / f'before-{stamp}.json').write_text(json.dumps({'streams': before, 'schedules': schedules, 'oldMarkets': markets}, ensure_ascii=False, indent=2), encoding='utf-8')

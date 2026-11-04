@@ -1,173 +1,172 @@
-# Reviewed camera replacement — 3 November 2026
+# Reviewed local cameras — 4 November 2026
 
-The prepared local database now has six active Caltrans views. The previous
-six cameras are temporarily archived, including the former Bay Bridge view.
-Their records, source settings, schedules, counting profiles and completed
-round history remain attached to their original IDs. Pending rounds were
-voided through the admin API, which refunds pending stakes transactionally.
+The prepared database has six active, distinct Caltrans sources. Camera 046
+(MacArthur Boulevard) is temporarily archived because the operator turned it
+toward an information sign. Its records and history are preserved, together
+with the previously archived cameras 38–42 and 44. Open 046 rounds were voided
+through the audited admin API. No accepted prediction terms were repriced.
 
-| Local ID | View | City |
-| --- | --- | --- |
-| 45 | SR-57 · Ball Road | Anaheim |
-| 46 | I-405 · MacArthur Boulevard | Santa Ana |
-| 47 | SR-57 · SR-22 | Orange |
-| 48 | SR-91 · SR-55 | Anaheim |
-| 49 | I-405 · Jamboree Road | Irvine |
-| 50 | SR-241 · Santiago Canyon | Silverado |
+| Local ID | View | Profile / version | Scope |
+| --- | --- | --- | --- |
+| 45 | SR-57 · Ball Road | 24 / 1 | Both carriageways |
+| 47 | SR-57 · SR-22 | 34 / 6 | Right-hand region only |
+| 48 | SR-91 · SR-55 | 27 / 2 | Both carriageways |
+| 49 | I-405 · Jamboree Road | 36 / 2 | Both carriageways, corrected mask |
+| 50 | SR-241 · Santiago Canyon | 31 / 1 | Both carriageways |
+| 51 | SR-91 · Harbor Boulevard | 35 / 1 | Main carriageways below the bridge |
 
-Open `http://localhost:4200/`. **Cameras** is shown only in the admin desktop
-and mobile navigation; regular users use the Play screen. Admins can open
-`http://localhost:4200/streams` for the directory.
+Source metadata and attribution live in `reviewed-cameras.json`. Public camera
+lists also suppress repeated source fingerprints or provider-page URLs, while
+admin records retain their original IDs. The active database catalog has no
+repeated source URLs or fingerprints. Regular users have no Cameras navigation
+tab; public camera detail pages remain available for watching the live counter.
 
-Automatic counting is configured for the six sources. Each has a separate
-operator-approved reference, line and road polygon(s), with both directions and
-all vehicle classes enabled. The local CUDA worker uses YOLOX-S at 5 sample
-frames/second, without the hybrid privacy-mosaic motion mode. Automatic line
-replacement is disabled to preserve this reviewed geometry. Prediction windows
-last 30 seconds with a 30-second closing gap and a one-minute cadence.
+## Counting and display
 
-Source clock crops are bound to exact source fingerprints in
-`counter/tbcounter/source_clocks.py`. Unknown or changed sources use fresh clock
-discovery. Clock, coverage, tracking confirmation and framing gates still apply;
-a doubtful interval is refunded. These settings are for the requested local
-virtual-credit test, not a measured or certified counting-accuracy claim.
+Camera 047 uses a lower horizontal line from (0.55, 0.58) to (1.00, 0.58),
+confined to the existing right-hand road polygon. The left motorway is filtered
+out before tracking. Moving the line down to y=0.67 was rejected: cars entering
+above that line would never cross it. The reviewed y=0.58 sample counted 22
+crossings over 107.7 seconds, with no left-side tracks or weak crossings.
+Published rounds keep the profile frozen when they opened.
 
-## Repeat the local import
+Camera 051 excludes the crossing street above the Harbor Boulevard bridge.
+Its timestamp crop is bound to its exact source fingerprint. The worker's
+coverage comparison selected wider detection for this view (7 crossings versus
+5 with line-only detection in its probe). Candidate SR-73 and SR-241 views were
+not registered after night glare or clock failures appeared during review.
 
-The reviewed definitions, attribution and source links are stored in
-`reviewed-cameras-20261103.json`. The original bootstrap catalog is unchanged:
-this is an explicit, reviewed update to an existing installation, not a startup
-operation that silently replaces operator settings.
+The local CUDA worker uses YOLOX-S at 15 sampled frames/second, with
+six processors. Automatic calibration and hybrid motion remain disabled.
+Thirty-second counting windows retain a 30-second entry safety gap and a
+one-minute cadence. Upstream HLS segments and capture-clock verification still
+introduce source delay; UI polling cannot remove that delay.
 
-Start the prepared application, then run:
+Public counters are visible without placing a stake. Worker progress and viewer
+polling now update every second. Filled green rectangles are sampled about every
+0.2–0.25 seconds, and a newly counted identity forces an immediate box even between
+regular samples. Packing protects its first visible box instead of blindly
+removing every other frame. Display metadata stays within 320 frames, 640 boxes
+and the existing 64 KiB storage limit. Green means the confirmed vehicle crossed
+the frozen line; vehicles approaching the line do not yet receive that mark.
+Uncounted, stale and future boxes remain hidden. Manual pauses remain respected.
+
+These checks establish functionality, not a manually labelled accuracy score
+for every visible vehicle. Night glare and occlusion remain limitations. Capture
+clock, continuous coverage, tracking and framing gates remain enabled; uncertain
+rounds refund stakes rather than manufacturing a verified count. Quiet night
+windows can remain unverified when independent evidence cannot support zero.
+
+## Prediction ranges
+
+Four finite nearby ranges now contain at most ten integer counts each; quiet
+cameras use smaller bands. At reference 80 the choices are 60–69, 70–79, 80–89
+and 90–99. Custom ranges and exact counts remain available. The versioned demo
+rule `demo_normal_v2` uses a truncated discrete normal distribution, a 15% model
+margin, downward rounding and a 1×–10× return cap. Local Over/Under schedules
+now publish 1.70×. References continue following recent successful AI counts.
+
+Migration 019 accepts both historical `demo_geometric_v1` predictions (their
+original cap and stored payout) and new capped v2 predictions. Immutable accepted
+terms and server quote checks remain in force. All 75 pre-update predictions
+had identical immutable-term hashes after restart; ledger discrepancies were zero.
+
+## Repeat the catalog import
 
 ```powershell
 python scripts/import-reviewed-cameras.py          # Show the plan
-python scripts/import-reviewed-cameras.py --apply  # Apply via audited admin APIs
+python scripts/import-reviewed-cameras.py --apply  # Audited import/archive
 ```
 
-The script uses the existing local admin credential privately from `.env`,
-matches source URLs to avoid duplicate records, refuses unexpected active
-sources and refuses to overwrite modified source settings. It preserves old
-schedule settings so the normal admin restore action remains available.
-Snapshots and result receipts are saved under the ignored
-`.tools/camera-activation-20261103/` directory. Import does not enable rounds.
+Existing settings are checked before reuse. Camera availability does not approve
+new geometry or enable new schedules. Reference images, reviewed profiles and
+runtime receipts belong to this prepared database. Preserve `.env` together
+with `.local-data`; start with `scripts/start.ps1 -Local` and stop with
+`scripts/stop-local.ps1`.
 
-## Verification
+## Validation and cleanup
 
-- All five sources decoded 1280×720 H.264 frames through the application's
-  scoped media gateway; all five HLS sequences advanced and thumbnails loaded.
-- All six archived sources returned HTTP 404 from the public media gateway.
-- Old camera metadata, saved schedule settings and completed round history
-  were compared before and after the update.
-- Go unit tests: 216 passed; isolated PostgreSQL tests: 92 passed; Angular
-  regressions: 179 passed. Go vet, production/preview builds and Compose syntax
-  checks passed. The isolated container smoke suite was not rerun.
-- A consistent private database backup was saved before the change under
-  `.local-data/backups/`; its ledger check found no mismatches.
+The current checks passed: 223 Go unit tests, 95 isolated PostgreSQL
+integration tests, 195 Angular regressions, Go vet, production and design
+preview builds, Compose syntax, and 154 counter tests (one optional test skipped).
+The legacy payout test verifies that a stored 20× v1 prediction still pays its
+original return, while v2 values above 10× are rejected. Live test receipts,
+per-camera results and the accounting audit are under the ignored
+`.tools/camera-review-20261104/` directory.
 
-The source operator can interrupt a stream. The earlier 15-minute qualification
-observed periodic HTTP 403 responses that required reopening the public HLS
-master. Successful playback is separate from approved counting accuracy.
+Cleanup removed 1,530.7 MiB: the unused full PostgreSQL installation, old build
+binaries, an accidental duplicate Go cache, and old camera-search media. The
+active PostgreSQL runtime, saved database, private backups, models, source code
+and labelled datasets were retained. The catalog was consolidated into one
+current JSON file rather than retaining duplicate dated copies.
 
-## Counting activation verification
 
-The final live check completed at 21:42 Prague time on 3 November 2026.
-All five cameras had accepting rounds and successful automatic counts on their
-new profiles. On a separate test account, every camera completed winning and
-losing predictions; uncertain and interrupted rounds refunded correctly. All
-32 test bets completed (8 won, 8 lost, 16 void); no test bets remained pending.
-Balance/ledger totals matched and a fresh sign-in preserved the balance.
+The final live test completed 12 predictions on a separate test account: four
+won, four lost and four refunded; none remained pending. Balance/ledger totals
+matched, and idempotent retries after settlement did not debit again. Every
+counted track ID in the post-restart live audit had green display metadata;
+camera 047 had zero boxes on the excluded left side. Camera 051 completed
+verified live rounds, including counts 4, 6, 2 and 10; some other windows still
+refunded for weak tracking. Cameras 049/050 remained problematic in night footage,
+with frequent unverified zero results. These are retained as an explicit limit,
+not reported as successful counting.
 
-The counter's 30 targeted tests passed, including different reference/live
-resolutions, strict JSON for rejected framing evidence, source-clock isolation
-and HLS master reopening after a segment failure. Five short recorded-source
-replays at 5 fps detected crossings in both directions without weak crossings.
-These are functional checks, not manually labelled counting-accuracy scores.
-Runtime receipts are under `.tools/new-counter-20261103/` (ignored by Git).
-The application and local CUDA worker remain running.
+The browser confirmed live green boxes and a visible public count of 1 on both
+047 (right-only v6 line) and 051, without placing a viewer-account stake. The
+ordinary viewer balance remained 10,041 cr. A transient HLS seek now retains the
+last mapped count/window until mapping returns, preventing an early final-count
+reveal or a premature switch to the next round. Missing video clocks still hide
+boxes; the bounded final-result timeout remains in effect.
 
-## Line review and counted-car highlighting
 
-MacArthur now uses reviewed profile 29 (version 2), with its line and road mask
-extended over the outer lanes. SR-57/SR-22 uses profile 30 (version 3), with an
-upstream line so the far carriageway crosses inside the image. Published rounds
-keep their frozen profiles. SR-241 uses reviewed profile 31 (version 1), with
-both carriageways included and a fingerprint-bound clock crop.
+## Final counting audit and 15 FPS deployment
 
-The placed-prediction player receives bounded, normalized boxes for accepted
-counted track IDs. Green frames follow these cars after their crossing. Their
-timestamps map to the video capture clock, with short interpolation between
-measured boxes. The player replays the start of the counting window and waits
-when analysis is behind; stale, future and uncounted boxes are hidden. The
-worker sends one box per canonical identity even after track stitching. Live
-metadata does not settle a bet: the final quality-gated result still does.
+The final configuration uses 15 FPS and six processors. Six simultaneous
+30-second recorded windows completed in 38.901 seconds, including real decoding,
+tracking and progress-payload construction. The comparison on the same footage
+with the small model everywhere took 21.424 / 33.066 / 41.421 seconds at
+8 / 12 / 15 FPS. These are measured throughput results on this host; initial
+OCR, network delivery and startup are excluded. Source hashes and exact profiles
+are retained in the ignored audit receipts. Most cases are not manually labelled,
+so changes in their counts must not be described as accuracy scores.
 
-Fresh source samples from all six cameras decoded successfully and their
-capture clocks were readable. One-segment GPU replays observed crossings in both
-directions for every view, including the revised lines, with zero rejected weak
-crossings in those samples. SR-241 produced 7 crossings in approximately 7.3
-seconds, compared with 16–33 for the urban sources. Its first complete live
-30-second counts were 21, 23, 18, 31 and 28. These observations establish lower
-traffic in the checked footage, not a fixed future traffic rate.
+Camera 049 now has a line crossing the road rather than following its direction,
+and its mask includes both visible carriageways in Pre-position 1. On a separately
+reviewed two-event night sample, cropped YOLOX-S missed both events. Full-frame
+YOLOX-M at 15 FPS matched both with no extras. A small hand-reviewed sample does
+not certify general accuracy. Confirmed live rounds subsequently counted 3, 1
+and 4 vehicles with the larger model, profile 36/v2 and all quality gates intact.
 
-Full Go/Angular checks, isolated database integration, Go vet, production build
-and Compose syntax passed. Targeted counter tests cover synchronized highlights,
-identity deduplication and payload limits. Source interruptions and weak tracks
-still cause refunds. In particular, the revised SR-57/SR-22 view had repeated
-invalid full rounds during this check; successful short replay is not evidence
-of reliable full-round settlement. Current live receipts are in the ignored
-`.tools/line-review-20261103/` directory; rerun `.tools/final-camera-audit.py`
-against this prepared local database to refresh the camera audit.
+`reviewed-inference-presets.json` contains the non-secret reviewed detector
+setting. To apply it locally, set `COUNTER_SOURCE_PRESETS` to that JSON in `.env`.
+It is bound to the exact source fingerprint and the canonical hash of the frozen
+counting definition. Editing the source or definition invalidates the preset;
+review it again before reusing the setting. CUDA allows at most two shared model
+sessions. The generic model remains YOLOX-S; only 049 uses YOLOX-M/full-frame.
+The larger model's actual name is recorded in each round's evidence.
 
-The final browser check showed three green vehicle boxes synchronized to the
-SR-241 frame at 13:47:47 source time, with live AI count 3. The same round
-finished with a verified count of 26 and the test range lost correctly. An
-earlier UI round won at 88 vehicles; a doubtful SR-241 round refunded. All
-nine newly placed test bets finished: 3 won, 3 lost and 3 void; balances matched
-and survived a fresh sign-in. The browser was restored to the existing demo
-player account. Per-car text labels were removed to keep small cars visible.
+The CUDA Compose override defaults to 15 FPS when `COUNTER_SAMPLE_FPS` is empty;
+CPU defaults remain unchanged. Set an explicit FPS to override this choice.
+The independent `dev.fps_benchmark` tool can reproduce comparisons using local
+saved media; it does not contact cameras, modify accounts or settle predictions.
 
-## Camera 047: right-hand road and public counter
+The visual marker is now a filled, translucent green rectangle with no outline
+or rounded corners. The browser confirmed it on 049 with public live count 1,
+without signing in or staking. Clock values in live metadata retain their full
+precision: millisecond rounding previously could move a valid crossing onto the
+exclusive end boundary and make the API reject its progress update.
 
-At the user's request, camera 047 now uses profile 33 (version 5). The only road
-polygon lies in the right-hand part of the image. The left motorway is excluded
-before tracking; the line runs from normalized (0.53, 0.60) to (1.00, 0.40).
-Its diagonal placement leaves time for cars entering from the right frame edge
-to establish a confirmed track. The right mask includes the outer visible lanes.
-A fresh 7.7-second source replay counted 13 crossings, with zero left-side tracks
-and zero rejected weak crossings. This is a functional sample, not a manually
-labelled accuracy measurement. The reviewed definition is saved in
-`counter/dev/profiles/caltrans_sr57_sr22_right.json`. Published rounds retain
-the profile that was frozen when they opened.
+The audit also closed public draft-round disclosure, rejected future crossings
+beyond `processedUntil`, serialized progress writes with settlement, and prevented
+recent counts under an older counting profile from setting a new profile's
+reference threshold. Duplicate crossing calculations use a bounded temporal
+search and a cache invalidated on observation. Design preview now implements
+range-options, so its Play form can load the same narrow v2 choices.
 
-The read-only AI counter is now shown without a bet, both in the Play preview
-and on `/streams/47` (and other supported camera pages). It observes the current
-counting window independently of the future round in the prediction form. The
-number and green boxes follow the displayed capture time. It keeps the frozen
-line while that window is shown, moves to the next window, cancels reads when
-switching cameras, and labels missing or stale analysis. It never places a bet
-or changes the viewer's virtual balance. Manual user pauses remain respected.
-
-The source still occasionally omits a segment. Such rounds remain unverified;
-the public counter labels this condition and settlement retains the refund gate.
-Runtime and test receipts for this update are under the ignored
-`.tools/right-road-047-20261103/` directory.
-
-The 047 timestamp crop was narrowed to (y0=0.018, y1=0.070, x0=0.870,
-x1=1.000) to avoid scene content underneath the transparent/red overlay. Six
-real timestamp headers are pinned in `counter/tests/fixtures/caltrans_d12_047/`.
-The tested saved segments became readable with this crop; the source can still
-produce unreadable intervals, which remain subject to the normal verification
-gates. A frozen HTTP-200 HLS playlist now reopens its public master after three
-missed target-duration intervals (at least 30 seconds), without fabricating
-segments or timestamps. Final checks: 191 Angular regressions, 22 targeted
-counter/clock tests and the production frontend build passed. The CUDA counter
-was rebuilt and restarted after draining rounds; all saved camera schedules
-were restored. No browser test placed a new stake in this update.
-
-After deployment, the ordinary viewer account showed the v5 line on the right
-road and a live count increasing from 1 to 21 without placing a prediction. The
-saved browser frame at 14:27:50 camera time contains eight green tracked-car
-boxes, all on the right. This is a synchronized live progress observation, not
-an assertion about the final verified total. Viewer balance stayed 9,971 cr.
+All final checks passed: 223 Go unit tests, 95 isolated PostgreSQL integration
+tests, 195 Angular tests, Go vet, both frontend builds, Compose validation and
+154 counter tests (one optional test skipped). The new live stake scenario again
+completed 12 predictions: 4 won, 4 lost, 4 refunded; idempotency and ledger totals
+matched. Camera 050 still frequently refunds unverified night-zero windows;
+this limitation remains explicit rather than relaxing verification gates.
+Current receipts are in `.tools/project-audit-20261104/`.

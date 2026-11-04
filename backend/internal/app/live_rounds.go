@@ -94,13 +94,13 @@ func validateLiveProgress(input LiveProgressInput, start, end time.Time) error {
 		return invalid("processedUntil is outside the round")
 	}
 	for _, crossing := range input.Crossings {
-		if !finite(crossing.At) || crossing.At < from || crossing.At >= to ||
+		if !finite(crossing.At) || crossing.At < from || crossing.At >= to || crossing.At > input.ProcessedUntil+0.001 ||
 			(crossing.Direction != "A_to_B" && crossing.Direction != "B_to_A") || !validLiveClass(crossing.Class) {
-			return invalid("each crossing needs a time inside the counting window, a direction and a vehicle class")
+			return invalid("each crossing needs a processed time inside the counting window, a direction and a vehicle class")
 		}
 	}
-	if len(input.Highlights) > 80 {
-		return invalid("at most 80 highlight frames are accepted")
+	if len(input.Highlights) > 320 {
+		return invalid("at most 320 highlight frames are accepted")
 	}
 	countedTracks := make(map[int64]float64)
 	for _, crossing := range input.Crossings {
@@ -158,12 +158,18 @@ func validLiveClass(class string) bool {
 // round between just before its window and the automatic settlement deadline.
 // Out-of-order posts never move the progress backwards.
 func (s *Store) RecordLiveProgress(ctx context.Context, marketID int64, input LiveProgressInput, now time.Time) error {
+	// Serialize this display write with final settlement of the same market.
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
 	var status string
 	var start, end time.Time
 	var versioned, resolved bool
-	err := s.pool.QueryRow(ctx, `SELECT m.status,m.window_start,m.window_end,c.profile_id IS NOT NULL,
+	err = tx.QueryRow(ctx, `SELECT m.status,m.window_start,m.window_end,c.profile_id IS NOT NULL,
  EXISTS(SELECT 1 FROM automatic_round_results r WHERE r.market_id=m.id)
- FROM bet_markets m LEFT JOIN round_counting_snapshots c ON c.market_id=m.id WHERE m.id=$1`, marketID).
+ FROM bet_markets m LEFT JOIN round_counting_snapshots c ON c.market_id=m.id WHERE m.id=$1 FOR SHARE OF m`, marketID).
 		Scan(&status, &start, &end, &versioned, &resolved)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
@@ -185,10 +191,13 @@ func (s *Store) RecordLiveProgress(ctx context.Context, marketID int64, input Li
 		return fmt.Errorf("%w: live progress exceeds storage limit", ErrInvalid)
 	}
 	processed := time.Unix(0, int64(input.ProcessedUntil*1e9)).UTC()
-	_, err = s.pool.Exec(ctx, `INSERT INTO round_live_counts(market_id,vehicle_count,progress,processed_until) VALUES($1,$2,$3,$4)
+	_, err = tx.Exec(ctx, `INSERT INTO round_live_counts(market_id,vehicle_count,progress,processed_until) VALUES($1,$2,$3,$4)
  ON CONFLICT (market_id) DO UPDATE SET vehicle_count=EXCLUDED.vehicle_count,progress=EXCLUDED.progress,processed_until=EXCLUDED.processed_until,updated_at=now()
  WHERE round_live_counts.processed_until<=EXCLUDED.processed_until`, marketID, input.VehicleCount, progress, processed)
-	return err
+	if err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 func (s *Store) GetLiveRound(ctx context.Context, marketID int64) (LiveRound, error) {
@@ -200,7 +209,7 @@ func (s *Store) GetLiveRound(ctx context.Context, marketID int64) (LiveRound, er
 	err := s.pool.QueryRow(ctx, `SELECT m.stream_id,m.status,m.threshold,m.window_start,m.window_end,m.actual_count,m.void_reason,
  l.vehicle_count,l.progress,l.processed_until,l.updated_at
  FROM bet_markets m JOIN streams s ON s.id=m.stream_id AND s.retired_at IS NULL
- LEFT JOIN round_live_counts l ON l.market_id=m.id WHERE m.id=$1`, marketID).
+ LEFT JOIN round_live_counts l ON l.market_id=m.id WHERE m.id=$1 AND m.status<>'draft'`, marketID).
 		Scan(&round.StreamID, &round.Status, &round.Threshold, &round.WindowStart, &round.WindowEnd, &round.ActualCount, &voidReason,
 			&count, &progress, &processed, &updated)
 	if errors.Is(err, pgx.ErrNoRows) {

@@ -12,6 +12,7 @@ from __future__ import annotations
 from .evidence import DETECTOR, PIXEL_MOTION, observation_source
 
 import math
+from collections import deque
 import unicodedata
 from dataclasses import dataclass, field
 from typing import Any
@@ -304,6 +305,7 @@ class CrossingCounter:
         self.tracks: dict[int, _TrackState] = {}
         self.alias: dict[int, int] = {}
         self.stitches = 0
+        self._distinct_cache: tuple[list[dict[str, Any]], int] | None = None
 
     def _stitch(self, track_id: int, point: Point, size: float, at: float) -> int:
         """Id whose state a brand-new track continues (itself when nothing fits)."""
@@ -356,6 +358,7 @@ class CrossingCounter:
         at: float,
         source: str | None = None,
     ) -> None:
+        self._distinct_cache = None
         # NumPy float32 coordinates must not promote epoch-second arithmetic to
         # float32 (which would lose whole seconds and break window boundaries).
         x1, y1, x2, y2 = (float(v) for v in xyxy)
@@ -392,7 +395,9 @@ class CrossingCounter:
             state.detector_strong += int(source == DETECTOR)
             state.coarse_strong += int(source == PIXEL_MOTION)
         if source in (DETECTOR, PIXEL_MOTION):
-            state.votes[vehicle_class] = state.votes.get(vehicle_class, 0.0) + confidence
+            state.votes[vehicle_class] = (
+                state.votes.get(vehicle_class, 0.0) + confidence
+            )
         if not state.votes:
             return  # Unclassified motion cannot invent a vehicle identity/class.
         cls = max(state.votes.items(), key=lambda kv: kv[1])[0]
@@ -486,22 +491,29 @@ class CrossingCounter:
         """Counted crossings, merging duplicate tracks of one vehicle (e.g. a body box and a headlight-glare box
         crossing together): same direction, within `duplicate_gap` seconds, one box mostly inside the other.
         """
+        if self._distinct_cache is not None:
+            return self._distinct_cache
         kept: list[dict[str, Any]] = []
+        recent: deque[dict[str, Any]] = deque()
         duplicates = 0
         for c in sorted(
             (s.crossing for s in self.tracks.values() if self._counted(s)),
             key=lambda c: c["at"],
         ):
+            while recent and c["at"] - recent[0]["at"] > self.duplicate_gap:
+                recent.popleft()
             if any(
                 k["direction"] == c["direction"]
                 and abs(k["at"] - c["at"]) <= self.duplicate_gap
                 and self._overlap(k["box"], c["box"]) >= self.duplicate_overlap
-                for k in kept
+                for k in recent
             ):
                 duplicates += 1
                 continue
             kept.append(c)
-        return kept, duplicates
+            recent.append(c)
+        self._distinct_cache = kept, duplicates
+        return self._distinct_cache
 
     @property
     def crossings(self) -> list[dict[str, Any]]:

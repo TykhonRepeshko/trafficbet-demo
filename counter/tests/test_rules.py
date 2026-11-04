@@ -283,3 +283,21 @@ def test_stopped_vehicle_is_not_stitched_to_a_car_beyond_the_line():
     counter.observe(9, "car", 0.8, (470, 470, 530, 530), START + 2.0)
     counter.observe(9, "car", 0.8, (470, 475, 530, 535), START + 2.2)
     assert counter.count == 0 and counter.stitches == 0
+
+
+def test_cached_count_rechecks_late_confirmation_and_returns_independent_events():
+    counter = CrossingCounter(rule(), START, END, 1000, 1000)
+    counter.observe(1, "car", 0.25, (470, 420, 530, 470), START + 1)
+    counter.observe(1, "car", 0.25, (470, 450, 530, 520), START + 1.2)
+    assert counter.count == 0 and counter.rejected == 1
+    counter.observe(1, "car", 0.8, (470, 480, 530, 550), START + 1.4)
+    assert counter.count == 0
+    counter.observe(1, "car", 0.8, (470, 510, 530, 580), START + 1.6)
+    assert counter.count == 1 and counter.rejected == 0
+    before = counter.crossings[0]["at"]
+    counter.crossings[0]["at"] = 0
+    assert counter.crossings[0]["at"] == before
+    # A later independent car must invalidate previously read statistics.
+    counter.observe(2, "car", 0.8, (470, 420, 530, 470), START + 3)
+    counter.observe(2, "car", 0.8, (470, 450, 530, 520), START + 3.2)
+    assert counter.count == 2 and counter.duplicates == 0

@@ -1,0 +1,7 @@
+{
+  "83164430487979bef3ee7acd5f25aefe163fae1b926e82e17db8c3006753e71f": {
+    "model": "yolox-m",
+    "coverage": "full",
+    "definitionHash": "eb51619c20f20dd94103a19ad618452ff877cf0dde8a945985f640f183ac1b34"
+  }
+}

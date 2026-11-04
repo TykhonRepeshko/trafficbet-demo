@@ -62,3 +62,18 @@ test('changing cameras clears old counts and ignores the previous camera respons
 test('a missing previous analysis does not strand a public viewer after a newer round starts', () => {
   const h=harness();try{h.start();h.setLive({...h.live,live:null});h.advance(2000);h.setMarkets([market(2,60_000)]);h.advance(48_000,start/1000+61);assert.equal(h.c.market.id,2);assert.equal(h.c.count,null);assert.match(h.c.statusText,/Waiting for AI/);}finally{h.cleanup();}
 });
+
+
+test('a temporary HLS seek cannot spoil the final count or discard the current green window', () => {
+  const h=harness();try {
+    h.start(); assert.equal(h.c.count,1);
+    h.setLive({...h.live,status:'settled',actualCount:2});h.setMarkets([market(2,60_000)]);
+    h.advance(25_000,null);
+    assert.equal(h.c.market.id,1);assert.equal(h.c.phase,'counting');assert.equal(h.c.count,1);
+    assert.equal(h.c.displayed,null,'missing clock must still hide green boxes');
+    assert.match(h.c.statusText,/Synchronizing video/);
+    h.advance(4000,null);assert.equal(h.c.market.id,1);assert.equal(h.c.count,1);
+    h.advance(4000,start/1000+31);assert.equal(h.c.phase,'result');assert.equal(h.c.count,2);
+    h.advance(4000);assert.equal(h.c.market.id,2);assert.equal(h.c.phase,'waiting');
+  } finally {h.cleanup();}
+});

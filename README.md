@@ -20,7 +20,7 @@ Built with **Go, Angular 21 and PostgreSQL 16**, packaged as separate Docker Com
 
 For example, a winning **100 cr** prediction at **1.90** returns **190 cr including the stake**. A losing prediction returns zero; cancellation refunds the original 100 cr. Over means strictly greater than the threshold; Under or equal includes equality.
 
-A custom range of **12–25** wins for any verified count from 12 through 25, including both bounds. Go quotes the range using the explicit `demo_geometric_v1` simulation rule: a geometric count distribution with mean `threshold + 0.5`, a 5% model margin, downward odds rounding to two decimals, and a 1×–100× return cap. This is not a probability model fitted to real traffic. Very broad ranges can return only the original stake. The server recomputes and checks the quoted terms before debiting; editing inputs never places a prediction.
+A custom range of **12–25** wins for any verified count from 12 through 25, including both bounds. Go quotes the range using the explicit `demo_normal_v2` simulation rule: a discrete normal distribution centred on `threshold + 0.5`, standard deviation `max(3, sqrt(mean))`, truncated to accepted counts, a 15% model margin, downward rounding, and a 1×–10× return cap. The four ready-made options contain at most ten counts each. This is not a probability model fitted to real traffic. Very broad ranges can return only the original stake. The server recomputes and checks the quoted terms before debiting; editing inputs never places a prediction.
 
 ## Architecture
 
@@ -73,7 +73,7 @@ PostgreSQL and optional retained footage use separate named volumes. Video captu
 
 ### This prepared Windows workspace: native mode
 
-The prepared local camera refresh (six active views, previous cameras temporarily archived) is documented in [reviewed camera replacement](docs/reviewed-camera-replacement.md).
+The prepared local camera refresh (six active views, previous cameras temporarily archived) is documented in [reviewed camera replacement](docs/reviewed-camera-replacement.md). The reviewed CUDA configuration runs at 15 FPS, with an exact-source YOLOX-M/full-frame preset for camera 049; the other views retain YOLOX-S. Counted vehicles use filled green rectangles.
 
 ```powershell
 .\start.cmd
