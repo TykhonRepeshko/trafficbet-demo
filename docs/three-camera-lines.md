@@ -7,6 +7,31 @@ functional measurements before that correction, not manual vehicle truth.
 Coordinates are normalized to the complete video frame, before CSS resizing.
 The user's green marks specify the finite segment and selected carriageway.
 
+## Camera 052 after the later camera pan
+
+The operator changed the Imperial Highway view later on 4 November. Profile
+**42 / v3** replaces the previous 052 line for future rounds, following the user's
+new screenshot: **(0.223, 0.550) → (0.505, 0.674)**, from the median toward the near
+shoulder across the foreground main carriageway. Its road mask was realigned to
+this view and excludes opposing traffic, the far-left loop and the right slip
+road. Detection and road-mask entry still do not count; only a confirmed crossing
+of the finite segment counts once per vehicle.
+
+A fresh 30-second source-clock-qualified replay at 15 FPS decoded all **480/480**
+frames, counted 26 crossings, rejected none and raised no quality problem. Every
+counted identity had display metadata. This is a functional check, not a manual
+accuracy score. The existing finite-segment, no-crossing and recrossing
+regressions pass with the updated profile: **234 tests passed, 1 optional skip**.
+
+The exact new definition hash is rebound to the existing YOLOX-M / full-frame
+preset in `reviewed-inference-presets.json` and the private local configuration.
+The worker was rebuilt/restarted; inference FPS, timing/coverage gates and odds
+settings stay unchanged. Future schedule wording describes the foreground line;
+7,249 previously published round terms and frozen rules were compared unchanged.
+The original geometry below remains the historical record of the earlier view.
+
+## Earlier approved screenshot geometry
+
 | Camera | Approved local profile | Line start → end | Counting scope |
 | --- | --- | --- | --- |
 | 045 · Ball Road | 39 / v2 | (0.260, 0.590) → (0.615, 0.475) | Foreground carriageway, near verge to median |

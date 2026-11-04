@@ -1,16 +1,16 @@
 {
-  "id": "caltrans-sr57-imperial-v2",
+  "id": "caltrans-sr57-imperial-v3",
   "status": "local_reviewed_virtual_credit_test",
   "sourceFingerprint": "567d54468ad2e61c7798e4a034eacb0f8ed9457a2f0ab520be541756c2f09a15",
   "definition": {
-    "label": "SR-57 Imperial Highway - screenshot left main carriageway",
+    "label": "SR-57 Imperial Highway - screenshot foreground carriageway after pan",
     "lineStart": {
-      "x": 0.195,
-      "y": 0.68
+      "x": 0.223,
+      "y": 0.55
     },
     "lineEnd": {
-      "x": 0.57,
-      "y": 0.57
+      "x": 0.505,
+      "y": 0.674
     },
     "directions": [
       "A_to_B",
@@ -25,40 +25,48 @@
     ],
     "anchor": "bottom_center",
     "timeBasis": "capture_utc",
-    "notes": "Count only the finite screenshot line across the left main carriageway, from its left road edge to the central divider. Exclude the right carriageway and the separate far-left ramp and triangular island before tracking. Increment only on a confirmed bottom-centre line crossing in capture UTC; a detection or ROI entry alone never counts. Published round definitions and all capture-clock, coverage, framing and tracking checks remain intact.",
+    "notes": "Camera panned on 4 November 2026. Count only the finite screenshot-aligned line across the foreground main carriageway, from the median to the near shoulder. Exclude opposing traffic beyond the median, the separate far-left loop and the right slip road before tracking. Only a confirmed bottom-centre crossing in capture UTC counts, once per vehicle; detection or road-mask entry alone never counts. Existing published rounds retain their frozen definitions and all timing, coverage, framing and tracking checks.",
     "roadRegions": [
       [
         {
-          "x": 0.28,
-          "y": 0.18
+          "x": 0,
+          "y": 0.765
         },
         {
-          "x": 0.34,
-          "y": 0.18
+          "x": 0.2,
+          "y": 0.6
         },
         {
-          "x": 0.38,
-          "y": 0.3
+          "x": 0.42,
+          "y": 0.475
         },
         {
-          "x": 0.57,
-          "y": 0.57
+          "x": 0.575,
+          "y": 0.395
         },
         {
-          "x": 0.9,
+          "x": 0.63,
+          "y": 0.402
+        },
+        {
+          "x": 0.56,
+          "y": 0.47
+        },
+        {
+          "x": 0.51,
+          "y": 0.56
+        },
+        {
+          "x": 0.46,
+          "y": 0.75
+        },
+        {
+          "x": 0.405,
           "y": 1
         },
         {
-          "x": 0.22,
+          "x": 0,
           "y": 1
-        },
-        {
-          "x": 0.15,
-          "y": 0.62
-        },
-        {
-          "x": 0.18,
-          "y": 0.42
         }
       ]
     ]
