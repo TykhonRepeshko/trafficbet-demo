@@ -1,16 +1,16 @@
 {
-  "id": "caltrans-sr57-imperial-v1",
+  "id": "caltrans-sr57-imperial-v2",
   "status": "local_reviewed_virtual_credit_test",
   "sourceFingerprint": "567d54468ad2e61c7798e4a034eacb0f8ed9457a2f0ab520be541756c2f09a15",
   "definition": {
-    "label": "SR-57 Imperial Highway - main carriageways",
+    "label": "SR-57 Imperial Highway - screenshot left main carriageway",
     "lineStart": {
-      "x": 0.3,
-      "y": 0.7
+      "x": 0.195,
+      "y": 0.68
     },
     "lineEnd": {
-      "x": 1.0,
-      "y": 0.53
+      "x": 0.57,
+      "y": 0.57
     },
     "directions": [
       "A_to_B",
@@ -25,32 +25,40 @@
     ],
     "anchor": "bottom_center",
     "timeBasis": "capture_utc",
-    "notes": "Both main SR-57 carriageways in the reviewed Imperial Highway framing. Exclude the separated left-hand ramp, its triangular island, local streets, trees, sky and verge. Count each confirmed bottom-centre crossing once in capture UTC. Keep capture-clock, framing and tracking quality gates intact.",
+    "notes": "Count only the finite screenshot line across the left main carriageway, from its left road edge to the central divider. Exclude the right carriageway and the separate far-left ramp and triangular island before tracking. Increment only on a confirmed bottom-centre line crossing in capture UTC; a detection or ROI entry alone never counts. Published round definitions and all capture-clock, coverage, framing and tracking checks remain intact.",
     "roadRegions": [
       [
         {
-          "x": 0.32,
+          "x": 0.28,
+          "y": 0.18
+        },
+        {
+          "x": 0.34,
+          "y": 0.18
+        },
+        {
+          "x": 0.38,
+          "y": 0.3
+        },
+        {
+          "x": 0.57,
+          "y": 0.57
+        },
+        {
+          "x": 0.9,
           "y": 1
         },
         {
-          "x": 0.29,
-          "y": 0.46
-        },
-        {
-          "x": 0.43,
-          "y": 0.22
-        },
-        {
-          "x": 0.53,
-          "y": 0.21
-        },
-        {
-          "x": 1,
-          "y": 0.53
-        },
-        {
-          "x": 1,
+          "x": 0.22,
           "y": 1
+        },
+        {
+          "x": 0.15,
+          "y": 0.62
+        },
+        {
+          "x": 0.18,
+          "y": 0.42
         }
       ]
     ]

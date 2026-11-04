@@ -301,3 +301,58 @@ def test_cached_count_rechecks_late_confirmation_and_returns_independent_events(
     counter.observe(2, "car", 0.8, (470, 420, 530, 470), START + 3)
     counter.observe(2, "car", 0.8, (470, 450, 530, 520), START + 3.2)
     assert counter.count == 2 and counter.duplicates == 0
+
+
+def test_screenshot_profiles_count_only_their_finite_line_segments():
+    import json
+    import math
+    from dataclasses import replace
+    from pathlib import Path
+
+    from tbcounter.rules import in_road_regions
+
+    profiles = Path(__file__).parents[1] / "dev/profiles"
+    cases = [
+        ("caltrans_sr57_ball.json", Point(0.8, 0.38)),
+        ("caltrans_i405_jamboree.json", Point(0.2, 0.3)),
+        ("caltrans_sr57_imperial.json", Point(0.8, 0.6)),
+    ]
+    for filename, excluded in cases:
+        rule = Definition.from_json(
+            json.loads((profiles / filename).read_text())["definition"]
+        )
+        assert valid_definition(rule)
+        assert not in_road_regions(rule.road_regions, excluded), filename
+        a, b = rule.line_start, rule.line_end
+        dx, dy = b.x - a.x, b.y - a.y
+        length = math.hypot(dx, dy)
+        nx, ny = -dy / length * 0.02, dx / length * 0.02
+
+        def point(along, side):
+            return Point(a.x + along * dx + side * nx, a.y + along * dy + side * ny)
+
+        def observe(counter, p, at):
+            x, y = p.x * 1000, p.y * 1000
+            counter.observe(1, "car", 0.9, (x - 8, y - 20, x + 8, y), at, "detector")
+
+        # A confirmed pass counts once, including subsequent recrossing.
+        counter = CrossingCounter(rule, START, END, 1000, 1000)
+        for n, side in enumerate([-1, 1, -1, 1]):
+            observe(counter, point(0.5, side), START + 1 + n * 0.1)
+        assert counter.count == 1, filename
+
+        # Presence inside the road region, without crossing, never counts.
+        counter = CrossingCounter(rule, START, END, 1000, 1000)
+        for n in range(5):
+            observe(counter, point(0.45 + n * 0.02, -1), START + 1 + n * 0.1)
+        assert counter.count == 0, filename
+
+        # Remove the road mask to test the finite segment independently.
+        # Crossing the infinite extension beyond either endpoint must not count.
+        for along in [-0.2, 1.2]:
+            counter = CrossingCounter(
+                replace(rule, road_regions=()), START, END, 1000, 1000
+            )
+            observe(counter, point(along, -1), START + 1)
+            observe(counter, point(along, 1), START + 1.1)
+            assert counter.count == 0, (filename, along)

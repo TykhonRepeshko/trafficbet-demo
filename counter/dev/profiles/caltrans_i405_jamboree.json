@@ -1,16 +1,16 @@
 {
-  "id": "caltrans-i405-jamboree-v2",
+  "id": "caltrans-i405-jamboree-v3",
   "status": "local_reviewed_virtual_credit_test",
   "sourceFingerprint": "83164430487979bef3ee7acd5f25aefe163fae1b926e82e17db8c3006753e71f",
   "definition": {
-    "label": "Reviewed road crossing - camera 49",
+    "label": "I-405 Jamboree - screenshot foreground carriageway",
     "lineStart": {
-      "x": 0.22,
-      "y": 0.38
+      "x": 0.27,
+      "y": 0.44
     },
     "lineEnd": {
-      "x": 0.68,
-      "y": 0.86
+      "x": 0.735,
+      "y": 0.6
     },
     "directions": [
       "A_to_B",
@@ -25,16 +25,16 @@
     ],
     "anchor": "bottom_center",
     "timeBasis": "capture_utc",
-    "notes": "Both I-405 carriageways in the reviewed Pre-position 1 framing. Line crosses traffic instead of following the road. Exclude frontage roads, adjacent buildings and the right-hand pavement. Count each confirmed bottom-centre crossing once. Frozen round definitions and all source-clock and tracking gates stay unchanged.",
+    "notes": "Count only the finite screenshot line across the foreground carriageway in Pre-position 1, from the median to the right verge. Exclude the opposing carriageway, frontage roads, buildings and pavement before tracking. Increment only on a confirmed bottom-centre line crossing in capture UTC; a detection or ROI entry alone never counts. Published round definitions and all capture-clock, coverage, framing and tracking checks remain intact.",
     "roadRegions": [
       [
         {
-          "x": 0.0,
-          "y": 0.46
+          "x": 0,
+          "y": 0.58
         },
         {
-          "x": 0.78,
-          "y": 0.15
+          "x": 0.8,
+          "y": 0.16
         },
         {
           "x": 0.89,
@@ -45,16 +45,16 @@
           "y": 0.26
         },
         {
-          "x": 0.73,
-          "y": 0.59
+          "x": 0.75,
+          "y": 0.61
         },
         {
           "x": 0.34,
-          "y": 1.0
+          "y": 1
         },
         {
-          "x": 0.0,
-          "y": 1.0
+          "x": 0,
+          "y": 1
         }
       ]
     ]

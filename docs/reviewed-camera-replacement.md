@@ -10,12 +10,12 @@ through the audited admin API. No accepted prediction terms were repriced.
 
 | Local ID | View | Profile / version | Scope |
 | --- | --- | --- | --- |
-| 45 | SR-57 · Ball Road | 24 / 1 | Both carriageways |
+| 45 | SR-57 · Ball Road | 39 / 2 | Foreground carriageway, verge to median |
 | 47 | SR-57 · SR-22 | 38 / 7 | Central/right carriageways beyond the median |
 | 48 | SR-91 · SR-55 | 27 / 2 | Both carriageways |
-| 49 | I-405 · Jamboree Road | 36 / 2 | Both carriageways, corrected mask |
+| 49 | I-405 · Jamboree Road | 40 / 3 | Foreground carriageway, median to right verge |
 | 51 | SR-91 · Harbor Boulevard | 35 / 1 | Main carriageways below the bridge |
-| 52 | SR-57 · Imperial Highway | 37 / 1 | Both main carriageways; separated left ramp excluded |
+| 52 | SR-57 · Imperial Highway | 41 / 2 | Left main carriageway only; separated ramp excluded |
 
 Source metadata and attribution live in `reviewed-cameras.json`. Public camera
 lists also suppress repeated source fingerprints or provider-page URLs, while
@@ -24,6 +24,12 @@ repeated source URLs or fingerprints. Regular users have no Cameras navigation
 tab; public camera detail pages remain available for watching the live counter.
 
 ## Counting and display
+
+The latest [three-camera line review](three-camera-lines.md) aligns 045, 049 and
+052 with the user's screenshots. Each counts only crossings of its finite line;
+road-mask entry and crossings beyond the endpoints do not count. The table above
+shows the current profiles; the earlier validation records below retain the
+geometry and model settings used at their respective audit times.
 
 Camera 047 now uses the screenshot-aligned horizontal line from (0.36, 0.55)
 to (1.00, 0.55), across the central/right carriageways beyond the median. Its
@@ -173,6 +179,10 @@ Current receipts are in `.tools/project-audit-20261104/`.
 
 
 ## Camera 050 night replacement
+
+This section records the original replacement with profile 37/v1. The current
+052 geometry is profile 41/v2, selecting only the left main carriageway; see
+[the screenshot line review](three-camera-lines.md).
 
 Santiago Canyon produced 17 consecutive completed night windows with unverified
 zero counts. A fresh 18.1-second recording still produced zero with both YOLOX-S

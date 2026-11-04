@@ -3,7 +3,9 @@
 Serving version `1.4.0-exp.8`, 4 November 2026. This follows the
 [half-second pulse change](counting-pulse-and-recall.md). The subsequent
 [047 line and range update](line-047-and-ranges.md) changes that camera
-geometry; the recorded counts below retain their original frozen definitions.
+geometry. The later [three-camera screenshot update](three-camera-lines.md)
+changes 045, 049 and 052; the recorded counts below retain their original frozen
+definitions.
 
 ## Result and counting changes
 

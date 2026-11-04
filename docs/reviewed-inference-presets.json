@@ -2,7 +2,7 @@
   "2d981602b1bff72d02635febad20d39c2e7661f4e43cb05587acf78b1bc46526": {
     "model": "yolox-s",
     "coverage": "line",
-    "definitionHash": "7ca0d8cf3f4730e8e4f82f95450255c9b6cba7e991819be7751b94e457ccf1be"
+    "definitionHash": "dc66f14c4ce93befc40e0a6ddf7d6af27032ec135ce15f67d3e374f7152b9f0e"
   },
   "78650ba85c8da7b4e1a64c0532c2e47f08a7d9c1d31d1860f5e58d3b470cbd44": {
     "model": "yolox-m",
@@ -17,7 +17,7 @@
   "83164430487979bef3ee7acd5f25aefe163fae1b926e82e17db8c3006753e71f": {
     "model": "yolox-m",
     "coverage": "full",
-    "definitionHash": "eb51619c20f20dd94103a19ad618452ff877cf0dde8a945985f640f183ac1b34"
+    "definitionHash": "a01ecc7cbbec77663b009f9e562deb222e61beda389fb884ebc58f1ef6aca3eb"
   },
   "76877e6744222736654b6babf9678d9648444722dfa2f853a0cddc36394997fe": {
     "model": "yolox-s",
@@ -27,6 +27,6 @@
   "567d54468ad2e61c7798e4a034eacb0f8ed9457a2f0ab520be541756c2f09a15": {
     "model": "yolox-m",
     "coverage": "full",
-    "definitionHash": "4ab02d3314439d53ff3931a521f1871cc244b5d6e3ecd7fb86f18a40e374c865"
+    "definitionHash": "353fcdcefe9b1558c77fbe76da1eaf8aa2c9d0cf6aa3e9ad27b33dcb218b0407"
   }
 }
