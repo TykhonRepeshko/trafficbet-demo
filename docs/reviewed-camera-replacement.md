@@ -30,6 +30,8 @@ The latest [three-camera line review](three-camera-lines.md) aligns 045, 049 and
 road-mask entry and crossings beyond the endpoints do not count. The table above
 shows the current profiles; the earlier validation records below retain the
 geometry and model settings used at their respective audit times.
+The [manual screenshot-line audit](manual-three-camera-counting.md) records the
+subsequent fragment-counting fixes and 174 reviewed vehicle passages.
 
 Camera 047 now uses the screenshot-aligned horizontal line from (0.36, 0.55)
 to (1.00, 0.55), across the central/right carriageways beyond the median. Its

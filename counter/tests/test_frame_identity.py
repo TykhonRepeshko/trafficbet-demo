@@ -217,3 +217,64 @@ def test_real_observations_flow_through_the_live_counter_and_half_second_overlay
     for frame in payload['highlights']:
         for box in frame['boxes']:
             assert crossings[box['trackId']]<=frame['at']<crossings[box['trackId']]+.5
+
+
+@pytest.mark.parametrize("camera", [45, 52])
+def test_real_screenshot_fragments_count_physical_vehicles_once(camera):
+    from tbcounter.pipeline import RoundSession
+    from tbcounter.quality import counting_problem
+
+    data = json.loads(Path(__file__).with_name("fixtures").joinpath(f"fragment-{camera}.json").read_text())
+    counter = CrossingCounter(Definition.from_json(data["definition"]), BASE, BASE + 30,
+                              data["width"], data["height"])
+    for frame in data["frames"]:
+        at = BASE + frame["at"]
+        counter.begin_frame(at, [t["id"] for t in frame["tracks"]])
+        for t in frame["tracks"]:
+            history = [(BASE + at, label, score, tuple(box), origin)
+                       for at, label, score, box, origin in (t.get("history") or [])]
+            counter.observe(t["id"], t["class"], t["confidence"], tuple(t["box"]), at,
+                            "detector", history)
+    assert counter.count == data["expectedPhysicalCount"]
+    assert counter.duplicates == 1 and counter.rejected == 0
+    session = RoundSession(None, counter.rule, BASE, BASE + 30, 15, .3)
+    session.counter = counter
+    assert counting_problem(session.analysis()) is None
+    assert all(set(event) == {"trackId", "class", "direction", "at"}
+               for event in counter.crossings)
+
+
+def test_partly_overlapping_cars_in_adjacent_lanes_remain_two_vehicles():
+    counter = CrossingCounter(RULE, BASE, BASE + 30, 1000, 1000)
+    for n in range(6):
+        y = 460 + n * 20
+        observe_frame(counter, 1 + n * .1, [
+            (1, "car", .9, (400, y - 70, 500, y)),
+            (2, "car", .9, (450, y - 70, 550, y)),
+        ])
+    assert counter.count == 2 and counter.duplicates == 0
+
+
+def test_weak_fragment_of_a_confirmed_car_does_not_refund_the_round():
+    counter = CrossingCounter(RULE, BASE, BASE + 30, 1000, 1000)
+    for n in range(6):
+        y = 460 + n * 20
+        observe_frame(counter, 1 + n * .1, [
+            (1, "car", .9, (470, y - 60, 530, y)),
+            (2, "car", .25, (468, y - 62, 532, y)),
+        ])
+    assert counter.count == 1 and counter.rejected == 0
+    # A separate weak crossing still prevents verified settlement.
+    observe_frame(counter, 2, [(3, "car", .25, (700, 410, 760, 470))])
+    observe_frame(counter, 2.1, [(3, "car", .25, (700, 470, 760, 530))])
+    assert counter.count == 1 and counter.rejected == 1
+
+
+def test_measured_fragment_histories_are_bounded_after_a_crossing():
+    counter = CrossingCounter(RULE, BASE, BASE + 30, 1000, 1000)
+    for n in range(200):
+        y = 460 + min(n * 20, 300)
+        observe_frame(counter, 1 + n * .1, [(1, "car", .9, (470, y - 60, 530, y))])
+    state = counter.tracks[1]
+    assert len(state.measured_bodies) <= 32
+    assert max(at for at, _ in state.measured_bodies) <= state.crossing["at"] + .25

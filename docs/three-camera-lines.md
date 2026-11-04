@@ -1,6 +1,9 @@
 # Screenshot lines for cameras 045, 049 and 052
 
-Reviewed on 4 November 2026; serving worker `1.4.0-exp.8`.
+Reviewed on 4 November 2026; original geometry deployment `1.4.0-exp.8`.
+The later [manual counting check](manual-three-camera-counting.md) finds and fixes
+extra IDs on 045 and 052 in `1.4.0-exp.9`. The original replay totals below are
+functional measurements before that correction, not manual vehicle truth.
 Coordinates are normalized to the complete video frame, before CSS resizing.
 The user's green marks specify the finite segment and selected carriageway.
 

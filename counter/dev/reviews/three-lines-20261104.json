@@ -1,0 +1,1452 @@
+{
+  "method": "Raw source line-band sheets at 4 FPS, with whole-frame adjudication. First-pass notes were corrected by following the same physical vehicles across adjacent frames and excluding passes beyond line endpoints. Differences against AI were examined; this is not a blind holdout or general accuracy certification. Times bracket bottom-centre line passage with visual sampling uncertainty.",
+  "cases": [
+    {
+      "cameraId": 45,
+      "startUtc": 1793806561.46,
+      "endUtc": 1793806591.46,
+      "sourceFingerprint": "2d981602b1bff72d02635febad20d39c2e7661f4e43cb05587acf78b1bc46526",
+      "definition": {
+        "label": "SR-57 Ball Road - screenshot foreground carriageway",
+        "lineStart": {
+          "x": 0.26,
+          "y": 0.59
+        },
+        "lineEnd": {
+          "x": 0.615,
+          "y": 0.475
+        },
+        "directions": [
+          "A_to_B",
+          "B_to_A"
+        ],
+        "classes": [
+          "car",
+          "van",
+          "bus",
+          "truck",
+          "motorcycle"
+        ],
+        "anchor": "bottom_center",
+        "timeBasis": "capture_utc",
+        "notes": "Count only the finite screenshot line on the foreground carriageway, from the near verge to the median. Opposing traffic beyond the median and the foreground crossing street are excluded before tracking. Increment only on a confirmed bottom-centre line crossing in capture UTC; a detection or ROI entry alone never counts. Published round definitions and all capture-clock, coverage, framing and tracking checks remain intact.",
+        "roadRegions": [
+          [
+            {
+              "x": 0.16,
+              "y": 0.28
+            },
+            {
+              "x": 0.24,
+              "y": 0.27
+            },
+            {
+              "x": 0.62,
+              "y": 0.46
+            },
+            {
+              "x": 1,
+              "y": 0.65
+            },
+            {
+              "x": 1,
+              "y": 1
+            },
+            {
+              "x": 0.45,
+              "y": 1
+            },
+            {
+              "x": 0.26,
+              "y": 0.59
+            },
+            {
+              "x": 0.2,
+              "y": 0.48
+            }
+          ]
+        ]
+      },
+      "sourceSha256": [
+        "3b94d8e4390b88eda08bee1ef5ba1e01e0b4a208c37304223153c4e91e3e9c47",
+        "9758fb7ea390a15ae71b928d3586f48508e1f3899bae8b4e15e87e2a449d05de",
+        "2df148474b81662ce7b5c07294af0d0017d6ad6b35f872d831c40046701d845d",
+        "ace0cfaf655d3b91656c6b0f1ed5dc9f3df1dd27ef0b9400ccbdcfd9fd65b371",
+        "636a4afd2c78a9823c53eaffd122cf173f8f898fab313beb4e47185bdce994f8",
+        "000f8015e6ff84b78db7221acf8ecd3a741f1d26e9368eea3f6ec21b1ea27b46"
+      ],
+      "manualEvents": [
+        {
+          "id": "045-01",
+          "earliest": 0.1,
+          "latest": 0.4,
+          "direction": "A_to_B",
+          "note": "white semi"
+        },
+        {
+          "id": "045-02",
+          "earliest": 0.9,
+          "latest": 1.45,
+          "direction": "A_to_B",
+          "note": "dark median sedan"
+        },
+        {
+          "id": "045-03",
+          "earliest": 2.1,
+          "latest": 2.6,
+          "direction": "A_to_B",
+          "note": "white median SUV"
+        },
+        {
+          "id": "045-04",
+          "earliest": 2.1,
+          "latest": 2.6,
+          "direction": "A_to_B",
+          "note": "dark SUV beside white"
+        },
+        {
+          "id": "045-05",
+          "earliest": 2.1,
+          "latest": 2.6,
+          "direction": "A_to_B",
+          "note": "silver SUV beside dark"
+        },
+        {
+          "id": "045-06",
+          "earliest": 2.5,
+          "latest": 2.95,
+          "direction": "A_to_B",
+          "note": "blue hatch"
+        },
+        {
+          "id": "045-07",
+          "earliest": 3.0,
+          "latest": 3.4,
+          "direction": "A_to_B",
+          "note": "dark middle SUV"
+        },
+        {
+          "id": "045-08",
+          "earliest": 3.3,
+          "latest": 3.7,
+          "direction": "A_to_B",
+          "note": "white wagon"
+        },
+        {
+          "id": "045-09",
+          "earliest": 3.4,
+          "latest": 3.8,
+          "direction": "A_to_B",
+          "note": "blue SUV"
+        },
+        {
+          "id": "045-10",
+          "earliest": 4.05,
+          "latest": 4.5,
+          "direction": "A_to_B",
+          "note": "loaded utility pickup"
+        },
+        {
+          "id": "045-11",
+          "earliest": 4.3,
+          "latest": 4.75,
+          "direction": "A_to_B",
+          "note": "dark left pickup"
+        },
+        {
+          "id": "045-12",
+          "earliest": 4.3,
+          "latest": 4.8,
+          "direction": "A_to_B",
+          "note": "grey right SUV"
+        },
+        {
+          "earliest": 4.4,
+          "latest": 4.9,
+          "direction": "A_to_B",
+          "note": "dark sedan behind loaded pickup, separate from grey SUV",
+          "id": "045-13"
+        },
+        {
+          "id": "045-14",
+          "earliest": 4.9,
+          "latest": 5.3,
+          "direction": "A_to_B",
+          "note": "white middle hatch"
+        },
+        {
+          "id": "045-15",
+          "earliest": 5.25,
+          "latest": 5.7,
+          "direction": "A_to_B",
+          "note": "white median sedan"
+        },
+        {
+          "id": "045-16",
+          "earliest": 5.8,
+          "latest": 6.2,
+          "direction": "A_to_B",
+          "note": "white median sedan"
+        },
+        {
+          "id": "045-17",
+          "earliest": 5.8,
+          "latest": 6.2,
+          "direction": "A_to_B",
+          "note": "white crossover beside sedan"
+        },
+        {
+          "id": "045-18",
+          "earliest": 6.0,
+          "latest": 6.45,
+          "direction": "A_to_B",
+          "note": "white Mercedes SUV"
+        },
+        {
+          "id": "045-19",
+          "earliest": 6.7,
+          "latest": 7.1,
+          "direction": "A_to_B",
+          "note": "pale compact left"
+        },
+        {
+          "id": "045-20",
+          "earliest": 7.5,
+          "latest": 7.95,
+          "direction": "A_to_B",
+          "note": "white panel van"
+        },
+        {
+          "id": "045-21",
+          "earliest": 7.6,
+          "latest": 8.05,
+          "direction": "A_to_B",
+          "note": "silver pickup beside van"
+        },
+        {
+          "id": "045-22",
+          "earliest": 7.7,
+          "latest": 8.15,
+          "direction": "A_to_B",
+          "note": "white compact beside pickup"
+        },
+        {
+          "id": "045-23",
+          "earliest": 8.25,
+          "latest": 8.7,
+          "direction": "A_to_B",
+          "note": "dark median SUV"
+        },
+        {
+          "id": "045-24",
+          "earliest": 8.4,
+          "latest": 8.85,
+          "direction": "A_to_B",
+          "note": "white utility pickup"
+        },
+        {
+          "id": "045-25",
+          "earliest": 8.6,
+          "latest": 9.05,
+          "direction": "A_to_B",
+          "note": "white median SUV"
+        },
+        {
+          "id": "045-26",
+          "earliest": 9.2,
+          "latest": 9.7,
+          "direction": "A_to_B",
+          "note": "dark middle SUV"
+        },
+        {
+          "id": "045-27",
+          "earliest": 9.3,
+          "latest": 9.75,
+          "direction": "A_to_B",
+          "note": "white middle compact"
+        },
+        {
+          "id": "045-28",
+          "earliest": 9.55,
+          "latest": 10.0,
+          "direction": "A_to_B",
+          "note": "white right compact"
+        },
+        {
+          "id": "045-29",
+          "earliest": 10.5,
+          "latest": 10.95,
+          "direction": "A_to_B",
+          "note": "grey van"
+        },
+        {
+          "id": "045-30",
+          "earliest": 10.8,
+          "latest": 11.25,
+          "direction": "A_to_B",
+          "note": "white utility truck"
+        },
+        {
+          "id": "045-31",
+          "earliest": 10.95,
+          "latest": 11.4,
+          "direction": "A_to_B",
+          "note": "white middle compact"
+        },
+        {
+          "id": "045-32",
+          "earliest": 11.15,
+          "latest": 11.6,
+          "direction": "A_to_B",
+          "note": "silver median sedan"
+        },
+        {
+          "id": "045-33",
+          "earliest": 12.25,
+          "latest": 12.7,
+          "direction": "A_to_B",
+          "note": "dark median minivan"
+        },
+        {
+          "id": "045-34",
+          "earliest": 13.4,
+          "latest": 13.9,
+          "direction": "A_to_B",
+          "note": "silver median SUV"
+        },
+        {
+          "id": "045-35",
+          "earliest": 14.15,
+          "latest": 14.65,
+          "direction": "A_to_B",
+          "note": "dark median SUV"
+        },
+        {
+          "id": "045-36",
+          "earliest": 14.85,
+          "latest": 15.35,
+          "direction": "A_to_B",
+          "note": "white utility tanker"
+        },
+        {
+          "id": "045-37",
+          "earliest": 15.2,
+          "latest": 15.65,
+          "direction": "A_to_B",
+          "note": "dark left pickup"
+        },
+        {
+          "id": "045-38",
+          "earliest": 15.4,
+          "latest": 15.9,
+          "direction": "A_to_B",
+          "note": "white hatch"
+        },
+        {
+          "id": "045-39",
+          "earliest": 16.05,
+          "latest": 16.55,
+          "direction": "A_to_B",
+          "note": "silver median sedan"
+        },
+        {
+          "id": "045-40",
+          "earliest": 16.25,
+          "latest": 16.75,
+          "direction": "A_to_B",
+          "note": "red crossover"
+        },
+        {
+          "id": "045-41",
+          "earliest": 16.8,
+          "latest": 17.3,
+          "direction": "A_to_B",
+          "note": "dark middle SUV"
+        },
+        {
+          "id": "045-42",
+          "earliest": 17.25,
+          "latest": 17.75,
+          "direction": "A_to_B",
+          "note": "white minivan"
+        },
+        {
+          "id": "045-43",
+          "earliest": 17.7,
+          "latest": 18.2,
+          "direction": "A_to_B",
+          "note": "red median sedan"
+        },
+        {
+          "id": "045-44",
+          "earliest": 18.95,
+          "latest": 19.4,
+          "direction": "A_to_B",
+          "note": "white left SUV"
+        },
+        {
+          "id": "045-45",
+          "earliest": 18.95,
+          "latest": 19.45,
+          "direction": "A_to_B",
+          "note": "white hatch beside SUV"
+        },
+        {
+          "id": "045-46",
+          "earliest": 20.15,
+          "latest": 20.65,
+          "direction": "A_to_B",
+          "note": "dark hatch"
+        },
+        {
+          "id": "045-47",
+          "earliest": 21.95,
+          "latest": 22.4,
+          "direction": "A_to_B",
+          "note": "blue hatch"
+        },
+        {
+          "id": "045-48",
+          "earliest": 21.95,
+          "latest": 22.45,
+          "direction": "A_to_B",
+          "note": "beige pickup"
+        },
+        {
+          "id": "045-49",
+          "earliest": 21.95,
+          "latest": 22.45,
+          "direction": "A_to_B",
+          "note": "dark right SUV"
+        },
+        {
+          "id": "045-50",
+          "earliest": 22.95,
+          "latest": 23.4,
+          "direction": "A_to_B",
+          "note": "white compact"
+        },
+        {
+          "id": "045-51",
+          "earliest": 23.4,
+          "latest": 23.9,
+          "direction": "A_to_B",
+          "note": "silver left SUV"
+        },
+        {
+          "id": "045-52",
+          "earliest": 23.4,
+          "latest": 23.9,
+          "direction": "A_to_B",
+          "note": "dark right hatch"
+        },
+        {
+          "id": "045-53",
+          "earliest": 24.1,
+          "latest": 24.6,
+          "direction": "A_to_B",
+          "note": "grey middle SUV"
+        },
+        {
+          "id": "045-54",
+          "earliest": 25.05,
+          "latest": 25.5,
+          "direction": "A_to_B",
+          "note": "dark van"
+        },
+        {
+          "id": "045-55",
+          "earliest": 25.05,
+          "latest": 25.5,
+          "direction": "A_to_B",
+          "note": "grey Jeep"
+        },
+        {
+          "id": "045-56",
+          "earliest": 26.35,
+          "latest": 26.85,
+          "direction": "A_to_B",
+          "note": "dark minivan"
+        },
+        {
+          "id": "045-57",
+          "earliest": 27.05,
+          "latest": 27.55,
+          "direction": "A_to_B",
+          "note": "red sedan"
+        },
+        {
+          "id": "045-58",
+          "earliest": 27.55,
+          "latest": 28.05,
+          "direction": "A_to_B",
+          "note": "dark SUV"
+        },
+        {
+          "id": "045-59",
+          "earliest": 28.0,
+          "latest": 28.5,
+          "direction": "A_to_B",
+          "note": "white Tesla SUV"
+        }
+      ]
+    },
+    {
+      "cameraId": 49,
+      "startUtc": 1793806559.6835,
+      "endUtc": 1793806589.6835,
+      "sourceFingerprint": "83164430487979bef3ee7acd5f25aefe163fae1b926e82e17db8c3006753e71f",
+      "definition": {
+        "label": "I-405 Jamboree - screenshot foreground carriageway",
+        "lineStart": {
+          "x": 0.27,
+          "y": 0.44
+        },
+        "lineEnd": {
+          "x": 0.735,
+          "y": 0.6
+        },
+        "directions": [
+          "A_to_B",
+          "B_to_A"
+        ],
+        "classes": [
+          "car",
+          "van",
+          "bus",
+          "truck",
+          "motorcycle"
+        ],
+        "anchor": "bottom_center",
+        "timeBasis": "capture_utc",
+        "notes": "Count only the finite screenshot line across the foreground carriageway in Pre-position 1, from the median to the right verge. Exclude the opposing carriageway, frontage roads, buildings and pavement before tracking. Increment only on a confirmed bottom-centre line crossing in capture UTC; a detection or ROI entry alone never counts. Published round definitions and all capture-clock, coverage, framing and tracking checks remain intact.",
+        "roadRegions": [
+          [
+            {
+              "x": 0,
+              "y": 0.58
+            },
+            {
+              "x": 0.8,
+              "y": 0.16
+            },
+            {
+              "x": 0.89,
+              "y": 0.15
+            },
+            {
+              "x": 0.89,
+              "y": 0.26
+            },
+            {
+              "x": 0.75,
+              "y": 0.61
+            },
+            {
+              "x": 0.34,
+              "y": 1
+            },
+            {
+              "x": 0,
+              "y": 1
+            }
+          ]
+        ]
+      },
+      "sourceSha256": [
+        "63fca51dfe63facc813cb2683623b1e0016a3d6f1f8f61ea583e76bc0b003255",
+        "2bee6340822be2647bb58f47a9de360f27e8e9ffa2e82662c024a8a2bfb9d11e",
+        "251819dddfe2c105924361d8d3da4325dbf11e5ee350eff6d86793484b442d95",
+        "fb4cd11bc4cc159be664ec1a1e6040e65686700589233d1229e84b1c7b352dc1",
+        "2f3b2e513ca7340ebfba42d04134c27137406107a9ccb9d8335288ec24a4cc79",
+        "88aa5819d0c81eee89c84a194d0ea0dd1bc5a06c9a2c5a356f89d808177d1f6a",
+        "31d261653f37f20c8047397e57594ae6970956ecaabaad5b43b77403123f1565"
+      ],
+      "manualEvents": [
+        {
+          "id": "049-01",
+          "earliest": 0.0,
+          "latest": 0.4,
+          "direction": "B_to_A",
+          "note": "white pickup"
+        },
+        {
+          "id": "049-02",
+          "earliest": 0.25,
+          "latest": 0.65,
+          "direction": "B_to_A",
+          "note": "white Tesla"
+        },
+        {
+          "id": "049-03",
+          "earliest": 0.65,
+          "latest": 1.05,
+          "direction": "B_to_A",
+          "note": "white old SUV"
+        },
+        {
+          "id": "049-04",
+          "earliest": 0.65,
+          "latest": 1.1,
+          "direction": "B_to_A",
+          "note": "rack pickup right"
+        },
+        {
+          "id": "049-05",
+          "earliest": 2.45,
+          "latest": 2.85,
+          "direction": "B_to_A",
+          "note": "white sedan left"
+        },
+        {
+          "id": "049-06",
+          "earliest": 2.75,
+          "latest": 3.15,
+          "direction": "B_to_A",
+          "note": "white sedan middle"
+        },
+        {
+          "id": "049-08",
+          "earliest": 3.35,
+          "latest": 3.8,
+          "direction": "B_to_A",
+          "note": "dark SUV right"
+        },
+        {
+          "id": "049-09",
+          "earliest": 3.65,
+          "latest": 4.05,
+          "direction": "B_to_A",
+          "note": "white sedan left"
+        },
+        {
+          "id": "049-10",
+          "earliest": 3.75,
+          "latest": 4.15,
+          "direction": "B_to_A",
+          "note": "dark crossover beside sedan"
+        },
+        {
+          "id": "049-11",
+          "earliest": 4.0,
+          "latest": 4.45,
+          "direction": "B_to_A",
+          "note": "black SUV middle"
+        },
+        {
+          "id": "049-12",
+          "earliest": 4.7,
+          "latest": 5.1,
+          "direction": "B_to_A",
+          "note": "white SUV left"
+        },
+        {
+          "id": "049-13",
+          "earliest": 5.2,
+          "latest": 5.6,
+          "direction": "B_to_A",
+          "note": "work pickup middle"
+        },
+        {
+          "id": "049-14",
+          "earliest": 5.25,
+          "latest": 5.6,
+          "direction": "B_to_A",
+          "note": "white SUV right"
+        },
+        {
+          "id": "049-15",
+          "earliest": 5.8,
+          "latest": 6.15,
+          "direction": "B_to_A",
+          "note": "black far right SUV"
+        },
+        {
+          "id": "049-16",
+          "earliest": 6.1,
+          "latest": 6.5,
+          "direction": "B_to_A",
+          "note": "silver middle sedan"
+        },
+        {
+          "id": "049-17",
+          "earliest": 6.2,
+          "latest": 6.6,
+          "direction": "B_to_A",
+          "note": "white middle SUV"
+        },
+        {
+          "id": "049-18",
+          "earliest": 7.65,
+          "latest": 8.05,
+          "direction": "B_to_A",
+          "note": "dark left sedan"
+        },
+        {
+          "id": "049-19",
+          "earliest": 7.9,
+          "latest": 8.3,
+          "direction": "B_to_A",
+          "note": "black far right SUV"
+        },
+        {
+          "id": "049-21",
+          "earliest": 8.3,
+          "latest": 8.7,
+          "direction": "B_to_A",
+          "note": "black middle pickup"
+        },
+        {
+          "id": "049-23",
+          "earliest": 9.5,
+          "latest": 9.9,
+          "direction": "B_to_A",
+          "note": "white utility pickup left"
+        },
+        {
+          "id": "049-25",
+          "earliest": 10.45,
+          "latest": 10.85,
+          "direction": "B_to_A",
+          "note": "dark left sedan"
+        },
+        {
+          "id": "049-28",
+          "earliest": 11.4,
+          "latest": 11.8,
+          "direction": "B_to_A",
+          "note": "maroon right SUV"
+        },
+        {
+          "id": "049-29",
+          "earliest": 11.9,
+          "latest": 12.3,
+          "direction": "B_to_A",
+          "note": "dark left sedan"
+        },
+        {
+          "id": "049-30",
+          "earliest": 12.0,
+          "latest": 12.4,
+          "direction": "B_to_A",
+          "note": "dark middle crossover"
+        },
+        {
+          "id": "049-31",
+          "earliest": 12.4,
+          "latest": 12.8,
+          "direction": "B_to_A",
+          "note": "dark left crossover"
+        },
+        {
+          "id": "049-32",
+          "earliest": 12.8,
+          "latest": 13.2,
+          "direction": "B_to_A",
+          "note": "white hatch left"
+        },
+        {
+          "id": "049-33",
+          "earliest": 13.15,
+          "latest": 13.55,
+          "direction": "B_to_A",
+          "note": "dark wagon left"
+        },
+        {
+          "id": "049-34",
+          "earliest": 13.4,
+          "latest": 13.8,
+          "direction": "B_to_A",
+          "note": "white sedan middle"
+        },
+        {
+          "id": "049-35",
+          "earliest": 13.5,
+          "latest": 13.9,
+          "direction": "B_to_A",
+          "note": "maroon hatch left"
+        },
+        {
+          "id": "049-36",
+          "earliest": 13.8,
+          "latest": 14.2,
+          "direction": "B_to_A",
+          "note": "white SUV left"
+        },
+        {
+          "id": "049-37",
+          "earliest": 14.0,
+          "latest": 14.4,
+          "direction": "B_to_A",
+          "note": "black SUV right"
+        },
+        {
+          "id": "049-38",
+          "earliest": 14.5,
+          "latest": 14.9,
+          "direction": "B_to_A",
+          "note": "grey hatch left"
+        },
+        {
+          "id": "049-39",
+          "earliest": 14.5,
+          "latest": 14.9,
+          "direction": "B_to_A",
+          "note": "white hatch middle"
+        },
+        {
+          "id": "049-40",
+          "earliest": 15.9,
+          "latest": 16.3,
+          "direction": "B_to_A",
+          "note": "white sedan left"
+        },
+        {
+          "id": "049-41",
+          "earliest": 15.9,
+          "latest": 16.3,
+          "direction": "B_to_A",
+          "note": "dark SUV middle"
+        },
+        {
+          "id": "049-42",
+          "earliest": 16.3,
+          "latest": 16.7,
+          "direction": "B_to_A",
+          "note": "white middle car"
+        },
+        {
+          "id": "049-43",
+          "earliest": 16.3,
+          "latest": 16.7,
+          "direction": "B_to_A",
+          "note": "loaded utility pickup right"
+        },
+        {
+          "id": "049-44",
+          "earliest": 17.15,
+          "latest": 17.55,
+          "direction": "B_to_A",
+          "note": "utility box van left"
+        },
+        {
+          "id": "049-45",
+          "earliest": 17.45,
+          "latest": 17.85,
+          "direction": "B_to_A",
+          "note": "dark SUV behind van"
+        },
+        {
+          "id": "049-46",
+          "earliest": 18.3,
+          "latest": 18.7,
+          "direction": "B_to_A",
+          "note": "white SUV middle"
+        },
+        {
+          "id": "049-47",
+          "earliest": 18.85,
+          "latest": 19.25,
+          "direction": "B_to_A",
+          "note": "dark middle crossover"
+        },
+        {
+          "id": "049-48",
+          "earliest": 18.95,
+          "latest": 19.35,
+          "direction": "B_to_A",
+          "note": "white car left"
+        },
+        {
+          "id": "049-49",
+          "earliest": 19.1,
+          "latest": 19.5,
+          "direction": "B_to_A",
+          "note": "dark SUV right"
+        },
+        {
+          "id": "049-50",
+          "earliest": 18.95,
+          "latest": 19.4,
+          "direction": "B_to_A",
+          "note": "white hatch middle right"
+        },
+        {
+          "id": "049-51",
+          "earliest": 19.8,
+          "latest": 20.2,
+          "direction": "B_to_A",
+          "note": "dark car left"
+        },
+        {
+          "id": "049-52",
+          "earliest": 19.85,
+          "latest": 20.25,
+          "direction": "B_to_A",
+          "note": "dark SUV middle"
+        },
+        {
+          "id": "049-53",
+          "earliest": 20.05,
+          "latest": 20.45,
+          "direction": "B_to_A",
+          "note": "red SUV right"
+        },
+        {
+          "id": "049-54",
+          "earliest": 20.15,
+          "latest": 20.55,
+          "direction": "B_to_A",
+          "note": "white SUV left"
+        },
+        {
+          "id": "049-55",
+          "earliest": 20.65,
+          "latest": 21.05,
+          "direction": "B_to_A",
+          "note": "grey SUV middle"
+        },
+        {
+          "id": "049-56",
+          "earliest": 20.9,
+          "latest": 21.3,
+          "direction": "B_to_A",
+          "note": "white SUV left"
+        },
+        {
+          "id": "049-57",
+          "earliest": 21.1,
+          "latest": 21.5,
+          "direction": "B_to_A",
+          "note": "dark SUV middle"
+        },
+        {
+          "id": "049-58",
+          "earliest": 21.2,
+          "latest": 21.6,
+          "direction": "B_to_A",
+          "note": "dark SUV right"
+        },
+        {
+          "id": "049-59",
+          "earliest": 21.95,
+          "latest": 22.35,
+          "direction": "B_to_A",
+          "note": "white SUV middle"
+        },
+        {
+          "id": "049-60",
+          "earliest": 22.3,
+          "latest": 22.7,
+          "direction": "B_to_A",
+          "note": "dark car left"
+        },
+        {
+          "id": "049-61",
+          "earliest": 22.3,
+          "latest": 22.7,
+          "direction": "B_to_A",
+          "note": "white SUV middle"
+        },
+        {
+          "id": "049-62",
+          "earliest": 22.4,
+          "latest": 22.8,
+          "direction": "B_to_A",
+          "note": "black pickup right"
+        },
+        {
+          "id": "049-63",
+          "earliest": 23.1,
+          "latest": 23.5,
+          "direction": "B_to_A",
+          "note": "white sedan left"
+        },
+        {
+          "id": "049-64",
+          "earliest": 23.15,
+          "latest": 23.55,
+          "direction": "B_to_A",
+          "note": "grey SUV right"
+        },
+        {
+          "id": "049-65",
+          "earliest": 24.0,
+          "latest": 24.4,
+          "direction": "B_to_A",
+          "note": "dark sedan middle"
+        },
+        {
+          "id": "049-66",
+          "earliest": 24.4,
+          "latest": 24.8,
+          "direction": "B_to_A",
+          "note": "grey SUV left"
+        },
+        {
+          "id": "049-67",
+          "earliest": 24.65,
+          "latest": 25.05,
+          "direction": "B_to_A",
+          "note": "black pickup left"
+        },
+        {
+          "id": "049-68",
+          "earliest": 24.7,
+          "latest": 25.1,
+          "direction": "B_to_A",
+          "note": "black SUV middle right"
+        },
+        {
+          "id": "049-69",
+          "earliest": 26.2,
+          "latest": 26.6,
+          "direction": "B_to_A",
+          "note": "dark SUV middle"
+        },
+        {
+          "id": "049-70",
+          "earliest": 26.7,
+          "latest": 27.1,
+          "direction": "B_to_A",
+          "note": "dark SUV following"
+        },
+        {
+          "id": "049-71",
+          "earliest": 28.15,
+          "latest": 28.55,
+          "direction": "B_to_A",
+          "note": "dark pickup middle left"
+        },
+        {
+          "id": "049-72",
+          "earliest": 28.25,
+          "latest": 28.65,
+          "direction": "B_to_A",
+          "note": "white sedan middle"
+        },
+        {
+          "id": "049-73",
+          "earliest": 29.5,
+          "latest": 29.9,
+          "direction": "B_to_A",
+          "note": "white SUV middle"
+        },
+        {
+          "id": "049-74",
+          "earliest": 29.65,
+          "latest": 30.0,
+          "direction": "B_to_A",
+          "note": "black pickup middle left"
+        }
+      ]
+    },
+    {
+      "cameraId": 52,
+      "startUtc": 1793806558.4585,
+      "endUtc": 1793806588.4585,
+      "sourceFingerprint": "567d54468ad2e61c7798e4a034eacb0f8ed9457a2f0ab520be541756c2f09a15",
+      "definition": {
+        "label": "SR-57 Imperial Highway - screenshot left main carriageway",
+        "lineStart": {
+          "x": 0.195,
+          "y": 0.68
+        },
+        "lineEnd": {
+          "x": 0.57,
+          "y": 0.57
+        },
+        "directions": [
+          "A_to_B",
+          "B_to_A"
+        ],
+        "classes": [
+          "car",
+          "van",
+          "bus",
+          "truck",
+          "motorcycle"
+        ],
+        "anchor": "bottom_center",
+        "timeBasis": "capture_utc",
+        "notes": "Count only the finite screenshot line across the left main carriageway, from its left road edge to the central divider. Exclude the right carriageway and the separate far-left ramp and triangular island before tracking. Increment only on a confirmed bottom-centre line crossing in capture UTC; a detection or ROI entry alone never counts. Published round definitions and all capture-clock, coverage, framing and tracking checks remain intact.",
+        "roadRegions": [
+          [
+            {
+              "x": 0.28,
+              "y": 0.18
+            },
+            {
+              "x": 0.34,
+              "y": 0.18
+            },
+            {
+              "x": 0.38,
+              "y": 0.3
+            },
+            {
+              "x": 0.57,
+              "y": 0.57
+            },
+            {
+              "x": 0.9,
+              "y": 1
+            },
+            {
+              "x": 0.22,
+              "y": 1
+            },
+            {
+              "x": 0.15,
+              "y": 0.62
+            },
+            {
+              "x": 0.18,
+              "y": 0.42
+            }
+          ]
+        ]
+      },
+      "sourceSha256": [
+        "781f4a189a02d1cc016e49d3a647fc968513847d68a16af665c131c37efe57b4",
+        "851f6ca6abbdba12324e9fd760527caece7258ac1e0651b50e780467558cc32c",
+        "a77463195eb7cce670d6826b0214b9e4216e40eeda39c7a34bcb51e0a16480a4",
+        "4a4011ee262ce97b0fea9998fa304fcdee293f0a736219248329da1ad71bb97e",
+        "f04663cbfd331b947419cfb6fdfaa1106de9a52d12cefd9a0ce4c9617ef24570",
+        "2abe31b74468c7e2d2c26e0acd56bc0777df90a22042e66e7a768a4a463453d4",
+        "74dd3e15d6e9d9837fb8936f451b2b7f1c829ea7ace500222e4381f19665a2ee"
+      ],
+      "manualEvents": [
+        {
+          "id": "052-01",
+          "earliest": 0,
+          "latest": 0.35,
+          "direction": "A_to_B",
+          "note": "white SUV right"
+        },
+        {
+          "id": "052-02",
+          "earliest": 0.45,
+          "latest": 1.05,
+          "direction": "A_to_B",
+          "note": "flatbed pickup"
+        },
+        {
+          "id": "052-03",
+          "earliest": 0.8,
+          "latest": 1.35,
+          "direction": "A_to_B",
+          "note": "white sedan right"
+        },
+        {
+          "id": "052-04",
+          "earliest": 1.05,
+          "latest": 1.6500000000000001,
+          "direction": "A_to_B",
+          "note": "dark SUV right"
+        },
+        {
+          "id": "052-05",
+          "earliest": 1.55,
+          "latest": 2.0999999999999996,
+          "direction": "A_to_B",
+          "note": "white sedan middle"
+        },
+        {
+          "id": "052-06",
+          "earliest": 2.25,
+          "latest": 2.8499999999999996,
+          "direction": "A_to_B",
+          "note": "dark pickup middle"
+        },
+        {
+          "id": "052-07",
+          "earliest": 2.9499999999999997,
+          "latest": 3.5,
+          "direction": "A_to_B",
+          "note": "dark sedan left"
+        },
+        {
+          "id": "052-08",
+          "earliest": 3.3499999999999996,
+          "latest": 3.9,
+          "direction": "A_to_B",
+          "note": "dark SUV middle"
+        },
+        {
+          "id": "052-09",
+          "earliest": 3.4,
+          "latest": 4.0,
+          "direction": "A_to_B",
+          "note": "dark SUV right"
+        },
+        {
+          "id": "052-10",
+          "earliest": 4.75,
+          "latest": 5.3,
+          "direction": "A_to_B",
+          "note": "white sedan right"
+        },
+        {
+          "id": "052-11",
+          "earliest": 6.1,
+          "latest": 6.6499999999999995,
+          "direction": "A_to_B",
+          "note": "dark sedan right"
+        },
+        {
+          "id": "052-12",
+          "earliest": 6.95,
+          "latest": 7.5,
+          "direction": "A_to_B",
+          "note": "silver sedan left"
+        },
+        {
+          "id": "052-13",
+          "earliest": 7.7,
+          "latest": 8.25,
+          "direction": "A_to_B",
+          "note": "dark SUV right"
+        },
+        {
+          "id": "052-14",
+          "earliest": 7.999999999999999,
+          "latest": 8.600000000000001,
+          "direction": "A_to_B",
+          "note": "white sedan right"
+        },
+        {
+          "id": "052-15",
+          "earliest": 8.5,
+          "latest": 9.05,
+          "direction": "A_to_B",
+          "note": "white SUV right"
+        },
+        {
+          "id": "052-16",
+          "earliest": 8.700000000000001,
+          "latest": 9.25,
+          "direction": "A_to_B",
+          "note": "silver SUV left"
+        },
+        {
+          "id": "052-17",
+          "earliest": 9.100000000000001,
+          "latest": 9.65,
+          "direction": "A_to_B",
+          "note": "dark sedan middle"
+        },
+        {
+          "id": "052-18",
+          "earliest": 9.950000000000001,
+          "latest": 10.5,
+          "direction": "A_to_B",
+          "note": "white SUV middle"
+        },
+        {
+          "id": "052-19",
+          "earliest": 10.4,
+          "latest": 10.950000000000001,
+          "direction": "A_to_B",
+          "note": "white sedan left"
+        },
+        {
+          "id": "052-20",
+          "earliest": 10.600000000000001,
+          "latest": 11.200000000000001,
+          "direction": "A_to_B",
+          "note": "white pickup middle"
+        },
+        {
+          "id": "052-21",
+          "earliest": 11.15,
+          "latest": 11.700000000000001,
+          "direction": "A_to_B",
+          "note": "dark SUV left"
+        },
+        {
+          "id": "052-22",
+          "earliest": 11.350000000000001,
+          "latest": 11.950000000000001,
+          "direction": "A_to_B",
+          "note": "dark SUV right"
+        },
+        {
+          "id": "052-23",
+          "earliest": 11.65,
+          "latest": 12.200000000000001,
+          "direction": "A_to_B",
+          "note": "dark SUV far right"
+        },
+        {
+          "id": "052-24",
+          "earliest": 11.9,
+          "latest": 12.450000000000001,
+          "direction": "A_to_B",
+          "note": "white sedan middle"
+        },
+        {
+          "id": "052-25",
+          "earliest": 12.4,
+          "latest": 12.950000000000001,
+          "direction": "A_to_B",
+          "note": "gold SUV middle"
+        },
+        {
+          "id": "052-26",
+          "earliest": 12.9,
+          "latest": 13.450000000000001,
+          "direction": "A_to_B",
+          "note": "dark SUV right"
+        },
+        {
+          "id": "052-27",
+          "earliest": 15.350000000000001,
+          "latest": 15.9,
+          "direction": "A_to_B",
+          "note": "white pickup right"
+        },
+        {
+          "id": "052-28",
+          "earliest": 15.65,
+          "latest": 16.2,
+          "direction": "A_to_B",
+          "note": "dark pickup left"
+        },
+        {
+          "id": "052-29",
+          "earliest": 16.2,
+          "latest": 16.75,
+          "direction": "A_to_B",
+          "note": "dark SUV middle"
+        },
+        {
+          "id": "052-30",
+          "earliest": 16.7,
+          "latest": 17.25,
+          "direction": "A_to_B",
+          "note": "white pickup left"
+        },
+        {
+          "id": "052-31",
+          "earliest": 17.45,
+          "latest": 18.0,
+          "direction": "A_to_B",
+          "note": "dark SUV right"
+        },
+        {
+          "id": "052-32",
+          "earliest": 17.650000000000002,
+          "latest": 18.2,
+          "direction": "A_to_B",
+          "note": "dark pickup middle"
+        },
+        {
+          "id": "052-33",
+          "earliest": 18.5,
+          "latest": 19.05,
+          "direction": "A_to_B",
+          "note": "white sedan middle"
+        },
+        {
+          "id": "052-34",
+          "earliest": 19.150000000000002,
+          "latest": 19.7,
+          "direction": "A_to_B",
+          "note": "white box truck right"
+        },
+        {
+          "id": "052-35",
+          "earliest": 20.1,
+          "latest": 20.650000000000002,
+          "direction": "A_to_B",
+          "note": "white utility van left"
+        },
+        {
+          "id": "052-36",
+          "earliest": 20.25,
+          "latest": 20.8,
+          "direction": "A_to_B",
+          "note": "dark pickup middle right"
+        },
+        {
+          "id": "052-37",
+          "earliest": 20.5,
+          "latest": 21.05,
+          "direction": "A_to_B",
+          "note": "white SUV middle"
+        },
+        {
+          "id": "052-38",
+          "earliest": 21.150000000000002,
+          "latest": 21.7,
+          "direction": "A_to_B",
+          "note": "dark SUV right"
+        },
+        {
+          "id": "052-39",
+          "earliest": 22.2,
+          "latest": 22.75,
+          "direction": "A_to_B",
+          "note": "white SUV right"
+        },
+        {
+          "id": "052-40",
+          "earliest": 22.45,
+          "latest": 22.95,
+          "direction": "A_to_B",
+          "note": "white semi middle"
+        },
+        {
+          "id": "052-41",
+          "earliest": 22.85,
+          "latest": 23.45,
+          "direction": "A_to_B",
+          "note": "white flatbed left"
+        },
+        {
+          "id": "052-42",
+          "earliest": 23.3,
+          "latest": 23.85,
+          "direction": "A_to_B",
+          "note": "white hatch middle"
+        },
+        {
+          "id": "052-43",
+          "earliest": 23.85,
+          "latest": 24.400000000000002,
+          "direction": "A_to_B",
+          "note": "dark sedan left"
+        },
+        {
+          "id": "052-44",
+          "earliest": 24.0,
+          "latest": 24.55,
+          "direction": "A_to_B",
+          "note": "dark pickup right"
+        },
+        {
+          "id": "052-45",
+          "earliest": 26.3,
+          "latest": 26.85,
+          "direction": "A_to_B",
+          "note": "white hatch middle"
+        },
+        {
+          "id": "052-46",
+          "earliest": 28.55,
+          "latest": 29.1,
+          "direction": "A_to_B",
+          "note": "yellow Jeep right"
+        },
+        {
+          "id": "052-47",
+          "earliest": 28.900000000000002,
+          "latest": 29.45,
+          "direction": "A_to_B",
+          "note": "dark SUV middle"
+        }
+      ]
+    }
+  ]
+}

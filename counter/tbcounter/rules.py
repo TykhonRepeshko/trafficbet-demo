@@ -250,6 +250,7 @@ class _TrackState:
     detector_strong: int = 0
     coarse_strong: int = 0
     crossing: dict[str, Any] | None = None
+    crossing_point: Point | None = None
     passage: dict[str, Any] | None = (
         None  # observed pass, including pre-roll, for motion reconciliation only
     )
@@ -262,6 +263,7 @@ class _TrackState:
     stitched: bool = False  # already continued by a newer track id
     initial_footprint: list[Observation] = field(default_factory=list)
     observations: deque[tuple[float, Box]] = field(default_factory=lambda: deque(maxlen=32))
+    measured_bodies: deque[tuple[float, Box]] = field(default_factory=lambda: deque(maxlen=32))
 
 
 class CrossingCounter:
@@ -470,6 +472,13 @@ class CrossingCounter:
             state.initial_footprint.clear()
             return
         box = (x1, y1, x2, y2)
+        if source == DETECTOR and (
+            state.crossing is None or at <= state.crossing["at"] + 0.25
+        ):
+            # These measured boxes passed min_conf, but cannot supply strong
+            # class votes. Use them only for fragment association; independent
+            # strong observations still establish separate vehicles.
+            state.measured_bodies.append((at, box))
         if confidence >= self.strong_conf and source in (DETECTOR, PIXEL_MOTION) and (
             state.crossing is None or at <= state.crossing["at"] + 0.25
         ):
@@ -541,6 +550,11 @@ class CrossingCounter:
                     "at": crossing.at,
                     "box": (x1, y1, x2, y2),
                 }
+                fraction = (crossing.at - state.last_at) / (at - state.last_at)
+                state.crossing_point = Point(
+                    state.last.x + fraction * (point.x - state.last.x),
+                    state.last.y + fraction * (point.y - state.last.y),
+                )
         if state.last is not None and at > state.last_at:
             vx, vy = (point.x - state.last.x) / (at - state.last_at), (
                 point.y - state.last.y
@@ -602,6 +616,41 @@ class CrossingCounter:
         separated = sum(self._overlap(first[at], second[at]) == 0 for at in shared)
         return separated < 2
 
+    def _coincident_passages(self, a: dict, b: dict) -> bool:
+        """Compare actual line intersections when differently timed boxes moved.
+
+        Two overlapping, confirmed fragments can cross at the same road point
+        while their later snapshots no longer overlap. Require supporting
+        simultaneous measured neural boxes; missing evidence cannot merge cars.
+        The separate-vehicle guard in _duplicate_supported still takes priority.
+        """
+        sa, sb = self.tracks[a["trackId"]], self.tracks[b["trackId"]]
+        pa, pb = sa.crossing_point, sb.crossing_point
+        if pa is None or pb is None:
+            return False
+        dx = (self.rule.line_end.x - self.rule.line_start.x) * self.width
+        dy = (self.rule.line_end.y - self.rule.line_start.y) * self.height
+        length = math.hypot(dx, dy)
+        def span(box):
+            return (abs(dx) * (box[2] - box[0]) + abs(dy) * (box[3] - box[1])) / length
+        distance = math.hypot((pa.x - pb.x) * self.width, (pa.y - pb.y) * self.height)
+        if distance > 0.35 * min(span(a["box"]), span(b["box"])):
+            return False
+        lo, hi = min(a["at"], b["at"]) - 0.5, max(a["at"], b["at"]) + 0.25
+        first = {at: box for at, box in sa.measured_bodies if lo <= at <= hi}
+        second = {at: box for at, box in sb.measured_bodies if lo <= at <= hi}
+        return sum(self._overlap(first[at], second[at]) >= 0.3
+                   for at in first.keys() & second.keys()) >= 2
+
+    def _duplicate_crossing(self, a: dict, b: dict) -> bool:
+        return (
+            a["direction"] == b["direction"]
+            and abs(a["at"] - b["at"]) <= self.duplicate_gap
+            and (self._overlap(a["box"], b["box"]) >= self.duplicate_overlap
+                 or self._coincident_passages(a, b))
+            and self._duplicate_supported(a, b)
+        )
+
     def _counted(self, state: _TrackState) -> bool:
         return state.crossing is not None and self._confirmed(state, state.crossing)
 
@@ -646,10 +695,7 @@ class CrossingCounter:
             while recent and c["at"] - recent[0]["at"] > self.duplicate_gap:
                 recent.popleft()
             if any(
-                k["direction"] == c["direction"]
-                and abs(k["at"] - c["at"]) <= self.duplicate_gap
-                and self._overlap(k["box"], c["box"]) >= self.duplicate_overlap
-                and self._duplicate_supported(k, c)
+                self._duplicate_crossing(k, c)
                 for k in recent
             ):
                 duplicates += 1
@@ -669,10 +715,12 @@ class CrossingCounter:
 
     @property
     def rejected(self) -> int:
+        confirmed, _ = self._distinct()
         return sum(
             1
             for s in self.tracks.values()
             if s.crossing is not None and not self._counted(s)
+            and not any(self._duplicate_crossing(c, s.crossing) for c in confirmed)
         )
 
     @property

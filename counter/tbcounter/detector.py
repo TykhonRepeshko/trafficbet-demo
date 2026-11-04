@@ -66,6 +66,34 @@ def nms(boxes: np.ndarray, scores: np.ndarray, iou: float) -> np.ndarray:
     return np.array(keep, np.int64)
 
 
+def complete_tile_detections(boxes, scores, clipped):
+    """Prefer a measured complete body over its contained crop-edge fragment.
+
+    Keep lone edge detections and separate neighbouring cars. A fragment is
+    removed only when a non-clipped, larger detection covers at least 80% of it.
+    Run before NMS so a high-scoring fragment cannot suppress the complete body.
+    """
+    keep = []
+    for i, box in enumerate(boxes):
+        if clipped[i]:
+            area = max(0., box[2] - box[0]) * max(0., box[3] - box[1])
+            supported = False
+            for j, other in enumerate(boxes):
+                if clipped[j] or scores[j] < 0.2:
+                    continue
+                other_area = max(0., other[2] - other[0]) * max(0., other[3] - other[1])
+                intersection = max(0., min(box[2], other[2]) - max(box[0], other[0])) * max(
+                    0., min(box[3], other[3]) - max(box[1], other[1])
+                )
+                if area > 0 and other_area >= area * 1.2 and intersection >= area * 0.8:
+                    supported = True
+                    break
+            if supported:
+                continue
+        keep.append(i)
+    return np.asarray(keep, dtype=np.int64)
+
+
 class YoloxDetector:
     def __init__(
         self,
@@ -288,7 +316,7 @@ class TiledDetector:
         self.name = getattr(base, "name", "detector")
 
     def detect(self, bgr: np.ndarray) -> Detections:
-        boxes, confs, labels, sources = [], [], [], []
+        boxes, confs, labels, sources, clipped = [], [], [], [], []
         tiles = self.tiles + (
             self.secondary if self.frame % self.secondary_every == 0 else []
         )
@@ -296,14 +324,24 @@ class TiledDetector:
         for x0, y0, x1, y1 in tiles:
             out = self.base.detect(bgr[y0:y1, x0:x1])
             if len(out):
-                boxes.append(out.xyxy + np.array([x0, y0, x0, y0], np.float32))
+                global_boxes = out.xyxy + np.array([x0, y0, x0, y0], np.float32)
+                boxes.append(global_boxes)
+                height, width = bgr.shape[:2]
+                clipped.extend(
+                    (x0 > 0 and b[0] <= x0 + 1)
+                    or (y0 > 0 and b[1] <= y0 + 1)
+                    or (x1 < width and b[2] >= x1 - 1)
+                    or (y1 < height and b[3] >= y1 - 1)
+                    for b in global_boxes
+                )
                 confs.append(out.confidence)
                 labels.extend(out.labels)
                 sources.extend(out.source_at(i) for i in range(len(out)))
         if not boxes:
             return Detections.empty()
         xyxy, conf = np.concatenate(boxes), np.concatenate(confs)
-        keep = nms(xyxy, conf, self.nms_iou)
+        complete = complete_tile_detections(xyxy, conf, clipped)
+        keep = complete[nms(xyxy[complete], conf[complete], self.nms_iou)]
         return Detections(
             xyxy[keep],
             conf[keep],

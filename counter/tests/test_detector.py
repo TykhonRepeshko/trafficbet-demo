@@ -35,3 +35,41 @@ def test_tiling_finds_distant_vehicles_full_frame_misses():
     full = sum(det.detect(frame).confidence >= 0.4)
     tiled = sum(TiledDetector(det, grid_tiles(frame.shape[1], frame.shape[0])).detect(frame).confidence >= 0.4)
     assert tiled >= full + 3
+
+
+@pytest.mark.parametrize("boxes,scores,clipped,expected", [
+    ([[90, 40, 100, 90], [85, 40, 115, 90]], [.9, .7], [True, False], [1]),
+    ([[90, 40, 100, 90]], [.9], [True], [0]),
+    ([[90, 40, 100, 90], [98, 40, 128, 90]], [.9, .7], [True, False], [0, 1]),
+    ([[90, 40, 100, 90], [85, 40, 115, 90]], [.9, .7], [True, True], [0, 1]),
+    ([[90, 40, 100, 90], [85, 40, 115, 90]], [.9, .19], [True, False], [0, 1]),
+])
+def test_tile_fragments_require_a_complete_supported_body(boxes, scores, clipped, expected):
+    import numpy as np
+    from tbcounter.detector import complete_tile_detections
+    assert complete_tile_detections(np.array(boxes), np.array(scores), clipped).tolist() == expected
+
+
+def test_tiling_keeps_the_complete_body_even_when_the_fragment_scores_higher():
+    import numpy as np
+    from tbcounter.detector import Detections, TiledDetector
+    class Detector:
+        calls = 0
+        def detect(self, image):
+            self.calls += 1
+            box = [90, 40, 100, 90] if self.calls == 1 else [5, 40, 35, 90]
+            return Detections(np.array([box], np.float32),
+                              np.array([.9 if self.calls == 1 else .7]), ["car"])
+    tiled = TiledDetector(Detector(), [(0, 0, 100, 100), (80, 0, 180, 100)])
+    result = tiled.detect(np.zeros((100, 180, 3), np.uint8))
+    assert result.xyxy.tolist() == [[85, 40, 115, 90]]
+
+
+def test_outer_video_edges_are_not_treated_as_tile_seams():
+    import numpy as np
+    from tbcounter.detector import Detections, TiledDetector
+    class Detector:
+        def detect(self, image):
+            return Detections(np.array([[0, 20, 40, 80]], np.float32), np.array([.9]), ["car"])
+    result = TiledDetector(Detector(), [(0, 0, 100, 100)]).detect(np.zeros((100, 100, 3), np.uint8))
+    assert len(result) == 1 and result.xyxy[0, 0] == 0
