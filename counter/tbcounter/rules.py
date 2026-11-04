@@ -15,7 +15,10 @@ import math
 from collections import deque
 import unicodedata
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Iterable
+
+Box = tuple[float, float, float, float]
+Observation = tuple[float, str, float, Box, str | None]
 
 DIRECTIONS = ("A_to_B", "B_to_A")
 CLASSES = ("car", "van", "bus", "truck", "motorcycle")
@@ -257,6 +260,8 @@ class _TrackState:
     )  # anchor motion, normalised frame units per second
     moves: int = 0  # velocity samples so far
     stitched: bool = False  # already continued by a newer track id
+    initial_footprint: list[Observation] = field(default_factory=list)
+    observations: deque[tuple[float, Box]] = field(default_factory=lambda: deque(maxlen=32))
 
 
 class CrossingCounter:
@@ -305,16 +310,57 @@ class CrossingCounter:
         self.tracks: dict[int, _TrackState] = {}
         self.alias: dict[int, int] = {}
         self.stitches = 0
+        self.footprint_resets = 0
+        self._visible_at: float | None = None
+        self._visible_ids: set[int] = set()
+        self._raw: dict[int, deque] = {}
+        self._raw_truncated: set[int] = set()
+        self._rebuilding = False
+        self.identity_splits = 0
+        self.issues: set[str] = set()
         self._distinct_cache: tuple[list[dict[str, Any]], int] | None = None
+
+    def begin_frame(self, at: float, track_ids: Iterable[int]) -> None:
+        """Declare coexisting IDs and undo a stitch when its original ID returns."""
+        visible = set(track_ids)
+        groups: dict[int, set[int]] = {}
+        for tid in visible:
+            groups.setdefault(self.alias.get(tid, tid), set()).add(tid)
+        for canonical, members in groups.items():
+            if len(members) > 1:
+                self._split_reappearing_ids(canonical)
+        self._visible_at = float(at)
+        self._visible_ids = {self.alias.get(tid, tid) for tid in visible}
+
+    def _split_reappearing_ids(self, canonical: int) -> None:
+        members = {canonical} | {tid for tid, target in self.alias.items() if target == canonical}
+        old = self.tracks.get(canonical)
+        # A correction after a published crossing, or without a complete raw
+        # history, cannot certify a settlement. Keep the existing refund gate.
+        if (old is not None and old.crossing is not None) or members & self._raw_truncated:
+            self.issues.add("conflicting_vehicle_identities")
+        for tid in members:
+            self.alias.pop(tid, None)
+            self.tracks.pop(tid, None)
+        self._rebuilding = True
+        try:
+            for tid in members:
+                for at, label, score, box, source, history in self._raw.get(tid, ()):
+                    self._observe(tid, label, score, box, at, source, history)
+        finally:
+            self._rebuilding = False
+        self.identity_splits += 1
+        self._distinct_cache = None
 
     def _stitch(self, track_id: int, point: Point, size: float, at: float) -> int:
         """Id whose state a brand-new track continues (itself when nothing fits)."""
-        if self.stitch_gap <= 0:
+        if self._rebuilding or self.stitch_gap <= 0:
             return track_id
         best, best_distance = None, None
         for tid, state in self.tracks.items():
             if (
                 state.stitched
+                or (at == self._visible_at and tid in self._visible_ids)
                 or state.crossing is not None
                 or state.last is None
                 or not 0 < at - state.last_at <= self.stitch_gap
@@ -357,7 +403,27 @@ class CrossingCounter:
         xyxy: tuple[float, float, float, float],
         at: float,
         source: str | None = None,
-        history: list[tuple[float, str, float, tuple[float, float, float, float], str | None]] | None = None,
+        history: list[Observation] | None = None,
+    ) -> None:
+        rows = self._raw.setdefault(track_id, deque(maxlen=96))
+        row = (float(at), vehicle_class, float(confidence), tuple(map(float, xyxy)), source, history)
+        if rows and rows[-1][0] == float(at):
+            rows[-1] = row
+        else:
+            if len(rows) == rows.maxlen:
+                self._raw_truncated.add(track_id)
+            rows.append(row)
+        self._observe(track_id, vehicle_class, confidence, xyxy, at, source, history)
+
+    def _observe(
+        self,
+        track_id: int,
+        vehicle_class: str,
+        confidence: float,
+        xyxy: tuple[float, float, float, float],
+        at: float,
+        source: str | None = None,
+        history: list[Observation] | None = None,
     ) -> None:
         self._distinct_cache = None
         # NumPy float32 coordinates must not promote epoch-second arithmetic to
@@ -399,14 +465,22 @@ class CrossingCounter:
             )
             if hidden_crossing:
                 for observed_at, label, score, box, origin in measured[:-1]:
-                    self.observe(track_id, label, score, box, observed_at, origin)
+                    self._observe(track_id, label, score, box, observed_at, origin)
         if confidence < self.min_conf:
+            state.initial_footprint.clear()
             return
+        box = (x1, y1, x2, y2)
+        if confidence >= self.strong_conf and source in (DETECTOR, PIXEL_MOTION) and (
+            state.crossing is None or at <= state.crossing["at"] + 0.25
+        ):
+            state.observations.append((at, box))
         area = max(x2 - x1, 1.0) * max(y2 - y1, 1.0)
         if state.areas:
             recent = sorted(state.areas[-5:])[len(state.areas[-5:]) // 2]
             if area > recent * self.max_area_jump or area * self.max_area_jump < recent:
-                return  # a box that suddenly balloons or collapses is not the same vehicle's footprint
+                self._recover_initial_footprint(track_id, state, (at, vehicle_class, confidence, box, source))
+                return
+        state.initial_footprint.clear()
         state.areas.append(area)
         state.size = self._diag_fraction(x2 - x1, y2 - y1)
         if confidence >= self.strong_conf and source in (DETECTOR, PIXEL_MOTION):
@@ -479,6 +553,55 @@ class CrossingCounter:
             state.moves += 1
         state.last, state.last_at, state.stitched = point, at, False
 
+    @staticmethod
+    def _iou(a: Box, b: Box) -> float:
+        intersection = max(0.0, min(a[2], b[2]) - max(a[0], b[0])) * max(
+            0.0, min(a[3], b[3]) - max(a[1], b[1])
+        )
+        union = (a[2]-a[0])*(a[3]-a[1]) + (b[2]-b[0])*(b[3]-b[1]) - intersection
+        return intersection / union if union > 0 else 0.0
+
+    def _recover_initial_footprint(self, track_id: int, state: _TrackState, row: Observation) -> None:
+        """Replace a bad initial patch only after three consistent strong neural boxes.
+
+        Drop the old anchor entirely: a footprint change itself cannot cross the
+        line. Established tracks and tracks with an observed passage keep their
+        original area gate and identity, including an already counted vehicle.
+        """
+        at, label, confidence, box, source = row
+        pending = state.initial_footprint
+        if len(state.areas) > 2 or state.passage is not None or state.crossing is not None or (
+            confidence < self.strong_conf or source != DETECTOR
+        ):
+            pending.clear()
+            return
+        if pending and (not 0 < at - pending[-1][0] <= 0.25 or self._iou(box, pending[-1][3]) < 0.5):
+            pending.clear()
+        pending.append(row)
+        if len(pending) < 3:
+            return
+        measured = list(pending)
+        self.tracks[track_id] = _TrackState()
+        self.footprint_resets += 1
+        for observed_at, vehicle_class, score, measured_box, origin in measured:
+            self._observe(track_id, vehicle_class, score, measured_box, observed_at, origin)
+
+    def _duplicate_supported(self, a: dict, b: dict) -> bool:
+        """Keep the geometric duplicate guard unless strong frames prove two vehicles.
+
+        Body and glare boxes may be offset and fragmented. Missing simultaneous
+        evidence must not turn those into extra cars. Conversely, two disjoint
+        strong boxes in multiple shared frames cannot be one physical vehicle.
+        """
+        if a["class"] != b["class"] and "vehicle" not in (a["class"], b["class"]):
+            return False
+        lo, hi = min(a["at"], b["at"]) - 0.5, max(a["at"], b["at"]) + 0.25
+        first = {at: box for at, box in self.tracks[a["trackId"]].observations if lo <= at <= hi}
+        second = {at: box for at, box in self.tracks[b["trackId"]].observations if lo <= at <= hi}
+        shared = first.keys() & second.keys()
+        separated = sum(self._overlap(first[at], second[at]) == 0 for at in shared)
+        return separated < 2
+
     def _counted(self, state: _TrackState) -> bool:
         return state.crossing is not None and self._confirmed(state, state.crossing)
 
@@ -508,7 +631,8 @@ class CrossingCounter:
 
     def _distinct(self) -> tuple[list[dict[str, Any]], int]:
         """Counted crossings, merging duplicate tracks of one vehicle (e.g. a body box and a headlight-glare box
-        crossing together): same direction, within `duplicate_gap` seconds, one box mostly inside the other.
+        crossing together): same class/direction, within `duplicate_gap` seconds,
+        unless simultaneous strong observations establish separate vehicles.
         """
         if self._distinct_cache is not None:
             return self._distinct_cache
@@ -525,6 +649,7 @@ class CrossingCounter:
                 k["direction"] == c["direction"]
                 and abs(k["at"] - c["at"]) <= self.duplicate_gap
                 and self._overlap(k["box"], c["box"]) >= self.duplicate_overlap
+                and self._duplicate_supported(k, c)
                 for k in recent
             ):
                 duplicates += 1

@@ -94,8 +94,10 @@ their first observation. The full 30-second window fits the 320-frame buffer,
 with at most 640 boxes and the existing 64 KiB API limit. Only confirmed counted
 identities are green, only during `[crossing.at, crossing.at + 0.5)` in capture time.
 Pre-ID neural measurements can recover a crossing hidden during ByteTrack ID
-confirmation; established stitched trajectories are never rewound. See
-`docs/counting-pulse-and-recall.md` for the controlled comparison and known miss.
+confirmation. Reappearing IDs that contradict a stitch are rebuilt separately;
+late or incomplete repairs cannot certify settlement. See
+`docs/counting-identity-audit.md` for the recovered remaining 052 miss,
+identity repair, duplicate checks and current limitations.
 This does not certify detection of every vehicle at night.
 See `docs/reviewed-camera-replacement.md` in the repository for current geometry,
 source limitations and local validation receipts.

@@ -1,6 +1,8 @@
 # Counted-vehicle pulse and missed-crossing follow-up
 
-Local serving version: `1.4.0-exp.7`, 4 November 2026.
+Historical follow-up: `1.4.0-exp.7`, 4 November 2026.
+The current [identity audit](counting-identity-audit.md) describes `1.4.0-exp.8`,
+which resolves the remaining reviewed 052 miss and adds multi-camera checks.
 
 ## Half-second display
 
@@ -58,8 +60,9 @@ algorithm differences confirmed two additional approaching cars at about
 9.85 and 17.34 seconds, making 17 actual crossings. This is adjudication after
 seeing differences, not an independent held-out accuracy score. The serving
 fix recovers the 9.85-second car without dropping any previous event. The
-17.34-second car remains missed; resolving that identity-stitching case needs
-more validation. Fresh samples are differential regression checks, without a
+17.34-second car remained missed in that version. The later
+[identity-stitching fix](counting-identity-audit.md) recovers it and matches
+all 17 adjudicated events in this recording. Fresh samples are differential regression checks, without a
 complete manual label set. These small samples do not certify every vehicle or
 all cameras under all lighting and occlusion conditions.
 

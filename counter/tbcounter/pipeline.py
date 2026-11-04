@@ -224,6 +224,7 @@ class RoundSession:
             )
         if self.motion is not None:
             boxes = self.motion.update(bgr, boxes, t)
+        self.counter.begin_frame(t, (box.track_id for box in boxes))
         for box in boxes:
             self.counter.observe(
                 box.track_id,
@@ -401,7 +402,7 @@ class RoundSession:
             duplicates=c.duplicates if c else 0,
             coverage=self.coverage,
             motion=self.motion.evidence() if self.motion else {},
-            quality_issues=sorted(self.motion.issues) if self.motion else [],
+            quality_issues=sorted((self.motion.issues if self.motion else set()) | (getattr(c, "issues", set()) if c else set())),
             timings={
                 "totalSeconds": round(self.busy_time, 3),
                 "detectSeconds": round(self.detect_time, 3),
